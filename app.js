@@ -347,179 +347,102 @@ function commDueSoon() {
 
 
 function renderDashboard() {
-  $('nowText').textContent =
-    localNow();
+  $('nowText').textContent = localNow();
 
-  const cur =
-    currentTask();
+  const cur = currentTask();
 
-  $('currentTask').innerHTML =
-    cur
-      ? `
-        <div class="card critical">
+  $('currentTask').innerHTML = cur
+    ? `
+      <div class="card critical">
+        <h2>Current / Resume</h2>
+        ${taskCard(cur)}
+      </div>
+    `
+    : '';
 
-          <h2>
-            Current / Resume
-          </h2>
-
-          ${taskCard(cur)}
-
-        </div>
-      `
-      : '';
-
-  const acts =
-    actionableTasks();
+  const acts = actionableTasks();
 
   $('taskList').innerHTML =
-    acts
-      .map(taskCard)
-      .join('')
-    ||
-    empty(
-      'Nothing urgent right now.'
-    );
+    acts.map(taskCard).join('') ||
+    empty('Nothing urgent right now.');
 
-  const blocked =
-    state.tasks.filter(t =>
-      [
-        'Blocked',
-        'Waiting'
-      ].includes(t.status)
-    );
+  const blocked = state.tasks.filter(t =>
+    ['Blocked', 'Waiting'].includes(t.status)
+  );
 
   $('blockedList').innerHTML =
-    blocked
-      .map(taskCard)
-      .join('')
-    ||
+    blocked.map(taskCard).join('') ||
     empty('None.');
 
-  const week =
-    jobsThisWeek();
+  const jw = jobsThisWeek();
 
   $('weekJobs').innerHTML =
-    week
-      .map(j => `
-        <div class="task">
-
-          <b>
-            ${esc(
-              j.customer_name ||
-              'Unnamed customer'
-            )}
-          </b>
-
-          <div class="meta">
-
-            ${esc(
-              j.property_address ||
-              ''
-            )}
-
-            •
-
-            ${esc(j.stage)}
-
-            • Start
-
-            ${esc(
-              j.confirmed_start_date ||
-              j.target_start_date ||
-              'Not set'
-            )}
-
-          </div>
-
+    jw.map(j => `
+      <div class="task">
+        <b>${esc(j.customer_name || 'Unnamed customer')}</b>
+        <div class="meta">
+          ${esc(j.property_address || '')}
+          • ${esc(j.stage)}
+          • Start ${esc(
+            j.confirmed_start_date ||
+            j.target_start_date ||
+            'Not set'
+          )}
         </div>
-      `)
-      .join('')
-    ||
-    empty(
-      'No jobs entered for this week yet.'
-    );
+      </div>
+    `).join('') ||
+    empty('No jobs entered for this week yet.');
 
-  const comms =
-    commDueSoon();
+  const comms = commDueSoon();
 
   $('commList').innerHTML =
-    comms
-      .map(c => `
-        <div class="task">
-
-          <b>
-            ${esc(c.purpose)}
-          </b>
-
-          <div class="meta">
-
-            Job ${esc(c.job_id || '')}
-
-            •
-
-            ${esc(c.status)}
-
-            • Due
-
-            ${esc(
-              [
-                c.due_date,
-                c.due_time
-              ]
-                .filter(Boolean)
-                .join(' ')
-            )}
-
-          </div>
-
+    comms.map(c => `
+      <div class="task">
+        <b>${esc(c.purpose)}</b>
+        <div class="meta">
+          Job ${esc(c.job_id || '')}
+          • ${esc(c.status)}
+          • Due ${esc(
+            [c.due_date, c.due_time]
+              .filter(Boolean)
+              .join(' ')
+          )}
         </div>
-      `)
-      .join('')
-    ||
-    empty(
-      'No communication due in the next two days.'
-    );
+      </div>
+    `).join('') ||
+    empty('No communication due in the next two days.');
 
-  const today =
-    todayISO();
+  const td = todayISO();
 
-  const isOpen =
-    t =>
-      ![
-        'Completed',
-        'Cancelled',
-        'Skipped'
-      ].includes(t.status);
+  const isOpen = t =>
+    ![
+      'Completed',
+      'Cancelled',
+      'Skipped'
+    ].includes(t.status);
 
   $('kpiCritical').textContent =
     state.tasks.filter(t =>
       isOpen(t) &&
       (
         t.base_priority === 'Critical' ||
-        (
-          t.due_date &&
-          t.due_date < today
-        )
+        (t.due_date && t.due_date < td)
       )
     ).length;
 
   $('kpiDue').textContent =
     state.tasks.filter(t =>
       isOpen(t) &&
-      t.due_date === today
+      t.due_date === td
     ).length;
 
-  $('kpiComms').textContent =
-    comms.length;
-
-  $('kpiWeekJobs').textContent =
-    week.length;
+  $('kpiComms').textContent = comms.length;
+  $('kpiWeekJobs').textContent = jw.length;
 
   renderIncoming();
   renderPhone();
   renderJobs();
 }
-
 
 function renderIncoming() {
   $('incomingList').innerHTML =
