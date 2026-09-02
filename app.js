@@ -11,14 +11,87 @@ function setView(name){document.querySelectorAll('[id^="view-"]').forEach(x=>x.c
 function empty(text){return `<p class="empty">${esc(text)}</p>`}
 function dueStamp(t){return [t.due_date,t.due_time].filter(Boolean).join(' ')}
 function priorityRank(p){return p==='Critical'?3:p==='High'?2:1}
-function taskCard(t){const progress=t.progress_total?` • <b>${esc(t.progress_current||0)} of ${esc(t.progress_total)}</b>`:'';return `<div class="task" data-task-id="${esc(t.id)}"><div class="task-title"><b>${esc(t.task)}</b><span class="badge ${esc(t.base_priority)}">${esc(t.base_priority)}</span></div><div class="meta">${esc(t.status)}${progress}${t.next_action?' • Next: '+esc(t.next_action):''}${dueStamp(t)?' • Due '+esc(dueStamp(t)):''}</div><div class="actions"><button class="btn primary small" data-action="start">Start</button><button class="btn small" data-action="pause">Pause</button><button class="btn small" data-action="resume">Resume</button><button class="btn small" data-action="complete">Complete</button><button class="btn small" data-action="block">Block</button></div></div>`}
-function actionableTasks(){const done=new Set(['Completed','Cancelled']);return state.tasks.filter(t=>!done.has(t.status)&&!['Blocked','Waiting'].includes(t.status)).sort((a,b)=>{if(priorityRank(b.base_priority)!==priorityRank(a.base_priority))return priorityRank(b.base_priority)-priorityRank(a.base_priority);return String(a.due_date||'9999').localeCompare(String(b.due_date||'9999'))})}
+function taskCard(t){
+  const progress=t.progress_total
+    ? ` • <b>${esc(t.progress_current||0)} of ${esc(t.progress_total)}</b>`
+    : '';
+
+  const skip=t.recurring_rule_id
+    ? '<button class="btn small" data-action="skip">Skip</button>'
+    : '';
+
+  return `
+    <div class="task" data-task-id="${esc(t.id)}">
+      <div class="task-title">
+        <b>${esc(t.task)}</b>
+        <span class="badge ${esc(t.base_priority)}">${esc(t.base_priority)}</span>
+      </div>
+
+      <div class="meta">
+        ${esc(t.status)}
+        ${progress}
+        ${t.next_action?' • Next: '+esc(t.next_action):''}
+        ${dueStamp(t)?' • Due '+esc(dueStamp(t)):''}
+      </div>
+
+      <div class="actions">
+        <button class="btn primary small" data-action="start">Start</button>
+        <button class="btn small" data-action="pause">Pause</button>
+        <button class="btn small" data-action="resume">Resume</button>
+        <button class="btn small" data-action="complete">Complete</button>
+        ${skip}
+        <button class="btn small" data-action="block">Block</button>
+      </div>
+    </div>
+  `;
+}
+function actionableTasks(){
+  const done=new Set([
+    'Completed',
+    'Cancelled',
+    'Skipped'
+  ]);
+
+  return state.tasks
+    .filter(t =>
+      !done.has(t.status) &&
+      t.status!=='In Progress' &&
+      !['Blocked','Waiting'].includes(t.status)
+    )
+    .sort((a,b)=>{
+      if(priorityRank(b.base_priority)!==priorityRank(a.base_priority)){
+        return priorityRank(b.base_priority)-priorityRank(a.base_priority);
+      }
+
+      return String(a.due_date||'9999')
+        .localeCompare(String(b.due_date||'9999'));
+    });
+}
 function currentTask(){return state.tasks.find(t=>t.status==='In Progress')||null}
 function startOfWeek(){const d=new Date();const day=d.getDay();d.setDate(d.getDate()-day);d.setHours(0,0,0,0);return d}
 function endOfWeek(){const d=startOfWeek();d.setDate(d.getDate()+7);return d}
 function jobsThisWeek(){const s=startOfWeek(),e=endOfWeek();return state.jobs.filter(j=>{const x=j.confirmed_start_date||j.target_start_date;if(!x)return false;const d=new Date(x+'T12:00:00');return d>=s&&d<e})}
 function commDueSoon(){const now=todayISO();const d=new Date();d.setDate(d.getDate()+2);const end=d.toLocaleDateString('en-CA',{timeZone:'America/New_York'});return state.communications.filter(c=>c.status!=='Completed'&&c.due_date&&c.due_date<=end).sort((a,b)=>String(a.due_date).localeCompare(String(b.due_date)))}
-function renderDashboard(){ $('nowText').textContent=localNow();const cur=currentTask();$('currentTask').innerHTML=cur?`<div class="card critical"><h2>Current / Resume</h2>${taskCard(cur)}</div>`:'';const acts=actionableTasks();$('taskList').innerHTML=acts.map(taskCard).join('')||empty('Nothing urgent right now.');const blocked=state.tasks.filter(t=>['Blocked','Waiting'].includes(t.status));$('blockedList').innerHTML=blocked.map(taskCard).join('')||empty('None.');const jw=jobsThisWeek();$('weekJobs').innerHTML=jw.map(j=>`<div class="task"><b>${esc(j.customer_name||'Unnamed customer')}</b><div class="meta">${esc(j.property_address||'')} • ${esc(j.stage)} • Start ${esc(j.confirmed_start_date||j.target_start_date||'Not set')}</div></div>`).join('')||empty('No jobs entered for this week yet.');const comms=commDueSoon();$('commList').innerHTML=comms.map(c=>`<div class="task"><b>${esc(c.purpose)}</b><div class="meta">Job ${esc(c.job_id||'')} • ${esc(c.status)} • Due ${esc([c.due_date,c.due_time].filter(Boolean).join(' '))}</div></div>`).join('')||empty('No communication due in the next two days.');const td=todayISO();$('kpiCritical').textContent=state.tasks.filter(t=>t.status!=='Completed'&&(t.base_priority==='Critical'||(t.due_date&&t.due_date<td))).length;$('kpiDue').textContent=state.tasks.filter(t=>t.status!=='Completed'&&t.due_date===td).length;$('kpiComms').textContent=comms.length;$('kpiWeekJobs').textContent=jw.length;renderIncoming();renderPhone();renderJobs()}
+function renderDashboard(){ $('nowText').textContent=localNow();const cur=currentTask();$('currentTask').innerHTML=cur?`<div class="card critical"><h2>Current / Resume</h2>${taskCard(cur)}</div>`:'';const acts=actionableTasks();$('taskList').innerHTML=acts.map(taskCard).join('')||empty('Nothing urgent right now.');const blocked=state.tasks.filter(t=>['Blocked','Waiting'].includes(t.status));$('blockedList').innerHTML=blocked.map(taskCard).join('')||empty('None.');const jw=jobsThisWeek();$('weekJobs').innerHTML=jw.map(j=>`<div class="task"><b>${esc(j.customer_name||'Unnamed customer')}</b><div class="meta">${esc(j.property_address||'')} • ${esc(j.stage)} • Start ${esc(j.confirmed_start_date||j.target_start_date||'Not set')}</div></div>`).join('')||empty('No jobs entered for this week yet.');const comms=commDueSoon();$('commList').innerHTML=comms.map(c=>`<div class="task"><b>${esc(c.purpose)}</b><div class="meta">Job ${esc(c.job_id||'')} • ${esc(c.status)} • Due ${esc([c.due_date,c.due_time].filter(Boolean).join(' '))}</div></div>`).join('')||empty('No communication due in the next two days.');const td=todayISO();$const open=t=>![
+  'Completed',
+  'Cancelled',
+  'Skipped'
+].includes(t.status);
+
+$('kpiCritical').textContent=
+  state.tasks.filter(t=>
+    open(t) &&
+    (
+      t.base_priority==='Critical' ||
+      (t.due_date && t.due_date<td)
+    )
+  ).length;
+
+$('kpiDue').textContent=
+  state.tasks.filter(t=>
+    open(t) &&
+    t.due_date===td
+  ).length;$('kpiComms').textContent=comms.length;$('kpiWeekJobs').textContent=jw.length;renderIncoming();renderPhone();renderJobs()}
 function renderIncoming(){$('incomingList').innerHTML=state.incoming.slice(0,30).map(i=>`<div class="task">${esc(i.description)}<div class="meta">${esc(i.source||'')} • ${esc(new Date(i.captured_at).toLocaleString())} • ${esc(i.status)}</div></div>`).join('')||empty('None.')}
 function renderPhone(){$('phoneHistory').innerHTML=state.phone.slice(0,30).map(p=>`<div class="task"><b>${esc(p.caller_name||'Unknown caller')}</b><div class="meta">${esc(p.phone||'')} • ${esc(p.called_for||'')} • ${esc(new Date(p.created_at).toLocaleString())}</div><div>${esc(p.reason_message||'')}</div></div>`).join('')||empty('No messages yet.')}
 function renderJobs(){const rows=state.jobs.map(j=>`<tr><td>${esc(j.customer_name)}</td><td>${esc(j.property_address||'')}</td><td class="job-stage">${esc(j.stage)}</td><td>${esc(j.confirmed_start_date||j.target_start_date||'')}</td><td>${esc(j.salesperson||'')}</td></tr>`).join('');$('jobsTable').innerHTML=rows?`<div class="table-wrap"><table class="simple-table"><thead><tr><th>Customer</th><th>Address</th><th>Stage</th><th>Start</th><th>Salesperson</th></tr></thead><tbody>${rows}</tbody></table></div>`:empty('No jobs entered yet.');$('allComms').innerHTML=state.communications.map(c=>`<div class="task"><b>${esc(c.purpose)}</b><div class="meta ${c.due_date&&c.due_date<todayISO()&&c.status!=='Completed'?'comm-overdue':''}">${esc(c.type)} • ${esc(c.status)} • Due ${esc(c.due_date||'')} ${esc(c.due_time||'')}</div></div>`).join('')||empty('No communication responsibilities yet.')}
@@ -26,7 +99,139 @@ function renderSops(){const sel=$('sopSelect');sel.innerHTML=state.sops.map(s=>`
 function renderSuggestions(){$('suggestionList').innerHTML=state.suggestions.map(s=>`<div class="task"><b>${esc(s.suggestion)}</b><div class="meta">${esc(s.type)} • ${esc(s.status)} • ${esc(new Date(s.created_at).toLocaleDateString())}</div><div class="meta">Evidence: ${esc(s.pattern_evidence||'')}</div></div>`).join('')||empty('No suggestions yet. Click Analyze Work Patterns when you have some task history.')}
 async function loadAll(){const calls=[['tasks','created_at',false],['jobs','updated_at',false],['communications','due_date',true],['incoming','captured_at',false],['phone_messages','created_at',false],['sops','title',true],['suggestions','created_at',false]];const results=await Promise.all(calls.map(([t,o,a])=>db.from(t).select('*').order(o,{ascending:a}).limit(500)));for(let i=0;i<results.length;i++){if(results[i].error)throw results[i].error;state[calls[i][0]==='phone_messages'?'phone':calls[i][0]]=results[i].data||[]}renderDashboard()}
 function patchTaskLocal(id,patch){state.tasks=state.tasks.map(t=>t.id===id?{...t,...patch}:t);renderDashboard()}
-async function taskAction(id,action){const t=state.tasks.find(x=>x.id===id);if(!t)return;let note='';if(action==='block'){note=prompt('Why is this task blocked?')||''}const previous={...t};const now=new Date().toISOString();let patch={updated_at:now};if(action==='start'||action==='resume'){const old=currentTask();if(old&&old.id!==id)patchTaskLocal(old.id,{status:'Paused',paused_at:now,updated_at:now});patch={...patch,status:'In Progress',started_at:t.started_at||now,paused_at:null}}else if(action==='pause')patch={...patch,status:'Paused',paused_at:now};else if(action==='complete')patch={...patch,status:'Completed',completed_at:now};else if(action==='block')patch={...patch,status:'Blocked',notes:[t.notes,note].filter(Boolean).join('\n')};patchTaskLocal(id,patch);const {data,error}=await db.rpc('task_action',{p_task_id:id,p_action:action,p_note:note});if(error){state.tasks=state.tasks.map(x=>x.id===id?previous:x);msg('Could not save task change: '+error.message,'error');await loadAll();return}if(data)state.tasks=state.tasks.map(x=>x.id===id?data:x);renderDashboard()}
+async function taskAction(id,action){
+  const t=state.tasks.find(x=>x.id===id);
+
+  if(!t) return;
+
+  let note='';
+
+  if(action==='block'){
+    note=prompt('Why is this task blocked?')||'';
+  }
+
+  if(action==='skip'){
+    if(!t.recurring_rule_id){
+      msg(
+        'Only recurring task occurrences can be skipped.',
+        'error'
+      );
+      return;
+    }
+
+    note=
+      prompt(
+        'Optional: why are you skipping this occurrence?'
+      ) || '';
+  }
+
+  const previous={...t};
+  const now=new Date().toISOString();
+
+  let patch={
+    updated_at:now
+  };
+
+  if(action==='start'||action==='resume'){
+    const old=currentTask();
+
+    if(old&&old.id!==id){
+      patchTaskLocal(
+        old.id,
+        {
+          status:'Paused',
+          paused_at:now,
+          updated_at:now
+        }
+      );
+    }
+
+    patch={
+      ...patch,
+      status:'In Progress',
+      started_at:t.started_at||now,
+      paused_at:null
+    };
+
+  } else if(action==='pause'){
+
+    patch={
+      ...patch,
+      status:'Paused',
+      paused_at:now
+    };
+
+  } else if(action==='complete'){
+
+    patch={
+      ...patch,
+      status:'Completed',
+      completed_at:now
+    };
+
+  } else if(action==='skip'){
+
+    patch={
+      ...patch,
+      status:'Skipped',
+      completed_at:now,
+      notes:note
+        ? [t.notes,'Skipped: '+note]
+            .filter(Boolean)
+            .join('\n')
+        : t.notes
+    };
+
+  } else if(action==='block'){
+
+    patch={
+      ...patch,
+      status:'Blocked',
+      notes:[t.notes,note]
+        .filter(Boolean)
+        .join('\n')
+    };
+  }
+
+  patchTaskLocal(id,patch);
+
+  const {data,error}=await db.rpc(
+    'task_action',
+    {
+      p_task_id:id,
+      p_action:action,
+      p_note:note
+    }
+  );
+
+  if(error){
+    state.tasks=
+      state.tasks.map(
+        x=>x.id===id
+          ? previous
+          : x
+      );
+
+    msg(
+      'Could not save task change: '+error.message,
+      'error'
+    );
+
+    await loadAll();
+    return;
+  }
+
+  if(data){
+    state.tasks=
+      state.tasks.map(
+        x=>x.id===id
+          ? data
+          : x
+      );
+  }
+
+  renderDashboard();
+}
 async function savePhone(){const row={caller_name:$('pmName').value.trim(),street_address:$('pmStreet').value.trim(),phone:$('pmPhone').value.trim(),email:$('pmEmail').value.trim(),called_for:$('pmFor').value.trim(),reason_message:$('pmReason').value.trim(),follow_up_needed:$('pmFollow').value==='Yes',follow_up_status:$('pmFollow').value==='Yes'?'Open':'None',follow_up_notes:$('pmNotes').value.trim(),related_job_id:$('pmJob').value.trim()||null};if(!row.caller_name&&!row.phone&&!row.reason_message){msg('Enter at least a caller name, phone number, or message.','error');return}const {data,error}=await db.from('phone_messages').insert(row).select().single();if(error){msg(error.message,'error');return}state.phone.unshift(data);['pmName','pmStreet','pmPhone','pmEmail','pmFor','pmReason','pmNotes','pmJob'].forEach(id=>$(id).value='');$('pmFollow').value='No';renderPhone();setView('today');msg('Phone message saved.','success')}
 async function saveIncoming(){const description=$('incomingDesc').value.trim();if(!description){msg('Enter what came in first.','error');return}const {data,error}=await db.from('incoming').insert({description,source:$('incomingSource').value.trim(),status:'Open'}).select().single();if(error){msg(error.message,'error');return}state.incoming.unshift(data);$('incomingDesc').value='';$('incomingSource').value='';renderIncoming();setView('today');msg('Incoming work captured.','success')}
 async function saveTask(){const task=$('taskName').value.trim();if(!task){msg('Task name is required.','error');return}const {data,error}=await db.from('tasks').insert({task,category:$('taskCategory').value.trim(),task_type:'One-Time',status:'Not Started',base_priority:$('taskPriority').value,due_date:$('taskDueDate').value||null,due_time:$('taskDueTime').value||null,next_action:$('taskNext').value.trim(),notes:$('taskNotes').value.trim()}).select().single();if(error){msg(error.message,'error');return}state.tasks.push(data);$('taskDialog').close();renderDashboard();msg('Task created.','success')}
