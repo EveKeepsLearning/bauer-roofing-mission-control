@@ -74,6 +74,13 @@
 
           <button
             class="btn ghost small"
+            id="undoBtn"
+            title="Undo the most recent reversible change">
+            Undo
+          </button>
+
+          <button
+            class="btn ghost small"
             id="refreshBtn">
             Refresh
           </button>
@@ -277,9 +284,10 @@
 
         <div class="card">
 
-          <h2>
+          <h2 id="phoneFormTitle">
             Phone Message
           </h2>
+          <input id="pmEditId" type="hidden">
 
 
           <div class="form-grid">
@@ -373,11 +381,19 @@
           </div>
 
 
-          <button
-            class="btn primary"
-            id="savePhoneBtn">
-            Save Message
-          </button>
+          <div class="toolbar">
+            <button
+              class="btn primary"
+              id="savePhoneBtn">
+              Save Message
+            </button>
+            <button
+              class="btn hidden"
+              type="button"
+              id="cancelPhoneEditBtn">
+              Cancel Edit
+            </button>
+          </div>
 
         </div>
 
@@ -403,9 +419,10 @@
 
         <div class="card">
 
-          <h2>
+          <h2 id="incomingFormTitle">
             Capture Incoming Work
           </h2>
+          <input id="incomingEditId" type="hidden">
 
           <label>
             What just came in?
@@ -424,11 +441,14 @@
           >
 
 
-          <button
-            class="btn primary"
-            id="saveIncomingBtn">
-            Capture
-          </button>
+          <div class="toolbar">
+            <button
+              class="btn primary"
+              id="saveIncomingBtn">
+              Capture
+            </button>
+            <button class="btn hidden" type="button" id="cancelIncomingEditBtn">Cancel Edit</button>
+          </div>
 
         </div>
 
@@ -514,6 +534,12 @@
           </div>
         </div>
 
+        <div class="card">
+          <h3>Archived Prospects / Leads</h3>
+          <p class="auth-note">Archived records stay available and can be restored. Delete is intended for test entries or true mistakes.</p>
+          <div id="archivedSalesList"></div>
+        </div>
+
       </section>
 
 
@@ -562,6 +588,11 @@
 
           <div id="allComms"></div>
 
+        </div>
+
+        <div class="card">
+          <h3>Archived Jobs</h3>
+          <div id="archivedJobsList"></div>
         </div>
 
       </section>
@@ -636,9 +667,10 @@
           class="card"
           style="min-width:min(620px,90vw);margin:0">
 
-          <h2>
+          <h2 id="taskDialogTitle">
             New Task
           </h2>
+          <input id="taskEditId" type="hidden">
 
 
           <label>
@@ -782,7 +814,8 @@
 
       <dialog id="prospectDialog">
         <form method="dialog" class="card" style="min-width:min(760px,92vw);margin:0">
-          <h2>New Prospect</h2>
+          <h2 id="prospectDialogTitle">New Prospect</h2>
+          <input id="prospectEditId" type="hidden">
 
           <div class="form-grid">
             <div>
@@ -892,6 +925,7 @@
       <dialog id="leadDialog">
         <form method="dialog" class="card" style="min-width:min(780px,92vw);margin:0">
           <h2 id="leadDialogTitle">New Lead</h2>
+          <input id="leadEditId" type="hidden">
           <input id="leadProspectId" type="hidden">
 
           <div class="form-grid">
@@ -1025,6 +1059,66 @@
       </dialog>
 
 
+      <!-- EDIT APPOINTMENT -->
+      <dialog id="appointmentDialog">
+        <form method="dialog" class="card" style="min-width:min(620px,90vw);margin:0">
+          <h2>Edit Appointment</h2>
+          <input id="appointmentEditId" type="hidden">
+          <div class="form-grid">
+            <div>
+              <label>Date</label>
+              <input id="appointmentEditDate" type="date">
+            </div>
+            <div>
+              <label>Time</label>
+              <input id="appointmentEditTime" type="time">
+            </div>
+            <div>
+              <label>Status</label>
+              <select id="appointmentEditStatus">
+                <option>Scheduled</option>
+                <option>Confirmed</option>
+                <option>Completed</option>
+                <option>Cancelled</option>
+                <option>Rescheduled</option>
+              </select>
+            </div>
+            <div>
+              <label>Assigned to</label>
+              <input id="appointmentEditAssigned">
+            </div>
+            <div>
+              <label>MarketSharp status</label>
+              <select id="appointmentEditMarketSharp">
+                <option>Not Needed Yet</option>
+                <option>Needs Entry</option>
+                <option>Added</option>
+                <option>Already There</option>
+                <option>Automatic</option>
+              </select>
+            </div>
+            <div>
+              <label>Google Calendar status</label>
+              <select id="appointmentEditCalendar">
+                <option>Not Added</option>
+                <option>Added</option>
+                <option>Needs Update</option>
+                <option>Updated</option>
+              </select>
+            </div>
+            <div class="wide">
+              <label>Notes</label>
+              <textarea id="appointmentEditNotes"></textarea>
+            </div>
+          </div>
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="saveAppointmentEditBtn">Save Changes</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
+      </dialog>
+
+
       <!-- NEW JOB -->
 
       <dialog id="jobDialog">
@@ -1034,9 +1128,10 @@
           class="card"
           style="min-width:min(680px,90vw);margin:0">
 
-          <h2>
+          <h2 id="jobDialogTitle">
             New Job
           </h2>
+          <input id="jobEditId" type="hidden">
 
 
           <div class="form-grid">
