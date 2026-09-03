@@ -11,6 +11,10 @@ let state = {
   communications: [],
   incoming: [],
   phone: [],
+  prospects: [],
+  leads: [],
+  appointments: [],
+  lookups: [],
   sops: [],
   suggestions: []
 };
@@ -93,6 +97,10 @@ function setView(name) {
       )
     );
 
+  if (name === 'leads') {
+    renderProspectsLeads();
+  }
+
   if (name === 'playbook') {
     renderSops();
   }
@@ -159,18 +167,35 @@ function resolveRelatedNumber(value) {
     };
   }
 
-  const leadMatch =
+  const directLeadMatch =
+    state.leads.find(l =>
+      String(l.lead_number || '')
+        .trim()
+        .toLowerCase() === normalized
+    );
+
+  if (directLeadMatch) {
+    return {
+      related_number: relatedNumber,
+      lead_number:
+        String(directLeadMatch.lead_number || relatedNumber)
+          .trim(),
+      job_number: null
+    };
+  }
+
+  const jobLeadMatch =
     state.jobs.find(j =>
       String(j.lead_number || '')
         .trim()
         .toLowerCase() === normalized
     );
 
-  if (leadMatch) {
+  if (jobLeadMatch) {
     return {
       related_number: relatedNumber,
       lead_number:
-        String(leadMatch.lead_number || relatedNumber)
+        String(jobLeadMatch.lead_number || relatedNumber)
           .trim(),
       job_number: null
     };
@@ -629,6 +654,1254 @@ function renderPhone() {
 }
 
 
+function lookupValues(category, fallback = []) {
+  const rows = state.lookups
+    .filter(x =>
+      x.category === category &&
+      x.is_active !== false
+    )
+    .sort(
+      (a, b) =>
+        (a.sort_order || 0) -
+        (b.sort_order || 0)
+    );
+
+  return rows.length
+    ? rows
+    : fallback.map(
+        (value, i) => ({
+          value,
+          sort_order: i + 1,
+          is_default: i === 0
+        })
+      );
+}
+
+
+function fillSelect(
+  id,
+  category,
+  fallback = [],
+  blankLabel = ''
+) {
+  const el = $(id);
+
+  if (!el) {
+    return;
+  }
+
+  const options =
+    lookupValues(
+      category,
+      fallback
+    );
+
+  const current =
+    el.value;
+
+  el.innerHTML =
+    (
+      blankLabel
+        ? `<option value="">${esc(blankLabel)}</option>`
+        : ''
+    ) +
+    options
+      .map(
+        o =>
+          `<option value="${esc(o.value)}">${esc(o.value)}</option>`
+      )
+      .join('');
+
+  const def =
+    options.find(
+      o => o.is_default
+    );
+
+  if (
+    current &&
+    options.some(
+      o => o.value === current
+    )
+  ) {
+    el.value =
+      current;
+
+  } else if (def) {
+
+    el.value =
+      def.value;
+  }
+}
+
+
+function setupLeadProspectSelects() {
+  fillSelect(
+    'prospectSource',
+    'prospect_source',
+    [
+      'Angi',
+      'Referral',
+      'Website',
+      'Google',
+      'Repeat Customer',
+      'Call-In',
+      'Other'
+    ]
+  );
+
+  fillSelect(
+    'prospectSourceAccount',
+    'angi_source_account',
+    [
+      'Bauer Roofing - PPL',
+      'Bauer Roofing Inc - Angi Ads'
+    ],
+    'Choose account'
+  );
+
+  fillSelect(
+    'prospectStatus',
+    'prospect_status',
+    [
+      'New',
+      'Attempting Contact',
+      'Connected',
+      'Waiting on Customer',
+      'Appointment Set',
+      'Unable to Reach',
+      'Not Interested'
+    ]
+  );
+
+  fillSelect(
+    'prospectAssignedTo',
+    'assigned_to',
+    [
+      'Roy',
+      'Eve',
+      'Dad'
+    ]
+  );
+
+  fillSelect(
+    'leadSource',
+    'prospect_source',
+    [
+      'Angi',
+      'Referral',
+      'Website',
+      'Google',
+      'Repeat Customer',
+      'Call-In',
+      'Other'
+    ]
+  );
+
+  fillSelect(
+    'leadSourceAccount',
+    'angi_source_account',
+    [
+      'Bauer Roofing - PPL',
+      'Bauer Roofing Inc - Angi Ads'
+    ],
+    'Choose account'
+  );
+
+  fillSelect(
+    'leadAssignedTo',
+    'assigned_to',
+    [
+      'Roy',
+      'Eve',
+      'Dad'
+    ]
+  );
+
+  fillSelect(
+    'leadEstimateStatus',
+    'estimate_status',
+    [
+      'Not Known',
+      'Expected',
+      'Sent',
+      'Customer Says Not Received',
+      'Resent'
+    ]
+  );
+
+  fillSelect(
+    'leadMarketSharpStatus',
+    'marketsharp_status',
+    [
+      'Automatic',
+      'Not Needed Yet',
+      'Needs Entry',
+      'Added',
+      'Already There'
+    ]
+  );
+
+  toggleAngiFields(
+    'prospect'
+  );
+
+  toggleAngiFields(
+    'lead'
+  );
+}
+
+
+function toggleAngiFields(prefix) {
+  const source =
+    $(`${prefix}Source`);
+
+  const wrap =
+    $(`${prefix}AngiAccountWrap`);
+
+  if (
+    !source ||
+    !wrap
+  ) {
+    return;
+  }
+
+  wrap.classList.toggle(
+    'hidden',
+    source.value !== 'Angi'
+  );
+}
+
+
+function formatWhen(value) {
+  if (!value) {
+    return '';
+  }
+
+  const d =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      d.getTime()
+    )
+  ) {
+    return String(value);
+  }
+
+  return d.toLocaleString();
+}
+
+
+function prospectName(p) {
+  return (
+    p.customer_name ||
+    [
+      p.first_name,
+      p.last_name
+    ]
+      .filter(Boolean)
+      .join(' ') ||
+    'Unnamed prospect'
+  );
+}
+
+
+function leadName(l) {
+  return (
+    l.homeowner_name ||
+    [
+      l.first_name,
+      l.last_name
+    ]
+      .filter(Boolean)
+      .join(' ') ||
+    'Unnamed lead'
+  );
+}
+
+
+function renderProspectsLeads() {
+  if (!$('prospectList')) {
+    return;
+  }
+
+  const now =
+    new Date();
+
+  const activeProspects =
+    state.prospects.filter(
+      p =>
+        !p.archive_flag &&
+        !p.converted_to_lead_at
+    );
+
+  const followupsDue =
+    activeProspects.filter(
+      p =>
+        p.next_follow_up_at &&
+        new Date(
+          p.next_follow_up_at
+        ) <= now
+    );
+
+  const activeLeads =
+    state.leads.filter(
+      l =>
+        ![
+          'Sold',
+          'Not Moving Forward'
+        ].includes(
+          l.lead_status
+        )
+    );
+
+  const upcomingAppointments =
+    state.appointments
+      .filter(
+        a =>
+          a.appointment_at &&
+          new Date(
+            a.appointment_at
+          ) >= now &&
+          ![
+            'Cancelled',
+            'Completed'
+          ].includes(
+            a.appointment_status
+          )
+      )
+      .sort(
+        (a, b) =>
+          new Date(
+            a.appointment_at
+          ) -
+          new Date(
+            b.appointment_at
+          )
+      );
+
+  $('kpiProspects').textContent =
+    activeProspects.length;
+
+  $('kpiProspectDue').textContent =
+    followupsDue.length;
+
+  $('kpiLeads').textContent =
+    activeLeads.length;
+
+  $('kpiAppointments').textContent =
+    upcomingAppointments.length;
+
+  $('prospectList').innerHTML =
+    activeProspects
+      .slice()
+      .sort(
+        (a, b) =>
+          String(
+            a.next_follow_up_at ||
+            '9999'
+          ).localeCompare(
+            String(
+              b.next_follow_up_at ||
+              '9999'
+            )
+          )
+      )
+      .map(
+        p => `
+          <div
+            class="task"
+            data-prospect-id="${esc(p.id)}"
+          >
+
+            <div class="task-title">
+
+              <b>
+                ${esc(prospectName(p))}
+              </b>
+
+              <span class="badge">
+                ${esc(
+                  p.current_status ||
+                  'New'
+                )}
+              </span>
+
+            </div>
+
+            <div class="meta">
+
+              ${esc(
+                p.source ||
+                ''
+              )}
+
+              ${
+                p.source_account
+                  ? ' • ' +
+                    esc(
+                      p.source_account
+                    )
+                  : ''
+              }
+
+              ${
+                p.source_reference
+                  ? ' • Ref ' +
+                    esc(
+                      p.source_reference
+                    )
+                  : ''
+              }
+
+              ${
+                p.phone
+                  ? ' • ' +
+                    esc(p.phone)
+                  : ''
+              }
+
+            </div>
+
+            ${
+              p.street_address
+                ? `
+                  <div>
+                    ${esc(
+                      p.street_address
+                    )}
+                    ${
+                      p.city
+                        ? ', ' +
+                          esc(p.city)
+                        : ''
+                    }
+                  </div>
+                `
+                : ''
+            }
+
+            <div class="meta">
+
+              ${
+                p.next_action
+                  ? 'Next: ' +
+                    esc(
+                      p.next_action
+                    )
+                  : ''
+              }
+
+              ${
+                p.next_follow_up_at
+                  ? ' • Follow-up ' +
+                    esc(
+                      formatWhen(
+                        p.next_follow_up_at
+                      )
+                    )
+                  : ''
+              }
+
+            </div>
+
+            <div class="actions">
+
+              <button
+                class="btn small primary"
+                data-prospect-action="promote">
+                Promote to Lead
+              </button>
+
+            </div>
+
+          </div>
+        `
+      )
+      .join('')
+    ||
+    empty(
+      'No active prospects yet.'
+    );
+
+  $('leadList').innerHTML =
+    state.leads
+      .slice()
+      .sort(
+        (a, b) =>
+          String(
+            a.created_at ||
+            ''
+          ).localeCompare(
+            String(
+              b.created_at ||
+              ''
+            )
+          ) * -1
+      )
+      .map(
+        l => `
+          <div class="task">
+
+            <div class="task-title">
+
+              <b>
+                ${esc(leadName(l))}
+              </b>
+
+              <span class="badge">
+                ${esc(
+                  l.lead_status ||
+                  'Appointment Wanted'
+                )}
+              </span>
+
+            </div>
+
+            <div class="meta">
+
+              ${
+                l.lead_number
+                  ? 'Lead # ' +
+                    esc(
+                      l.lead_number
+                    )
+                  : 'Lead # not entered'
+              }
+
+              ${
+                l.source
+                  ? ' • ' +
+                    esc(l.source)
+                  : ''
+              }
+
+              ${
+                l.assigned_to
+                  ? ' • ' +
+                    esc(
+                      l.assigned_to
+                    )
+                  : ''
+              }
+
+            </div>
+
+            ${
+              l.street_address
+                ? `
+                  <div>
+                    ${esc(
+                      l.street_address
+                    )}
+                    ${
+                      l.city
+                        ? ', ' +
+                          esc(l.city)
+                        : ''
+                    }
+                  </div>
+                `
+                : ''
+            }
+
+            <div class="meta">
+
+              Estimate:
+              ${esc(
+                l.estimate_status ||
+                'Not Known'
+              )}
+
+              ${
+                l.phone
+                  ? ' • ' +
+                    esc(l.phone)
+                  : ''
+              }
+
+            </div>
+
+          </div>
+        `
+      )
+      .join('')
+    ||
+    empty(
+      'No leads yet.'
+    );
+
+  $('appointmentList').innerHTML =
+    upcomingAppointments
+      .slice(0, 20)
+      .map(
+        a => {
+
+          const lead =
+            state.leads.find(
+              l =>
+                l.id ===
+                a.lead_id
+            );
+
+          return `
+            <div class="task">
+
+              <b>
+                ${esc(
+                  lead
+                    ? leadName(lead)
+                    : 'Lead'
+                )}
+              </b>
+
+              <div class="meta">
+
+                ${esc(
+                  formatWhen(
+                    a.appointment_at
+                  )
+                )}
+
+                •
+
+                ${esc(
+                  a.appointment_status ||
+                  'Scheduled'
+                )}
+
+                ${
+                  a.assigned_to
+                    ? ' • ' +
+                      esc(
+                        a.assigned_to
+                      )
+                    : ''
+                }
+
+                • MarketSharp:
+
+                ${esc(
+                  a.marketsharp_status ||
+                  'Not Needed Yet'
+                )}
+
+              </div>
+
+            </div>
+          `;
+        }
+      )
+      .join('')
+    ||
+    empty(
+      'No upcoming appointments entered yet.'
+    );
+}
+
+
+function clearProspectForm() {
+  [
+    'prospectSourceRef',
+    'prospectFirstName',
+    'prospectLastName',
+    'prospectStreet',
+    'prospectCity',
+    'prospectZip',
+    'prospectPhone',
+    'prospectEmail',
+    'prospectNextFollow',
+    'prospectNextAction',
+    'prospectNotes'
+  ].forEach(
+    id => {
+      if ($(id)) {
+        $(id).value = '';
+      }
+    }
+  );
+
+  $('prospectState').value =
+    'SC';
+
+  $('prospectWorkCategory').value =
+    'Roofing';
+
+  setupLeadProspectSelects();
+}
+
+
+function clearLeadForm() {
+  [
+    'leadProspectId',
+    'leadNumber',
+    'leadSourceRef',
+    'leadFirstName',
+    'leadLastName',
+    'leadStreet',
+    'leadCity',
+    'leadZip',
+    'leadPhone',
+    'leadEmail',
+    'leadAppointmentDate',
+    'leadAppointmentTime',
+    'leadEstimateNote',
+    'leadNotes'
+  ].forEach(
+    id => {
+      if ($(id)) {
+        $(id).value = '';
+      }
+    }
+  );
+
+  $('leadState').value =
+    'SC';
+
+  $('leadWorkCategory').value =
+    'Roofing';
+
+  $('leadStatus').value =
+    'Appointment Wanted';
+
+  $('leadDialogTitle').textContent =
+    'New Lead';
+
+  setupLeadProspectSelects();
+}
+
+
+function openProspectDialog() {
+  clearProspectForm();
+
+  $('prospectDialog')
+    .showModal();
+}
+
+
+function openLeadDialog(
+  prospect = null
+) {
+  clearLeadForm();
+
+  if (prospect) {
+
+    $('leadDialogTitle')
+      .textContent =
+      'Promote Prospect to Lead';
+
+    $('leadProspectId').value =
+      prospect.id;
+
+    $('leadSource').value =
+      prospect.source ||
+      'Angi';
+
+    toggleAngiFields(
+      'lead'
+    );
+
+    $('leadSourceAccount').value =
+      prospect.source_account ||
+      '';
+
+    $('leadSourceRef').value =
+      prospect.source_reference ||
+      '';
+
+    $('leadFirstName').value =
+      prospect.first_name ||
+      '';
+
+    $('leadLastName').value =
+      prospect.last_name ||
+      '';
+
+    $('leadStreet').value =
+      prospect.street_address ||
+      '';
+
+    $('leadCity').value =
+      prospect.city ||
+      '';
+
+    $('leadState').value =
+      prospect.state ||
+      'SC';
+
+    $('leadZip').value =
+      prospect.zip ||
+      '';
+
+    $('leadPhone').value =
+      prospect.phone ||
+      '';
+
+    $('leadEmail').value =
+      prospect.email ||
+      '';
+
+    $('leadWorkCategory').value =
+      prospect.work_category ||
+      'Roofing';
+
+    $('leadAssignedTo').value =
+      prospect.assigned_to ||
+      'Roy';
+
+    $('leadNotes').value =
+      prospect.notes ||
+      '';
+  }
+
+  $('leadDialog')
+    .showModal();
+}
+
+
+async function saveProspect() {
+  const first =
+    $('prospectFirstName')
+      .value
+      .trim();
+
+  const last =
+    $('prospectLastName')
+      .value
+      .trim();
+
+  const phone =
+    $('prospectPhone')
+      .value
+      .trim();
+
+  const email =
+    $('prospectEmail')
+      .value
+      .trim();
+
+  if (
+    !first &&
+    !last &&
+    !phone &&
+    !email
+  ) {
+    msg(
+      'Enter at least a name, phone number, or email for the prospect.',
+      'error'
+    );
+
+    return;
+  }
+
+  const row = {
+    source:
+      $('prospectSource')
+        .value,
+
+    source_account:
+      $('prospectSource').value ===
+      'Angi'
+        ? (
+            $('prospectSourceAccount')
+              .value ||
+            null
+          )
+        : null,
+
+    source_reference:
+      $('prospectSourceRef')
+        .value
+        .trim() ||
+      null,
+
+    import_source:
+      'Manual',
+
+    first_name:
+      first,
+
+    last_name:
+      last,
+
+    customer_name:
+      [
+        first,
+        last
+      ]
+        .filter(Boolean)
+        .join(' '),
+
+    street_address:
+      $('prospectStreet')
+        .value
+        .trim(),
+
+    city:
+      $('prospectCity')
+        .value
+        .trim(),
+
+    state:
+      $('prospectState')
+        .value
+        .trim(),
+
+    zip:
+      $('prospectZip')
+        .value
+        .trim(),
+
+    phone,
+
+    email,
+
+    work_category:
+      $('prospectWorkCategory')
+        .value,
+
+    current_status:
+      $('prospectStatus')
+        .value,
+
+    assigned_to:
+      $('prospectAssignedTo')
+        .value,
+
+    next_follow_up_at:
+      $('prospectNextFollow')
+        .value
+        ? new Date(
+            $('prospectNextFollow')
+              .value
+          ).toISOString()
+        : null,
+
+    next_action:
+      $('prospectNextAction')
+        .value
+        .trim(),
+
+    notes:
+      $('prospectNotes')
+        .value
+        .trim()
+  };
+
+  const {
+    data,
+    error
+  } =
+    await db
+      .from('prospects')
+      .insert(row)
+      .select()
+      .single();
+
+  if (error) {
+    msg(
+      'Could not save prospect: ' +
+        error.message,
+      'error'
+    );
+
+    return;
+  }
+
+  state.prospects.unshift(
+    data
+  );
+
+  $('prospectDialog')
+    .close();
+
+  renderProspectsLeads();
+
+  msg(
+    'Prospect saved.',
+    'success'
+  );
+}
+
+
+async function saveLead() {
+  const first =
+    $('leadFirstName')
+      .value
+      .trim();
+
+  const last =
+    $('leadLastName')
+      .value
+      .trim();
+
+  const leadNumber =
+    $('leadNumber')
+      .value
+      .trim();
+
+  const prospectId =
+    $('leadProspectId')
+      .value ||
+    null;
+
+  if (
+    !first &&
+    !last &&
+    !$('leadPhone')
+      .value
+      .trim()
+  ) {
+    msg(
+      'Enter at least a homeowner name or phone number.',
+      'error'
+    );
+
+    return;
+  }
+
+  const row = {
+    prospect_id:
+      prospectId,
+
+    lead_number:
+      leadNumber ||
+      null,
+
+    source:
+      $('leadSource')
+        .value,
+
+    source_account:
+      $('leadSource').value ===
+      'Angi'
+        ? (
+            $('leadSourceAccount')
+              .value ||
+            null
+          )
+        : null,
+
+    source_reference:
+      $('leadSourceRef')
+        .value
+        .trim() ||
+      null,
+
+    import_source:
+      'Manual',
+
+    homeowner_name:
+      [
+        first,
+        last
+      ]
+        .filter(Boolean)
+        .join(' '),
+
+    first_name:
+      first,
+
+    last_name:
+      last,
+
+    street_address:
+      $('leadStreet')
+        .value
+        .trim(),
+
+    city:
+      $('leadCity')
+        .value
+        .trim(),
+
+    state:
+      $('leadState')
+        .value
+        .trim(),
+
+    zip:
+      $('leadZip')
+        .value
+        .trim(),
+
+    phone:
+      $('leadPhone')
+        .value
+        .trim(),
+
+    email:
+      $('leadEmail')
+        .value
+        .trim(),
+
+    work_category:
+      $('leadWorkCategory')
+        .value,
+
+    lead_status:
+      $('leadStatus')
+        .value,
+
+    assigned_to:
+      $('leadAssignedTo')
+        .value,
+
+    estimate_status:
+      $('leadEstimateStatus')
+        .value,
+
+    estimate_issue_note:
+      $('leadEstimateNote')
+        .value
+        .trim(),
+
+    notes:
+      $('leadNotes')
+        .value
+        .trim()
+  };
+
+  const {
+    data,
+    error
+  } =
+    await db
+      .from('leads')
+      .insert(row)
+      .select()
+      .single();
+
+  if (error) {
+    msg(
+      'Could not save lead: ' +
+        error.message,
+      'error'
+    );
+
+    return;
+  }
+
+  state.leads.unshift(
+    data
+  );
+
+  if (prospectId) {
+    const convertedAt =
+      new Date()
+        .toISOString();
+
+    const updateResult =
+      await db
+        .from('prospects')
+        .update({
+          converted_to_lead_at:
+            convertedAt,
+          updated_at:
+            convertedAt
+        })
+        .eq(
+          'id',
+          prospectId
+        )
+        .select()
+        .single();
+
+    if (
+      !updateResult.error &&
+      updateResult.data
+    ) {
+      state.prospects =
+        state.prospects.map(
+          p =>
+            p.id === prospectId
+              ? updateResult.data
+              : p
+        );
+    }
+  }
+
+  if (
+    $('leadAppointmentDate')
+      .value
+  ) {
+    const date =
+      $('leadAppointmentDate')
+        .value;
+
+    const time =
+      $('leadAppointmentTime')
+        .value ||
+      '12:00';
+
+    const appointmentAt =
+      new Date(
+        `${date}T${time}`
+      ).toISOString();
+
+    const appointmentRow = {
+      lead_id:
+        data.id,
+
+      prospect_id:
+        prospectId,
+
+      appointment_at:
+        appointmentAt,
+
+      appointment_status:
+        'Scheduled',
+
+      assigned_to:
+        $('leadAssignedTo')
+          .value,
+
+      marketsharp_status:
+        $('leadMarketSharpStatus')
+          .value,
+
+      google_calendar_status:
+        'Not Added'
+    };
+
+    const appointmentResult =
+      await db
+        .from('appointments')
+        .insert(
+          appointmentRow
+        )
+        .select()
+        .single();
+
+    if (
+      appointmentResult.error
+    ) {
+      msg(
+        'Lead saved, but appointment could not be saved: ' +
+          appointmentResult.error.message,
+        'error'
+      );
+
+    } else {
+
+      state.appointments.push(
+        appointmentResult.data
+      );
+    }
+  }
+
+  $('leadDialog')
+    .close();
+
+  renderProspectsLeads();
+
+  msg(
+    'Lead saved.',
+    'success'
+  );
+}
+
+
 function renderJobs() {
   const rows =
     state.jobs
@@ -776,7 +2049,9 @@ function renderSops() {
 
     const s =
       state.sops.find(
-        x => x.id === select.value
+        x =>
+          x.id ===
+          select.value
       );
 
     $('sopBody').innerHTML =
@@ -788,17 +2063,26 @@ function renderSops() {
 
           <p>
             <b>Purpose:</b>
-            ${esc(s.purpose || '')}
+            ${esc(
+              s.purpose ||
+              ''
+            )}
           </p>
 
           <p>
             <b>When:</b>
-            ${esc(s.when_to_use || '')}
+            ${esc(
+              s.when_to_use ||
+              ''
+            )}
           </p>
 
           <p>
             <b>Prerequisites:</b>
-            ${esc(s.prerequisites || '')}
+            ${esc(
+              s.prerequisites ||
+              ''
+            )}
           </p>
 
           <p>
@@ -840,7 +2124,9 @@ function renderSuggestions() {
         <div class="task">
 
           <b>
-            ${esc(s.suggestion)}
+            ${esc(
+              s.suggestion
+            )}
           </b>
 
           <div class="meta">
@@ -862,11 +2148,14 @@ function renderSuggestions() {
           </div>
 
           <div class="meta">
+
             Evidence:
+
             ${esc(
               s.pattern_evidence ||
               ''
             )}
+
           </div>
 
         </div>
@@ -881,19 +2170,73 @@ function renderSuggestions() {
 
 async function loadAll() {
   const calls = [
-    ['tasks', 'created_at', false],
-    ['jobs', 'updated_at', false],
-    ['communications', 'due_date', true],
-    ['incoming', 'captured_at', false],
-    ['phone_messages', 'created_at', false],
-    ['sops', 'title', true],
-    ['suggestions', 'created_at', false]
+    [
+      'tasks',
+      'created_at',
+      false
+    ],
+    [
+      'jobs',
+      'updated_at',
+      false
+    ],
+    [
+      'communications',
+      'due_date',
+      true
+    ],
+    [
+      'incoming',
+      'captured_at',
+      false
+    ],
+    [
+      'phone_messages',
+      'created_at',
+      false
+    ],
+    [
+      'prospects',
+      'created_at',
+      false
+    ],
+    [
+      'leads',
+      'created_at',
+      false
+    ],
+    [
+      'appointments',
+      'appointment_at',
+      true
+    ],
+    [
+      'lookup_options',
+      'sort_order',
+      true
+    ],
+    [
+      'sops',
+      'title',
+      true
+    ],
+    [
+      'suggestions',
+      'created_at',
+      false
+    ]
   ];
 
   const results =
     await Promise.all(
       calls.map(
-        ([table, order, ascending]) =>
+        (
+          [
+            table,
+            order,
+            ascending
+          ]
+        ) =>
           db
             .from(table)
             .select('*')
@@ -910,21 +2253,37 @@ async function loadAll() {
     i < results.length;
     i++
   ) {
-    if (results[i].error) {
+
+    if (
+      results[i].error
+    ) {
       throw results[i].error;
     }
 
-    const stateName =
+    let stateName =
       calls[i][0] ===
       'phone_messages'
         ? 'phone'
         : calls[i][0];
 
+    if (
+      stateName ===
+      'lookup_options'
+    ) {
+      stateName =
+        'lookups';
+    }
+
     state[stateName] =
-      results[i].data || [];
+      results[i].data ||
+      [];
   }
 
+  setupLeadProspectSelects();
+
   renderDashboard();
+
+  renderProspectsLeads();
 }
 
 
@@ -953,7 +2312,8 @@ async function taskAction(
 ) {
   const task =
     state.tasks.find(
-      x => x.id === id
+      x =>
+        x.id === id
     );
 
   if (!task) {
@@ -962,14 +2322,18 @@ async function taskAction(
 
   let note = '';
 
-  if (action === 'block') {
+  if (
+    action === 'block'
+  ) {
     note =
       prompt(
         'Why is this task blocked?'
       ) || '';
   }
 
-  if (action === 'skip') {
+  if (
+    action === 'skip'
+  ) {
 
     if (
       !task.recurring_rule_id
@@ -992,10 +2356,12 @@ async function taskAction(
     { ...task };
 
   const now =
-    new Date().toISOString();
+    new Date()
+      .toISOString();
 
   let patch = {
-    updated_at: now
+    updated_at:
+      now
   };
 
   if (
@@ -1013,20 +2379,30 @@ async function taskAction(
       patchTaskLocal(
         oldCurrent.id,
         {
-          status: 'Paused',
-          paused_at: now,
-          updated_at: now
+          status:
+            'Paused',
+
+          paused_at:
+            now,
+
+          updated_at:
+            now
         }
       );
     }
 
     patch = {
       ...patch,
-      status: 'In Progress',
+
+      status:
+        'In Progress',
+
       started_at:
         task.started_at ||
         now,
-      paused_at: null
+
+      paused_at:
+        null
     };
 
   } else if (
@@ -1035,8 +2411,12 @@ async function taskAction(
 
     patch = {
       ...patch,
-      status: 'Paused',
-      paused_at: now
+
+      status:
+        'Paused',
+
+      paused_at:
+        now
     };
 
   } else if (
@@ -1045,8 +2425,12 @@ async function taskAction(
 
     patch = {
       ...patch,
-      status: 'Completed',
-      completed_at: now
+
+      status:
+        'Completed',
+
+      completed_at:
+        now
     };
 
   } else if (
@@ -1055,13 +2439,19 @@ async function taskAction(
 
     patch = {
       ...patch,
-      status: 'Skipped',
-      completed_at: now,
+
+      status:
+        'Skipped',
+
+      completed_at:
+        now,
+
       notes:
         note
           ? [
               task.notes,
-              'Skipped: ' + note
+              'Skipped: ' +
+                note
             ]
               .filter(Boolean)
               .join('\n')
@@ -1074,7 +2464,10 @@ async function taskAction(
 
     patch = {
       ...patch,
-      status: 'Blocked',
+
+      status:
+        'Blocked',
+
       notes:
         [
           task.notes,
@@ -1097,9 +2490,14 @@ async function taskAction(
     await db.rpc(
       'task_action',
       {
-        p_task_id: id,
-        p_action: action,
-        p_note: note
+        p_task_id:
+          id,
+
+        p_action:
+          action,
+
+        p_note:
+          note
       }
     );
 
@@ -1141,38 +2539,57 @@ async function taskAction(
 async function savePhone() {
   const related =
     resolveRelatedNumber(
-      $('pmRelatedNumber').value
+      $('pmRelatedNumber')
+        .value
     );
 
   const row = {
     caller_name:
-      $('pmName').value.trim(),
+      $('pmName')
+        .value
+        .trim(),
 
     street_address:
-      $('pmStreet').value.trim(),
+      $('pmStreet')
+        .value
+        .trim(),
 
     phone:
-      $('pmPhone').value.trim(),
+      $('pmPhone')
+        .value
+        .trim(),
 
     email:
-      $('pmEmail').value.trim(),
+      $('pmEmail')
+        .value
+        .trim(),
 
     called_for:
-      $('pmFor').value.trim(),
+      $('pmFor')
+        .value
+        .trim(),
 
     reason_message:
-      $('pmReason').value.trim(),
+      $('pmReason')
+        .value
+        .trim(),
 
     follow_up_needed:
-      $('pmFollow').value === 'Yes',
+      $('pmFollow')
+        .value ===
+      'Yes',
 
     follow_up_status:
-      $('pmFollow').value === 'Yes'
+      $('pmFollow')
+        .value ===
+      'Yes'
         ? 'Open'
         : 'None',
 
     follow_up_notes:
-      $('pmNotes').value.trim(),
+      $('pmNotes')
+        .value
+        .trim(),
 
     related_number:
       related.related_number,
@@ -1205,7 +2622,9 @@ async function savePhone() {
     error
   } =
     await db
-      .from('phone_messages')
+      .from(
+        'phone_messages'
+      )
       .insert(row)
       .select()
       .single();
@@ -1219,7 +2638,9 @@ async function savePhone() {
     return;
   }
 
-  state.phone.unshift(data);
+  state.phone.unshift(
+    data
+  );
 
   [
     'pmName',
@@ -1232,7 +2653,8 @@ async function savePhone() {
     'pmRelatedNumber'
   ].forEach(
     id => {
-      $(id).value = '';
+      $(id).value =
+        '';
     }
   );
 
@@ -1241,7 +2663,9 @@ async function savePhone() {
 
   renderPhone();
 
-  setView('today');
+  setView(
+    'today'
+  );
 
   msg(
     'Phone message saved.',
@@ -1270,14 +2694,19 @@ async function saveIncoming() {
     error
   } =
     await db
-      .from('incoming')
+      .from(
+        'incoming'
+      )
       .insert({
         description,
+
         source:
           $('incomingSource')
             .value
             .trim(),
-        status: 'Open'
+
+        status:
+          'Open'
       })
       .select()
       .single();
@@ -1291,7 +2720,9 @@ async function saveIncoming() {
     return;
   }
 
-  state.incoming.unshift(data);
+  state.incoming.unshift(
+    data
+  );
 
   $('incomingDesc').value =
     '';
@@ -1301,7 +2732,9 @@ async function saveIncoming() {
 
   renderIncoming();
 
-  setView('today');
+  setView(
+    'today'
+  );
 
   msg(
     'Incoming work captured.',
@@ -1327,7 +2760,8 @@ async function saveTask() {
 
   const related =
     resolveRelatedNumber(
-      $('taskRelatedNumber').value
+      $('taskRelatedNumber')
+        .value
     );
 
   const {
@@ -1335,7 +2769,9 @@ async function saveTask() {
     error
   } =
     await db
-      .from('tasks')
+      .from(
+        'tasks'
+      )
       .insert({
         task,
 
@@ -1400,7 +2836,9 @@ async function saveTask() {
     return;
   }
 
-  state.tasks.push(data);
+  state.tasks.push(
+    data
+  );
 
   [
     'taskName',
@@ -1411,14 +2849,18 @@ async function saveTask() {
     'taskDescription',
     'taskNext',
     'taskNotes'
-  ].forEach(id => {
-    $(id).value = '';
-  });
+  ].forEach(
+    id => {
+      $(id).value =
+        '';
+    }
+  );
 
   $('taskPriority').value =
     'Normal';
 
-  $('taskDialog').close();
+  $('taskDialog')
+    .close();
 
   renderDashboard();
 
@@ -1493,7 +2935,9 @@ async function saveJob() {
     error
   } =
     await db
-      .from('jobs')
+      .from(
+        'jobs'
+      )
       .insert(row)
       .select()
       .single();
@@ -1507,9 +2951,12 @@ async function saveJob() {
     return;
   }
 
-  state.jobs.push(data);
+  state.jobs.push(
+    data
+  );
 
-  $('jobDialog').close();
+  $('jobDialog')
+    .close();
 
   renderDashboard();
 
@@ -1521,7 +2968,9 @@ async function saveJob() {
 
 
 async function generateSuggestions() {
-  const { error } =
+  const {
+    error
+  } =
     await db.rpc(
       'generate_suggestions'
     );
@@ -1537,17 +2986,22 @@ async function generateSuggestions() {
 
   const result =
     await db
-      .from('suggestions')
+      .from(
+        'suggestions'
+      )
       .select('*')
       .order(
         'created_at',
         {
-          ascending: false
+          ascending:
+            false
         }
       )
       .limit(100);
 
-  if (result.error) {
+  if (
+    result.error
+  ) {
     msg(
       result.error.message,
       'error'
@@ -1557,7 +3011,8 @@ async function generateSuggestions() {
   }
 
   state.suggestions =
-    result.data || [];
+    result.data ||
+    [];
 
   renderSuggestions();
 
@@ -1574,10 +3029,13 @@ async function init() {
     !cfg.SUPABASE_ANON_KEY ||
     String(
       cfg.SUPABASE_URL
-    ).includes('YOUR-')
+    ).includes(
+      'YOUR-'
+    )
   ) {
     document.body.innerHTML = `
       <div class="login">
+
         <div class="card">
 
           <h1>
@@ -1591,6 +3049,7 @@ async function init() {
           </p>
 
         </div>
+
       </div>
     `;
 
@@ -1608,18 +3067,23 @@ async function init() {
       session
     }
   } =
-    await db.auth.getSession();
+    await db.auth
+      .getSession();
 
   await handleSession(
     session
   );
 
-  db.auth.onAuthStateChange(
-    (_event, nextSession) =>
-      handleSession(
+  db.auth
+    .onAuthStateChange(
+      (
+        _event,
         nextSession
-      )
-  );
+      ) =>
+        handleSession(
+          nextSession
+        )
+    );
 }
 
 
@@ -1655,7 +3119,9 @@ async function handleSession(
         'bootstrap_bauer_data'
       );
 
-    if (bootstrap.error) {
+    if (
+      bootstrap.error
+    ) {
       throw bootstrap.error;
     }
 
@@ -1664,7 +3130,9 @@ async function handleSession(
         'ensure_recurring_tasks'
       );
 
-    if (recurring.error) {
+    if (
+      recurring.error
+    ) {
       throw recurring.error;
     }
 
@@ -1701,20 +3169,25 @@ $('loginBtn').onclick =
     const {
       error
     } =
-      await db.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo:
-            location.href.split('#')[0]
-        }
-      });
+      await db.auth
+        .signInWithOtp({
+          email,
+
+          options: {
+            emailRedirectTo:
+              location.href
+                .split('#')[0]
+          }
+        });
 
     if (error) {
       authMsg(
         error.message,
         'error'
       );
+
     } else {
+
       authMsg(
         'Check your email for the sign-in link.',
         'success'
@@ -1725,7 +3198,8 @@ $('loginBtn').onclick =
 
 $('logoutBtn').onclick =
   () =>
-    db.auth.signOut();
+    db.auth
+      .signOut();
 
 
 $('refreshBtn').onclick =
@@ -1738,7 +3212,9 @@ $('refreshBtn').onclick =
           'ensure_recurring_tasks'
         );
 
-      if (result.error) {
+      if (
+        result.error
+      ) {
         throw result.error;
       }
 
@@ -1766,6 +3242,7 @@ document
   )
   .forEach(
     button => {
+
       button.onclick =
         () =>
           setView(
@@ -1775,57 +3252,130 @@ document
   );
 
 
-document.body.addEventListener(
-  'click',
-  event => {
+document.body
+  .addEventListener(
+    'click',
+    event => {
 
-    const button =
-      event.target.closest(
-        '[data-action]'
+      const prospectButton =
+        event.target.closest(
+          '[data-prospect-action]'
+        );
+
+      if (
+        prospectButton
+      ) {
+        const prospectCard =
+          prospectButton.closest(
+            '[data-prospect-id]'
+          );
+
+        const prospect =
+          prospectCard
+            ? state.prospects.find(
+                p =>
+                  p.id ===
+                  prospectCard.dataset.prospectId
+              )
+            : null;
+
+        if (
+          prospectButton.dataset.prospectAction ===
+            'promote' &&
+          prospect
+        ) {
+          openLeadDialog(
+            prospect
+          );
+        }
+
+        return;
+      }
+
+      const button =
+        event.target.closest(
+          '[data-action]'
+        );
+
+      if (!button) {
+        return;
+      }
+
+      const card =
+        button.closest(
+          '[data-task-id]'
+        );
+
+      if (!card) {
+        return;
+      }
+
+      taskAction(
+        card.dataset.taskId,
+        button.dataset.action
       );
-
-    if (!button) {
-      return;
     }
-
-    const card =
-      button.closest(
-        '[data-task-id]'
-      );
-
-    if (!card) {
-      return;
-    }
-
-    taskAction(
-      card.dataset.taskId,
-      button.dataset.action
-    );
-  }
-);
+  );
 
 
 $('savePhoneBtn').onclick =
   savePhone;
 
+
 $('saveIncomingBtn').onclick =
   saveIncoming;
+
 
 $('newTaskBtn').onclick =
   () =>
     $('taskDialog')
       .showModal();
 
+
 $('saveTaskBtn').onclick =
   saveTask;
+
+
+$('newProspectBtn').onclick =
+  openProspectDialog;
+
+
+$('saveProspectBtn').onclick =
+  saveProspect;
+
+
+$('newLeadBtn').onclick =
+  () =>
+    openLeadDialog();
+
+
+$('saveLeadBtn').onclick =
+  saveLead;
+
+
+$('prospectSource').onchange =
+  () =>
+    toggleAngiFields(
+      'prospect'
+    );
+
+
+$('leadSource').onchange =
+  () =>
+    toggleAngiFields(
+      'lead'
+    );
+
 
 $('newJobBtn').onclick =
   () =>
     $('jobDialog')
       .showModal();
 
+
 $('saveJobBtn').onclick =
   saveJob;
+
 
 $('generateSuggestionsBtn').onclick =
   generateSuggestions;
