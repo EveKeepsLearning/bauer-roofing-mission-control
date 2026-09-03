@@ -1207,6 +1207,17 @@ document.body.addEventListener('click', async event => {
   } catch(error){msg(error.message||String(error),'error');}
 });
 
+async function undoLastAction() {
+  try {
+    const { data, error } = await db.rpc('undo_last_action');
+    if (error) throw error;
+    await loadAll();
+    msg(data?.message || 'Last action undone.', data?.ok === false ? 'error' : 'success');
+  } catch (error) {
+    msg('Could not undo: ' + (error.message || String(error)), 'error');
+  }
+}
+
 $('undoBtn').onclick=undoLastAction;
 $('cancelPhoneEditBtn').onclick=clearPhoneForm;
 $('cancelIncomingEditBtn').onclick=clearIncomingForm;
