@@ -2418,7 +2418,8 @@ function contactActionHtml({ phone = '', email = '', kind = '', id = '', name = 
   const subject = encodeURIComponent('Bauer Roofing');
   const call = digits ? `<a class="btn small primary" href="tel:${esc(digits)}">☎ Call</a>` : '';
   const text = digits ? `<a class="btn small" href="sms:${esc(digits)}">Text</a>` : '';
-  const mail = email ? `<a class="btn small" href="mailto:${esc(email)}?subject=${subject}">Email</a>` : '';
+  const outlookUrl = email ? `https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(email)}&subject=${encodeURIComponent('Bauer Roofing')}` : '';
+  const mail = email ? `<a class="btn small" href="${outlookUrl}" target="_blank" rel="noopener noreferrer">Email</a>` : '';
   const log = kind && id ? `<button class="btn small" data-log-communication="${esc(kind)}" data-contact-id="${esc(id)}">Log Communication</button>` : '';
   return `<div class="actions contact-actions">${call}${text}${mail}${log}</div>`;
 }
