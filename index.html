@@ -23,9 +23,17 @@
   <div id="appView" class="hidden">
     <header>
       <div class="head-row">
-        <div class="brand"><h1>Bauer Roofing Mission Control</h1><div class="sub" id="nowText">Loading…</div></div>
-        <div class="toolbar"><button class="btn ghost small" id="refreshBtn">Refresh</button><button class="btn ghost small" id="logoutBtn">Sign out</button></div>
+        <div class="brand">
+          <h1>Bauer Roofing Mission Control</h1>
+          <div class="sub" id="nowText">Loading…</div>
+        </div>
+
+        <div class="toolbar">
+          <button class="btn ghost small" id="refreshBtn">Refresh</button>
+          <button class="btn ghost small" id="logoutBtn">Sign out</button>
+        </div>
       </div>
+
       <nav class="nav" id="nav">
         <button data-view="today" class="active">Today</button>
         <button data-view="phone">Phone Message</button>
@@ -41,64 +49,332 @@
 
       <section id="view-today">
         <div class="kpi-row">
-          <div class="kpi"><div class="n" id="kpiCritical">0</div><div class="l">Critical / overdue</div></div>
-          <div class="kpi"><div class="n" id="kpiDue">0</div><div class="l">Due today</div></div>
-          <div class="kpi"><div class="n" id="kpiComms">0</div><div class="l">Client communications due</div></div>
-          <div class="kpi"><div class="n" id="kpiWeekJobs">0</div><div class="l">Jobs starting this week</div></div>
+          <div class="kpi">
+            <div class="n" id="kpiCritical">0</div>
+            <div class="l">Critical / overdue</div>
+          </div>
+
+          <div class="kpi">
+            <div class="n" id="kpiDue">0</div>
+            <div class="l">Due today</div>
+          </div>
+
+          <div class="kpi">
+            <div class="n" id="kpiComms">0</div>
+            <div class="l">Client communications due</div>
+          </div>
+
+          <div class="kpi">
+            <div class="n" id="kpiWeekJobs">0</div>
+            <div class="l">Jobs starting this week</div>
+          </div>
         </div>
+
         <div id="currentTask"></div>
+
         <div class="grid">
           <div>
-            <div class="card"><div class="toolbar"><h2>Needs Your Attention</h2><div class="spacer"></div><button class="btn small primary" id="newTaskBtn">+ Task</button></div><div id="taskList"></div></div>
-            <div class="card"><h2>Customer Communication Due</h2><div id="commList"></div></div>
+            <div class="card">
+              <div class="toolbar">
+                <h2>Needs Your Attention</h2>
+                <div class="spacer"></div>
+                <button class="btn small primary" id="newTaskBtn">+ Task</button>
+              </div>
+
+              <div id="taskList"></div>
+            </div>
+
+            <div class="card">
+              <h2>Customer Communication Due</h2>
+              <div id="commList"></div>
+            </div>
           </div>
+
           <div>
-            <div class="card blocked-card"><h3>Blocked / Waiting</h3><div id="blockedList"></div></div>
-            <div class="card"><h3>Jobs Starting This Week</h3><div id="weekJobs"></div></div>
+            <div class="card blocked-card">
+              <h3>Blocked / Waiting</h3>
+              <div id="blockedList"></div>
+            </div>
+
+            <div class="card">
+              <h3>Jobs Starting This Week</h3>
+              <div id="weekJobs"></div>
+            </div>
           </div>
         </div>
       </section>
 
       <section id="view-phone" class="hidden">
-        <div class="card"><h2>Phone Message</h2>
+        <div class="card">
+          <h2>Phone Message</h2>
+
           <div class="form-grid">
-            <div><label>Caller name</label><input id="pmName"></div><div><label>Called for</label><input id="pmFor"></div>
-            <div class="wide"><label>Street address</label><input id="pmStreet"></div>
-            <div><label>Phone</label><input id="pmPhone"></div><div><label>Email</label><input id="pmEmail"></div>
-            <div class="wide"><label>Reason / message</label><textarea id="pmReason"></textarea></div>
-            <div><label>Follow-up needed?</label><select id="pmFollow"><option>No</option><option>Yes</option></select></div>
-            <div><label>Related Job ID (optional)</label><input id="pmJob"></div>
-            <div class="wide"><label>Follow-up notes</label><textarea id="pmNotes"></textarea></div>
+            <div>
+              <label>Caller name</label>
+              <input id="pmName">
+            </div>
+
+            <div>
+              <label>Called for</label>
+              <input id="pmFor">
+            </div>
+
+            <div class="wide">
+              <label>Street address</label>
+              <input id="pmStreet">
+            </div>
+
+            <div>
+              <label>Phone</label>
+              <input id="pmPhone">
+            </div>
+
+            <div>
+              <label>Email</label>
+              <input id="pmEmail">
+            </div>
+
+            <div>
+              <label>Lead # (optional)</label>
+              <input id="pmLead">
+            </div>
+
+            <div>
+              <label>Job # (optional)</label>
+              <input id="pmJob">
+            </div>
+
+            <div class="wide">
+              <label>Reason / message</label>
+              <textarea id="pmReason"></textarea>
+            </div>
+
+            <div>
+              <label>Follow-up needed?</label>
+              <select id="pmFollow">
+                <option>No</option>
+                <option>Yes</option>
+              </select>
+            </div>
+
+            <div class="wide">
+              <label>Follow-up notes</label>
+              <textarea id="pmNotes"></textarea>
+            </div>
           </div>
+
           <button class="btn primary" id="savePhoneBtn">Save Message</button>
         </div>
-        <div class="card"><h3>Recent Messages</h3><div id="phoneHistory"></div></div>
+
+        <div class="card">
+          <h3>Recent Messages</h3>
+          <div id="phoneHistory"></div>
+        </div>
       </section>
 
       <section id="view-incoming" class="hidden">
-        <div class="card"><h2>Capture Incoming Work</h2><label>What just came in?</label><textarea id="incomingDesc"></textarea><label>Source</label><input id="incomingSource" placeholder="Phone, Roy, Dad, email…"><button class="btn primary" id="saveIncomingBtn">Capture</button></div>
-        <div class="card"><h3>Recent Incoming</h3><div id="incomingList"></div></div>
+        <div class="card">
+          <h2>Capture Incoming Work</h2>
+
+          <label>What just came in?</label>
+          <textarea id="incomingDesc"></textarea>
+
+          <label>Source</label>
+          <input id="incomingSource" placeholder="Phone, Roy, Dad, email…">
+
+          <button class="btn primary" id="saveIncomingBtn">Capture</button>
+        </div>
+
+        <div class="card">
+          <h3>Recent Incoming</h3>
+          <div id="incomingList"></div>
+        </div>
       </section>
 
       <section id="view-jobs" class="hidden">
-        <div class="card"><div class="toolbar"><h2>Jobs / Production</h2><div class="spacer"></div><button class="btn small primary" id="newJobBtn">+ Job</button></div><p class="auth-note">The production model is already connected to client communication. Jobs can move from Sold → Pre-Production → Scheduled → In Production → Complete → Closed without changing the task system.</p><div id="jobsTable"></div></div>
-        <div class="card"><h3>Communication Responsibilities</h3><div id="allComms"></div></div>
+        <div class="card">
+          <div class="toolbar">
+            <h2>Jobs / Production</h2>
+            <div class="spacer"></div>
+            <button class="btn small primary" id="newJobBtn">+ Job</button>
+          </div>
+
+          <p class="auth-note">
+            The production model is already connected to client communication.
+            Jobs can move from Sold → Pre-Production → Scheduled → In Production
+            → Complete → Closed without changing the task system.
+          </p>
+
+          <div id="jobsTable"></div>
+        </div>
+
+        <div class="card">
+          <h3>Communication Responsibilities</h3>
+          <div id="allComms"></div>
+        </div>
       </section>
 
       <section id="view-playbook" class="hidden">
-        <div class="card"><h2>Playbook / SOPs</h2><select id="sopSelect"></select><div id="sopBody"></div></div>
+        <div class="card">
+          <h2>Playbook / SOPs</h2>
+          <select id="sopSelect"></select>
+          <div id="sopBody"></div>
+        </div>
       </section>
 
       <section id="view-suggestions" class="hidden">
-        <div class="card"><div class="toolbar"><h2>Learning & Suggestions</h2><div class="spacer"></div><button class="btn small" id="generateSuggestionsBtn">Analyze Work Patterns</button></div><p class="auth-note">Suggestions never override your hard deadlines. They are recommendations based on task history, delays, and workload patterns.</p><div id="suggestionList"></div></div>
+        <div class="card">
+          <div class="toolbar">
+            <h2>Learning & Suggestions</h2>
+            <div class="spacer"></div>
+            <button class="btn small" id="generateSuggestionsBtn">Analyze Work Patterns</button>
+          </div>
+
+          <p class="auth-note">
+            Suggestions never override your hard deadlines.
+            They are recommendations based on task history, delays, and workload patterns.
+          </p>
+
+          <div id="suggestionList"></div>
+        </div>
       </section>
 
-      <dialog id="taskDialog"><form method="dialog" class="card" style="min-width:min(620px,90vw);margin:0"><h2>New Task</h2><label>Task</label><input id="taskName"><div class="form-grid"><div><label>Category</label><input id="taskCategory"></div><div><label>Priority</label><select id="taskPriority"><option>Normal</option><option>High</option><option>Critical</option></select></div><div><label>Due date</label><input id="taskDueDate" type="date"></div><div><label>Due time</label><input id="taskDueTime" type="time"></div><div class="wide"><label>Next action</label><input id="taskNext"></div><div class="wide"><label>Notes</label><textarea id="taskNotes"></textarea></div></div><div class="toolbar"><button class="btn primary" type="button" id="saveTaskBtn">Save</button><button class="btn" value="cancel">Cancel</button></div></form></dialog>
+      <dialog id="taskDialog">
+        <form method="dialog" class="card" style="min-width:min(620px,90vw);margin:0">
+          <h2>New Task</h2>
 
-      <dialog id="jobDialog"><form method="dialog" class="card" style="min-width:min(680px,90vw);margin:0"><h2>New Job</h2><div class="form-grid"><div><label>Customer name</label><input id="jobCustomer"></div><div><label>Lead number</label><input id="jobLead"></div><div class="wide"><label>Property address</label><input id="jobAddress"></div><div><label>Salesperson</label><input id="jobSalesperson"></div><div><label>Stage</label><select id="jobStage"><option>Sold</option><option>Pre-Production</option><option>Scheduled</option><option>In Production</option><option>Complete</option><option>Final / Closed</option></select></div><div><label>Target start date</label><input id="jobTarget" type="date"></div><div><label>Confirmed start date</label><input id="jobConfirmed" type="date"></div><div class="wide"><label>Production notes</label><textarea id="jobNotes"></textarea></div></div><div class="toolbar"><button class="btn primary" type="button" id="saveJobBtn">Save</button><button class="btn" value="cancel">Cancel</button></div></form></dialog>
+          <label>Task</label>
+          <input id="taskName">
+
+          <div class="form-grid">
+            <div>
+              <label>Category</label>
+              <input id="taskCategory">
+            </div>
+
+            <div>
+              <label>Priority</label>
+              <select id="taskPriority">
+                <option>Normal</option>
+                <option>High</option>
+                <option>Critical</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Due date</label>
+              <input id="taskDueDate" type="date">
+            </div>
+
+            <div>
+              <label>Due time</label>
+              <input id="taskDueTime" type="time">
+            </div>
+
+            <div>
+              <label>Lead # (optional)</label>
+              <input id="taskLead">
+            </div>
+
+            <div>
+              <label>Job # (optional)</label>
+              <input id="taskJob">
+            </div>
+
+            <div class="wide">
+              <label>Description</label>
+              <textarea id="taskDescription"></textarea>
+            </div>
+
+            <div class="wide">
+              <label>Next action</label>
+              <input id="taskNext">
+            </div>
+
+            <div class="wide">
+              <label>Notes</label>
+              <textarea id="taskNotes"></textarea>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="saveTaskBtn">Save</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
+      </dialog>
+
+      <dialog id="jobDialog">
+        <form method="dialog" class="card" style="min-width:min(680px,90vw);margin:0">
+          <h2>New Job</h2>
+
+          <div class="form-grid">
+            <div>
+              <label>Customer name</label>
+              <input id="jobCustomer">
+            </div>
+
+            <div>
+              <label>Lead number</label>
+              <input id="jobLead">
+            </div>
+
+            <div>
+              <label>Job number</label>
+              <input id="jobNumber">
+            </div>
+
+            <div class="wide">
+              <label>Property address</label>
+              <input id="jobAddress">
+            </div>
+
+            <div>
+              <label>Salesperson</label>
+              <input id="jobSalesperson">
+            </div>
+
+            <div>
+              <label>Stage</label>
+              <select id="jobStage">
+                <option>Sold</option>
+                <option>Pre-Production</option>
+                <option>Scheduled</option>
+                <option>In Production</option>
+                <option>Complete</option>
+                <option>Final / Closed</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Target start date</label>
+              <input id="jobTarget" type="date">
+            </div>
+
+            <div>
+              <label>Confirmed start date</label>
+              <input id="jobConfirmed" type="date">
+            </div>
+
+            <div class="wide">
+              <label>Production notes</label>
+              <textarea id="jobNotes"></textarea>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="saveJobBtn">Save</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
+      </dialog>
     </main>
-    <div class="footer">Bauer Roofing Mission Control • live data in Supabase • Google Sheets can remain your reporting/admin layer</div>
+
+    <div class="footer">
+      Bauer Roofing Mission Control • live data in Supabase • Google Sheets can remain your reporting/admin layer
+    </div>
   </div>
+
   <script src="app.js"></script>
 </body>
 </html>
