@@ -2393,60 +2393,18 @@ function renderIncoming() {
 }
 
 function renderPhone() {
-  $('phoneHistory').innerHTML =
-    state.phone
-      .slice(0, 30)
-      .map(p => `
-        <div class="task">
-
-          <b>
-            ${esc(
-              p.caller_name ||
-              'Unknown caller'
-            )}
-          </b>
-
-          <div class="meta">
-
-            ${esc(p.phone || '')}
-
-            •
-
-            ${esc(
-              p.called_for ||
-              ''
-            )}
-
-            ${
-              relatedLabel(p)
-                ? ' • ' + relatedLabel(p)
-                : ''
-            }
-
-            •
-
-            ${esc(
-              new Date(
-                p.created_at
-              ).toLocaleString()
-            )}
-
-          </div>
-
-          <div>
-            ${esc(
-              p.reason_message ||
-              ''
-            )}
-          </div>
-
-        </div>
-      `)
-      .join('')
-    ||
-    empty(
-      'No messages yet.'
-    );
+  const rows = state.phone.filter(activeRow).slice(0,30);
+  $('phoneHistory').innerHTML = rows.map(p => `
+    <div class="task">
+      <b>${esc(p.caller_name || 'Unknown caller')}</b>
+      <div class="meta">${esc(p.phone || '')} • ${esc(p.called_for || '')}${relatedLabel(p) ? ' • ' + relatedLabel(p) : ''} • ${esc(new Date(p.created_at).toLocaleString())}</div>
+      <div>${esc(p.reason_message || '')}</div>
+      ${contactActionHtml({phone:p.phone,email:p.email,name:p.caller_name})}
+      <div class="actions">
+        <button class="btn small" data-edit-phone="${esc(p.id)}">Edit</button>
+        <button class="btn small" data-record-action="delete" data-record-table="phone_messages" data-record-id="${esc(p.id)}">Delete</button>
+      </div>
+    </div>`).join('') || empty('No messages yet.');
 }
 
 function phoneDigits(value) {
@@ -2487,84 +2445,61 @@ function communicationHistoryHtml(kind, id) {
 
 function renderProspectsLeads() {
   if (!$('prospectList')) return;
-
   const now = new Date();
-  const activeProspects = state.prospects.filter(p => !p.archive_flag && !p.converted_to_lead_at);
+  const activeProspects = state.prospects.filter(visibleProspect);
   const followupsDue = activeProspects.filter(p => p.next_follow_up_at && new Date(p.next_follow_up_at) <= now);
-  const activeLeads = state.leads.filter(l => !['Sold', 'Not Moving Forward'].includes(l.lead_status));
+  const activeLeads = state.leads.filter(l => visibleLead(l) && !['Sold','Not Moving Forward'].includes(l.lead_status));
   const upcomingAppointments = state.appointments
-    .filter(a => a.appointment_at && new Date(a.appointment_at) >= now && !['Cancelled', 'Completed'].includes(a.appointment_status))
-    .sort((a, b) => new Date(a.appointment_at) - new Date(b.appointment_at));
+    .filter(a => activeRow(a) && a.appointment_at && new Date(a.appointment_at) >= now && !['Cancelled','Completed'].includes(a.appointment_status))
+    .sort((a,b) => new Date(a.appointment_at) - new Date(b.appointment_at));
 
   $('kpiProspects').textContent = activeProspects.length;
   $('kpiProspectDue').textContent = followupsDue.length;
   $('kpiLeads').textContent = activeLeads.length;
   $('kpiAppointments').textContent = upcomingAppointments.length;
 
-  $('prospectList').innerHTML = activeProspects
-    .slice()
-    .sort((a, b) => String(a.next_follow_up_at || '9999').localeCompare(String(b.next_follow_up_at || '9999')))
-    .map(p => `
-      <div class="task" data-prospect-id="${esc(p.id)}">
-        <div class="task-title">
-          <b>${esc(prospectName(p))}</b>
-          <span class="badge">${esc(p.current_status || 'New')}</span>
-        </div>
-        <div class="meta">
-          ${esc(p.source || '')}
-          ${p.source_account ? ' • ' + esc(p.source_account) : ''}
-          ${p.source_reference ? ' • Ref ' + esc(p.source_reference) : ''}
-          ${p.phone ? ' • ' + esc(p.phone) : ''}
-        </div>
-        ${p.street_address ? `<div>${esc(p.street_address)}${p.city ? ', ' + esc(p.city) : ''}</div>` : ''}
-        <div class="meta">
-          ${p.next_action ? 'Next: ' + esc(p.next_action) : ''}
-          ${p.next_follow_up_at ? ' • Follow-up ' + esc(formatWhen(p.next_follow_up_at)) : ''}
-        </div>
-        <div class="actions">
-          <button class="btn small primary" data-prospect-action="promote">Promote to Lead</button>
-        </div>
+  $('prospectList').innerHTML = activeProspects.map(p => `
+    <div class="task" data-prospect-id="${esc(p.id)}">
+      <div class="task-title"><b>${esc(prospectName(p))}</b><span class="badge">${esc(p.current_status || 'New')}</span></div>
+      <div class="meta">${esc(p.source || '')}${p.source_account ? ' • ' + esc(p.source_account) : ''}${p.source_reference ? ' • Ref ' + esc(p.source_reference) : ''}${p.phone ? ' • ' + esc(p.phone) : ''}</div>
+      ${p.street_address ? `<div>${esc(p.street_address)}${p.city ? ', ' + esc(p.city) : ''}</div>` : ''}
+      <div class="meta">${p.next_action ? 'Next: ' + esc(p.next_action) : ''}${p.next_follow_up_at ? ' • Follow-up ' + esc(formatWhen(p.next_follow_up_at)) : ''}</div>
+      ${contactActionHtml({phone:p.phone,email:p.email,kind:'prospect',id:p.id,name:prospectName(p)})}
+      <details><summary>Communication History</summary>${communicationHistoryHtml('prospect',p.id)}</details>
+      <div class="actions">
+        <button class="btn small primary" data-prospect-action="promote">Promote to Lead</button>
+        <button class="btn small" data-edit-prospect="${esc(p.id)}">View / Edit</button>
+        <button class="btn small" data-record-action="archive" data-record-table="prospects" data-record-id="${esc(p.id)}">Archive</button>
+        <button class="btn small" data-record-action="delete" data-record-table="prospects" data-record-id="${esc(p.id)}">Delete</button>
       </div>
-    `).join('') || empty('No active prospects yet.');
+    </div>`).join('') || empty('No active prospects yet.');
 
-  $('leadList').innerHTML = state.leads
-    .slice()
-    .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')) * -1)
-    .map(l => `
-      <div class="task">
-        <div class="task-title">
-          <b>${esc(leadName(l))}</b>
-          <span class="badge">${esc(l.lead_status || 'Appointment Wanted')}</span>
-        </div>
-        <div class="meta">
-          ${l.lead_number ? 'Lead # ' + esc(l.lead_number) : 'Lead # not entered'}
-          ${l.source ? ' • ' + esc(l.source) : ''}
-          ${l.assigned_to ? ' • ' + esc(l.assigned_to) : ''}
-        </div>
-        ${l.street_address ? `<div>${esc(l.street_address)}${l.city ? ', ' + esc(l.city) : ''}</div>` : ''}
-        <div class="meta">
-          Estimate: ${esc(l.estimate_status || 'Not Known')}
-          ${l.phone ? ' • ' + esc(l.phone) : ''}
-        </div>
+  $('leadList').innerHTML = state.leads.filter(visibleLead).slice().sort((a,b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).map(l => `
+    <div class="task">
+      <div class="task-title"><b>${esc(leadName(l))}</b><span class="badge">${esc(l.lead_status || 'Appointment Wanted')}</span></div>
+      <div class="meta">${l.lead_number ? 'Lead # ' + esc(l.lead_number) : 'Lead # not entered'}${l.source ? ' • ' + esc(l.source) : ''}${l.assigned_to ? ' • ' + esc(l.assigned_to) : ''}</div>
+      ${l.street_address ? `<div>${esc(l.street_address)}${l.city ? ', ' + esc(l.city) : ''}</div>` : ''}
+      <div class="meta">Estimate: ${esc(l.estimate_status || 'Not Known')}${l.phone ? ' • ' + esc(l.phone) : ''}</div>
+      ${contactActionHtml({phone:l.phone,email:l.email,kind:'lead',id:l.id,name:leadName(l)})}
+      <details><summary>Communication History</summary>${communicationHistoryHtml('lead',l.id)}</details>
+      <div class="actions">
+        <button class="btn small" data-edit-lead="${esc(l.id)}">View / Edit</button>
+        <button class="btn small" data-record-action="archive" data-record-table="leads" data-record-id="${esc(l.id)}">Archive</button>
+        <button class="btn small" data-record-action="delete" data-record-table="leads" data-record-id="${esc(l.id)}">Delete</button>
       </div>
-    `).join('') || empty('No leads yet.');
+    </div>`).join('') || empty('No leads yet.');
 
-  $('appointmentList').innerHTML = upcomingAppointments
-    .slice(0, 20)
-    .map(a => {
-      const lead = state.leads.find(l => l.id === a.lead_id);
-      return `
-        <div class="task">
-          <b>${esc(lead ? leadName(lead) : 'Lead')}</b>
-          <div class="meta">
-            ${esc(formatWhen(a.appointment_at))}
-            • ${esc(a.appointment_status || 'Scheduled')}
-            ${a.assigned_to ? ' • ' + esc(a.assigned_to) : ''}
-            • MarketSharp: ${esc(a.marketsharp_status || 'Not Needed Yet')}
-          </div>
-        </div>
-      `;
-    }).join('') || empty('No upcoming appointments entered yet.');
+  $('appointmentList').innerHTML = upcomingAppointments.slice(0,20).map(a => {
+    const lead = state.leads.find(l => l.id === a.lead_id);
+    return `<div class="task"><b>${esc(lead ? leadName(lead) : 'Lead')}</b><div class="meta">${esc(formatWhen(a.appointment_at))} • ${esc(a.appointment_status || 'Scheduled')}${a.assigned_to ? ' • ' + esc(a.assigned_to) : ''} • MarketSharp: ${esc(a.marketsharp_status || 'Not Needed Yet')}</div><div class="actions"><button class="btn small" data-edit-appointment="${esc(a.id)}">Edit</button><button class="btn small" data-record-action="delete" data-record-table="appointments" data-record-id="${esc(a.id)}">Delete</button></div></div>`;
+  }).join('') || empty('No upcoming appointments entered yet.');
+
+  const archivedProspects = state.prospects.filter(p => !p.deleted_at && (p.archived_at || p.archive_flag));
+  const archivedLeads = state.leads.filter(l => !l.deleted_at && l.archived_at);
+  $('archivedSalesList').innerHTML = [
+    ...archivedProspects.map(p => `<div class="task"><b>Prospect: ${esc(prospectName(p))}</b><div class="meta">${esc(p.source || '')}</div><div class="actions"><button class="btn small" data-record-action="restore" data-record-table="prospects" data-record-id="${esc(p.id)}">Restore</button><button class="btn small" data-record-action="delete" data-record-table="prospects" data-record-id="${esc(p.id)}">Delete</button></div></div>`),
+    ...archivedLeads.map(l => `<div class="task"><b>Lead: ${esc(leadName(l))}</b><div class="meta">${l.lead_number ? 'Lead # ' + esc(l.lead_number) : ''}</div><div class="actions"><button class="btn small" data-record-action="restore" data-record-table="leads" data-record-id="${esc(l.id)}">Restore</button><button class="btn small" data-record-action="delete" data-record-table="leads" data-record-id="${esc(l.id)}">Delete</button></div></div>`)
+  ].join('') || empty('No archived prospects or leads.');
 }
 
 function renderJobs() {
