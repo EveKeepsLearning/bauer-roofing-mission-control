@@ -127,6 +127,80 @@ function priorityRank(p) {
 }
 
 
+function resolveRelatedNumber(value) {
+  const relatedNumber =
+    String(value || '').trim();
+
+  if (!relatedNumber) {
+    return {
+      related_number: null,
+      lead_number: null,
+      job_number: null
+    };
+  }
+
+  const normalized =
+    relatedNumber.toLowerCase();
+
+  const jobMatch =
+    state.jobs.find(j =>
+      String(j.job_number || '')
+        .trim()
+        .toLowerCase() === normalized
+    );
+
+  if (jobMatch) {
+    return {
+      related_number: relatedNumber,
+      lead_number: null,
+      job_number:
+        String(jobMatch.job_number || relatedNumber)
+          .trim()
+    };
+  }
+
+  const leadMatch =
+    state.jobs.find(j =>
+      String(j.lead_number || '')
+        .trim()
+        .toLowerCase() === normalized
+    );
+
+  if (leadMatch) {
+    return {
+      related_number: relatedNumber,
+      lead_number:
+        String(leadMatch.lead_number || relatedNumber)
+          .trim(),
+      job_number: null
+    };
+  }
+
+  return {
+    related_number: relatedNumber,
+    lead_number: null,
+    job_number: null
+  };
+}
+
+
+function relatedLabel(item) {
+  if (item.job_number) {
+    return 'Job # ' + esc(item.job_number);
+  }
+
+  if (item.lead_number) {
+    return 'Lead # ' + esc(item.lead_number);
+  }
+
+  if (item.related_number) {
+    return 'Related # ' + esc(item.related_number);
+  }
+
+  return '';
+}
+
+
 function taskCard(t) {
   const progress =
     t.progress_total
@@ -172,7 +246,19 @@ function taskCard(t) {
             : ''
         }
 
+        ${
+          relatedLabel(t)
+            ? ' • ' + relatedLabel(t)
+            : ''
+        }
+
       </div>
+
+      ${
+        t.description
+          ? `<div>${esc(t.description)}</div>`
+          : ''
+      }
 
       <div class="actions">
 
@@ -380,6 +466,7 @@ function renderDashboard() {
     jw.map(j => `
       <div class="task">
         <b>${esc(j.customer_name || 'Unnamed customer')}</b>
+
         <div class="meta">
           ${esc(j.property_address || '')}
           • ${esc(j.stage)}
@@ -399,6 +486,7 @@ function renderDashboard() {
     comms.map(c => `
       <div class="task">
         <b>${esc(c.purpose)}</b>
+
         <div class="meta">
           Job ${esc(c.job_id || '')}
           • ${esc(c.status)}
@@ -436,13 +524,17 @@ function renderDashboard() {
       t.due_date === td
     ).length;
 
-  $('kpiComms').textContent = comms.length;
-  $('kpiWeekJobs').textContent = jw.length;
+  $('kpiComms').textContent =
+    comms.length;
+
+  $('kpiWeekJobs').textContent =
+    jw.length;
 
   renderIncoming();
   renderPhone();
   renderJobs();
 }
+
 
 function renderIncoming() {
   $('incomingList').innerHTML =
@@ -504,6 +596,12 @@ function renderPhone() {
               ''
             )}
 
+            ${
+              relatedLabel(p)
+                ? ' • ' + relatedLabel(p)
+                : ''
+            }
+
             •
 
             ${esc(
@@ -539,6 +637,14 @@ function renderJobs() {
 
           <td>
             ${esc(j.customer_name)}
+          </td>
+
+          <td>
+            ${esc(j.lead_number || '')}
+          </td>
+
+          <td>
+            ${esc(j.job_number || '')}
           </td>
 
           <td>
@@ -582,6 +688,8 @@ function renderJobs() {
 
               <tr>
                 <th>Customer</th>
+                <th>Lead #</th>
+                <th>Job #</th>
                 <th>Address</th>
                 <th>Stage</th>
                 <th>Start</th>
@@ -1031,6 +1139,11 @@ async function taskAction(
 
 
 async function savePhone() {
+  const related =
+    resolveRelatedNumber(
+      $('pmRelatedNumber').value
+    );
+
   const row = {
     caller_name:
       $('pmName').value.trim(),
@@ -1061,8 +1174,16 @@ async function savePhone() {
     follow_up_notes:
       $('pmNotes').value.trim(),
 
+    related_number:
+      related.related_number,
+
+    lead_number:
+      related.lead_number,
+
+    job_number:
+      related.job_number,
+
     related_job_id:
-      $('pmJob').value.trim() ||
       null
   };
 
@@ -1108,7 +1229,7 @@ async function savePhone() {
     'pmFor',
     'pmReason',
     'pmNotes',
-    'pmJob'
+    'pmRelatedNumber'
   ].forEach(
     id => {
       $(id).value = '';
@@ -1204,6 +1325,11 @@ async function saveTask() {
     return;
   }
 
+  const related =
+    resolveRelatedNumber(
+      $('taskRelatedNumber').value
+    );
+
   const {
     data,
     error
@@ -1212,33 +1338,55 @@ async function saveTask() {
       .from('tasks')
       .insert({
         task,
+
+        description:
+          $('taskDescription')
+            .value
+            .trim(),
+
         category:
           $('taskCategory')
             .value
             .trim(),
+
         task_type:
           'One-Time',
+
         status:
           'Not Started',
+
         base_priority:
           $('taskPriority')
             .value,
+
         due_date:
           $('taskDueDate')
             .value ||
           null,
+
         due_time:
           $('taskDueTime')
             .value ||
           null,
+
         next_action:
           $('taskNext')
             .value
             .trim(),
+
         notes:
           $('taskNotes')
             .value
-            .trim()
+            .trim(),
+
+        related_number:
+          related.related_number,
+
+        lead_number:
+          related.lead_number,
+
+        job_number:
+          related.job_number
       })
       .select()
       .single();
@@ -1253,6 +1401,22 @@ async function saveTask() {
   }
 
   state.tasks.push(data);
+
+  [
+    'taskName',
+    'taskCategory',
+    'taskDueDate',
+    'taskDueTime',
+    'taskRelatedNumber',
+    'taskDescription',
+    'taskNext',
+    'taskNotes'
+  ].forEach(id => {
+    $(id).value = '';
+  });
+
+  $('taskPriority').value =
+    'Normal';
 
   $('taskDialog').close();
 
@@ -1286,6 +1450,11 @@ async function saveJob() {
 
     lead_number:
       $('jobLead')
+        .value
+        .trim(),
+
+    job_number:
+      $('jobNumber')
         .value
         .trim(),
 
