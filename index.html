@@ -1271,6 +1271,58 @@
 
       </dialog>
 
+
+      <!-- LOG COMMUNICATION -->
+      <dialog id="communicationDialog">
+        <form method="dialog" class="card" style="min-width:min(620px,90vw);margin:0">
+          <h2 id="commDialogTitle">Log Communication</h2>
+          <input id="commKind" type="hidden">
+          <input id="commContactId" type="hidden">
+          <div class="form-grid">
+            <div>
+              <label>Type</label>
+              <select id="commType">
+                <option>Call</option>
+                <option>Text</option>
+                <option>Email</option>
+                <option>In Person</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div>
+              <label>Direction</label>
+              <select id="commDirection">
+                <option>Outbound</option>
+                <option>Inbound</option>
+              </select>
+            </div>
+            <div class="wide">
+              <label>Result</label>
+              <input id="commResult" placeholder="Example: Left voicemail, Spoke with homeowner, Email sent">
+            </div>
+            <div class="wide">
+              <label>Notes</label>
+              <textarea id="commNotes" placeholder="What happened?"></textarea>
+            </div>
+            <div>
+              <label>Follow-up needed?</label>
+              <select id="commFollowNeeded">
+                <option>No</option>
+                <option>Yes</option>
+              </select>
+            </div>
+            <div>
+              <label>Follow-up date/time</label>
+              <input id="commFollowDue" type="datetime-local">
+            </div>
+          </div>
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="saveCommunicationBtn">Save Communication</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
+      </dialog>
+
     </main>
 
 
