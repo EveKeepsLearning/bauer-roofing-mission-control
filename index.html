@@ -107,6 +107,10 @@
           Incoming
         </button>
 
+        <button data-view="leads">
+          Prospects / Leads
+        </button>
+
         <button data-view="jobs">
           Jobs
         </button>
@@ -442,6 +446,77 @@
       </section>
 
 
+      <!-- PROSPECTS / LEADS -->
+
+      <section
+        id="view-leads"
+        class="hidden">
+
+        <div class="kpi-row">
+          <div class="kpi">
+            <div class="n" id="kpiProspects">0</div>
+            <div class="l">Active prospects</div>
+          </div>
+
+          <div class="kpi">
+            <div class="n" id="kpiProspectDue">0</div>
+            <div class="l">Prospect follow-ups due</div>
+          </div>
+
+          <div class="kpi">
+            <div class="n" id="kpiLeads">0</div>
+            <div class="l">Active leads</div>
+          </div>
+
+          <div class="kpi">
+            <div class="n" id="kpiAppointments">0</div>
+            <div class="l">Upcoming appointments</div>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div>
+            <div class="card">
+              <div class="toolbar">
+                <h2>Prospects</h2>
+                <div class="spacer"></div>
+                <button class="btn small primary" id="newProspectBtn">+ Prospect</button>
+              </div>
+
+              <p class="auth-note">
+                A prospect is an inquiry where you do not yet know for certain that they want an appointment.
+                Angi inquiries begin here unless they are already confirmed appointment-seeking leads.
+              </p>
+
+              <div id="prospectList"></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="card">
+              <div class="toolbar">
+                <h2>Leads</h2>
+                <div class="spacer"></div>
+                <button class="btn small primary" id="newLeadBtn">+ Lead</button>
+              </div>
+
+              <p class="auth-note">
+                A lead is someone you know wants an appointment. Leads can be entered manually or promoted from a prospect.
+              </p>
+
+              <div id="leadList"></div>
+            </div>
+
+            <div class="card">
+              <h3>Upcoming Appointments</h3>
+              <div id="appointmentList"></div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+
       <!-- JOBS -->
 
       <section
@@ -700,6 +775,253 @@
 
         </form>
 
+      </dialog>
+
+
+      <!-- NEW PROSPECT -->
+
+      <dialog id="prospectDialog">
+        <form method="dialog" class="card" style="min-width:min(760px,92vw);margin:0">
+          <h2>New Prospect</h2>
+
+          <div class="form-grid">
+            <div>
+              <label>Source</label>
+              <select id="prospectSource"></select>
+            </div>
+
+            <div id="prospectAngiAccountWrap">
+              <label>Angi account</label>
+              <select id="prospectSourceAccount"></select>
+            </div>
+
+            <div id="prospectSourceRefWrap">
+              <label>Source / Angi reference #</label>
+              <input id="prospectSourceRef" placeholder="Optional source reference">
+            </div>
+
+            <div>
+              <label>Status</label>
+              <select id="prospectStatus"></select>
+            </div>
+
+            <div>
+              <label>First name</label>
+              <input id="prospectFirstName">
+            </div>
+
+            <div>
+              <label>Last name</label>
+              <input id="prospectLastName">
+            </div>
+
+            <div class="wide">
+              <label>Street address</label>
+              <input id="prospectStreet">
+            </div>
+
+            <div>
+              <label>City</label>
+              <input id="prospectCity">
+            </div>
+
+            <div>
+              <label>State</label>
+              <input id="prospectState" value="SC">
+            </div>
+
+            <div>
+              <label>ZIP</label>
+              <input id="prospectZip">
+            </div>
+
+            <div>
+              <label>Phone</label>
+              <input id="prospectPhone">
+            </div>
+
+            <div>
+              <label>Email</label>
+              <input id="prospectEmail" type="email">
+            </div>
+
+            <div>
+              <label>Work requested</label>
+              <select id="prospectWorkCategory">
+                <option>Roofing</option>
+                <option>Windows</option>
+                <option>Siding</option>
+                <option>Gutters</option>
+                <option>Multiple</option>
+                <option>Not Sure</option>
+                <option>Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Assigned to</label>
+              <select id="prospectAssignedTo"></select>
+            </div>
+
+            <div>
+              <label>Next follow-up</label>
+              <input id="prospectNextFollow" type="datetime-local">
+            </div>
+
+            <div>
+              <label>Next action</label>
+              <input id="prospectNextAction" placeholder="Call, text, wait for reply…">
+            </div>
+
+            <div class="wide">
+              <label>Notes</label>
+              <textarea id="prospectNotes"></textarea>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="saveProspectBtn">Save Prospect</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
+      </dialog>
+
+
+      <!-- NEW / PROMOTED LEAD -->
+
+      <dialog id="leadDialog">
+        <form method="dialog" class="card" style="min-width:min(780px,92vw);margin:0">
+          <h2 id="leadDialogTitle">New Lead</h2>
+          <input id="leadProspectId" type="hidden">
+
+          <div class="form-grid">
+            <div>
+              <label>Bauer Lead #</label>
+              <input id="leadNumber" placeholder="Internal Bauer lead number">
+            </div>
+
+            <div>
+              <label>Source</label>
+              <select id="leadSource"></select>
+            </div>
+
+            <div id="leadAngiAccountWrap">
+              <label>Angi account</label>
+              <select id="leadSourceAccount"></select>
+            </div>
+
+            <div>
+              <label>Source / Angi reference #</label>
+              <input id="leadSourceRef">
+            </div>
+
+            <div>
+              <label>First name</label>
+              <input id="leadFirstName">
+            </div>
+
+            <div>
+              <label>Last name</label>
+              <input id="leadLastName">
+            </div>
+
+            <div class="wide">
+              <label>Street address</label>
+              <input id="leadStreet">
+            </div>
+
+            <div>
+              <label>City</label>
+              <input id="leadCity">
+            </div>
+
+            <div>
+              <label>State</label>
+              <input id="leadState" value="SC">
+            </div>
+
+            <div>
+              <label>ZIP</label>
+              <input id="leadZip">
+            </div>
+
+            <div>
+              <label>Phone</label>
+              <input id="leadPhone">
+            </div>
+
+            <div>
+              <label>Email</label>
+              <input id="leadEmail" type="email">
+            </div>
+
+            <div>
+              <label>Work requested</label>
+              <select id="leadWorkCategory">
+                <option>Roofing</option>
+                <option>Windows</option>
+                <option>Siding</option>
+                <option>Gutters</option>
+                <option>Multiple</option>
+                <option>Not Sure</option>
+                <option>Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Assigned to</label>
+              <select id="leadAssignedTo"></select>
+            </div>
+
+            <div>
+              <label>Lead status</label>
+              <select id="leadStatus">
+                <option>Appointment Wanted</option>
+                <option>Scheduling</option>
+                <option>Appointment Scheduled</option>
+                <option>Estimate Pending</option>
+                <option>Estimate Sent</option>
+                <option>Sold</option>
+                <option>Not Moving Forward</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Estimate status</label>
+              <select id="leadEstimateStatus"></select>
+            </div>
+
+            <div>
+              <label>Appointment date</label>
+              <input id="leadAppointmentDate" type="date">
+            </div>
+
+            <div>
+              <label>Appointment time</label>
+              <input id="leadAppointmentTime" type="time">
+            </div>
+
+            <div>
+              <label>MarketSharp status</label>
+              <select id="leadMarketSharpStatus"></select>
+            </div>
+
+            <div class="wide">
+              <label>Estimate / customer issue note</label>
+              <textarea id="leadEstimateNote" placeholder="For example: homeowner called because estimate was not received"></textarea>
+            </div>
+
+            <div class="wide">
+              <label>Notes</label>
+              <textarea id="leadNotes"></textarea>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="saveLeadBtn">Save Lead</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
       </dialog>
 
 
