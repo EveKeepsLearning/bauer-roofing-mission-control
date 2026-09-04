@@ -243,6 +243,7 @@
 
       <div class="sync-status" id="syncStatus"></div>
       <button class="btn primary" id="syncCalendarBtn">Sync Google Calendar</button>
+      <button class="btn" id="changeSyncUrlBtn">Change Sync URL</button>
       <button class="btn" id="refreshBtn">Refresh View</button>
     </div>
 
@@ -761,6 +762,33 @@ function runCalendarSyncJsonp_(webAppUrl){
   });
 }
 
+
+function changeCalendarSyncUrl(){
+  const current = getCalendarSyncUrl();
+  localStorage.removeItem('bauerCalendarSyncWebAppUrl');
+
+  const entered = prompt(
+    'Paste the Google Apps Script Web App URL ending in /exec.\n\nDo not paste the script.googleusercontent.com redirected URL.',
+    current && current.includes('script.google.com') ? current : ''
+  );
+
+  if(!entered) return;
+
+  const cleaned = String(entered).trim();
+
+  if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/i.test(cleaned)){
+    alert(
+      'That does not look like the Apps Script deployment URL.\n\n' +
+      'Copy it from Apps Script → Deploy → Manage deployments. ' +
+      'It should begin with https://script.google.com/macros/s/ and end in /exec.'
+    );
+    return;
+  }
+
+  localStorage.setItem('bauerCalendarSyncWebAppUrl', cleaned);
+  $('syncStatus').textContent = 'Sync URL updated';
+}
+
 async function syncGoogleCalendarNow(){
   let url = getCalendarSyncUrl();
   if(!url) url = askForCalendarSyncUrl();
@@ -1217,6 +1245,7 @@ $('nextBtn').onclick=async()=>{
   await loadWeek();
 };
 $('syncCalendarBtn').onclick=syncGoogleCalendarNow;
+$('changeSyncUrlBtn').onclick=changeCalendarSyncUrl;
 $('refreshBtn').onclick=async()=>{
   await loadWeek();
 };
