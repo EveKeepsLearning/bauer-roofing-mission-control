@@ -22,6 +22,8 @@ let state = {
   quick_notes: []
 };
 
+let selectedLeadId = '';
+
 const $ = id => document.getElementById(id);
 
 const esc = v =>
@@ -3511,6 +3513,82 @@ function leadMatchesSearch(lead, query) {
   return haystack.includes(q);
 }
 
+function leadStatusTone(status) {
+  const s = String(status || '').toLowerCase();
+  if (s.includes('appointment')) return 'tone-appointment';
+  if (s.includes('estimate') || s.includes('proposal')) return 'tone-estimate';
+  if (s.includes('sold') || s.includes('signed')) return 'tone-sold';
+  if (s.includes('not moving') || s.includes('rejected')) return 'tone-closed';
+  return 'tone-active';
+}
+
+function leadUpcomingAppointments(leadId) {
+  const now = new Date();
+  return state.appointments
+    .filter(a => activeRow(a) && a.lead_id === leadId && a.appointment_at && new Date(a.appointment_at) >= now && !['Cancelled','Completed'].includes(a.appointment_status))
+    .sort((a,b) => new Date(a.appointment_at) - new Date(b.appointment_at));
+}
+
+function renderLeadDetail() {
+  const detail = $('leadDetail');
+  if (!detail) return;
+
+  const activeLeads = state.leads.filter(l => visibleLead(l) && !['Sold','Not Moving Forward'].includes(l.lead_status));
+  const query = $('leadSearch') ? $('leadSearch').value : '';
+  const matching = activeLeads.filter(l => leadMatchesSearch(l, query));
+  let lead = matching.find(l => l.id === selectedLeadId) || activeLeads.find(l => l.id === selectedLeadId);
+
+  if (!lead && matching.length) {
+    selectedLeadId = matching[0].id;
+    lead = matching[0];
+  }
+
+  if (!lead) {
+    selectedLeadId = '';
+    detail.innerHTML = empty(query ? 'No leads match that search.' : 'Select a lead.');
+    return;
+  }
+
+  const appts = leadUpcomingAppointments(lead.id);
+  const sourceLine = [lead.lead_number ? 'Lead # ' + lead.lead_number : 'Lead # not entered', lead.source, lead.assigned_to].filter(Boolean).join(' • ');
+  const address = [lead.street_address, lead.city, lead.state, lead.zip].filter(Boolean).join(lead.street_address && lead.city ? ', ' : ' ');
+  const apptHtml = appts.length ? appts.map(a => `<div class="lead-detail-appt"><b>${esc(formatWhen(a.appointment_at))}</b><span>${esc(a.appointment_status || 'Scheduled')}${a.assigned_to ? ' • ' + esc(a.assigned_to) : ''}</span><button class="btn small" data-edit-appointment="${esc(a.id)}">Edit</button></div>`).join('') : '<div class="meta">No upcoming appointments.</div>';
+
+  detail.innerHTML = `
+    <div class="lead-detail-head">
+      <span class="lead-status-pill ${leadStatusTone(lead.lead_status)}">${esc(lead.lead_status || 'Appointment Wanted')}</span>
+      <h2>${esc(leadName(lead))}</h2>
+      <div class="meta">${esc(sourceLine)}</div>
+    </div>
+
+    ${contactActionHtml({phone:lead.phone,email:lead.email,kind:'lead',id:lead.id,name:leadName(lead)})}
+
+    <div class="lead-info-grid">
+      <div class="info-tile"><span>PHONE</span><b>${esc(lead.phone || '—')}</b></div>
+      <div class="info-tile"><span>EMAIL</span><b>${esc(lead.email || '—')}</b></div>
+      <div class="info-tile wide"><span>PROPERTY</span><b>${esc(address || '—')}</b></div>
+      <div class="info-tile"><span>ESTIMATE</span><b>${esc(lead.estimate_status || 'Not Known')}</b></div>
+      <div class="info-tile"><span>SOURCE</span><b>${esc(lead.source || '—')}</b></div>
+    </div>
+
+    ${lead.estimate_note ? `<div class="lead-detail-note"><span>ESTIMATE NOTE</span>${esc(lead.estimate_note)}</div>` : ''}
+    ${lead.notes ? `<div class="lead-detail-note"><span>LEAD NOTES</span>${esc(lead.notes)}</div>` : ''}
+
+    <div class="lead-detail-section-title">Upcoming Appointments</div>
+    <div class="lead-detail-appointments">${apptHtml}</div>
+
+    <details class="comm-history-details" open>
+      <summary>Communication History</summary>
+      ${communicationHistoryHtml('lead',lead.id)}
+    </details>
+
+    <div class="actions lead-detail-actions">
+      <button class="btn primary" data-edit-lead="${esc(lead.id)}">View / Edit</button>
+      <button class="btn" data-record-action="archive" data-record-table="leads" data-record-id="${esc(lead.id)}">Archive</button>
+      <button class="btn" data-record-action="delete" data-record-table="leads" data-record-id="${esc(lead.id)}">Delete</button>
+    </div>`;
+}
+
 function renderProspectsLeads() {
   if (!$('leadList')) return;
   const now = new Date();
@@ -3528,20 +3606,22 @@ function renderProspectsLeads() {
     .slice()
     .sort((a,b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
 
-  $('leadList').innerHTML = matchingLeads.map(l => `
-    <div class="task">
-      <div class="task-title"><b>${esc(leadName(l))}</b><span class="badge">${esc(l.lead_status || 'Appointment Wanted')}</span></div>
-      <div class="meta">${l.lead_number ? 'Lead # ' + esc(l.lead_number) : 'Lead # not entered'}${l.source ? ' • ' + esc(l.source) : ''}${l.assigned_to ? ' • ' + esc(l.assigned_to) : ''}</div>
-      ${l.street_address ? `<div>${esc(l.street_address)}${l.city ? ', ' + esc(l.city) : ''}</div>` : ''}
-      <div class="meta">Estimate: ${esc(l.estimate_status || 'Not Known')}${l.phone ? ' • ' + esc(l.phone) : ''}${l.email ? ' • ' + esc(l.email) : ''}</div>
-      ${contactActionHtml({phone:l.phone,email:l.email,kind:'lead',id:l.id,name:leadName(l)})}
-      <details><summary>Communication History</summary>${communicationHistoryHtml('lead',l.id)}</details>
-      <div class="actions">
-        <button class="btn small" data-edit-lead="${esc(l.id)}">View / Edit</button>
-        <button class="btn small" data-record-action="archive" data-record-table="leads" data-record-id="${esc(l.id)}">Archive</button>
-        <button class="btn small" data-record-action="delete" data-record-table="leads" data-record-id="${esc(l.id)}">Delete</button>
-      </div>
-    </div>`).join('') || empty(query ? 'No leads match that search.' : 'No leads yet.');
+  if (!selectedLeadId || !activeLeads.some(l => l.id === selectedLeadId)) {
+    selectedLeadId = matchingLeads.length ? matchingLeads[0].id : '';
+  }
+
+  $('leadList').innerHTML = matchingLeads.map(l => {
+    const nextAppt = leadUpcomingAppointments(l.id)[0];
+    const tone = leadStatusTone(l.lead_status);
+    return `<button class="lead-queue-row ${tone}${l.id === selectedLeadId ? ' selected' : ''}" data-lead-select="${esc(l.id)}" type="button">
+      <div class="lead-row-top"><strong>${esc(leadName(l))}</strong><span class="lead-status-pill ${tone}">${esc(l.lead_status || 'Appointment Wanted')}</span></div>
+      <div class="meta">${l.lead_number ? 'Lead # ' + esc(l.lead_number) : 'Lead # not entered'}${l.source ? ' • ' + esc(l.source) : ''}</div>
+      ${l.street_address ? `<div class="lead-row-address">${esc(l.street_address)}${l.city ? ', ' + esc(l.city) : ''}</div>` : ''}
+      <div class="lead-row-next">${nextAppt ? 'Next appointment: ' + esc(formatWhen(nextAppt.appointment_at)) : 'Estimate: ' + esc(l.estimate_status || 'Not Known')}</div>
+    </button>`;
+  }).join('') || empty(query ? 'No leads match that search.' : 'No leads yet.');
+
+  renderLeadDetail();
 
   $('appointmentList').innerHTML = upcomingAppointments.slice(0,20).map(a => {
     const lead = state.leads.find(l => l.id === a.lead_id);
@@ -3714,6 +3794,7 @@ document.body.addEventListener('click', async event => {
     const editPhone=event.target.closest('[data-edit-phone]'); if(editPhone){openPhoneEdit(editPhone.dataset.editPhone);return;}
     const editIncoming=event.target.closest('[data-edit-incoming]'); if(editIncoming){openIncomingEdit(editIncoming.dataset.editIncoming);return;}
     const editProspect=event.target.closest('[data-edit-prospect]'); if(editProspect){openProspectDialog(state.prospects.find(p=>p.id===editProspect.dataset.editProspect));return;}
+    const selectLead=event.target.closest('[data-lead-select]'); if(selectLead){selectedLeadId=selectLead.dataset.leadSelect;renderProspectsLeads();return;}
     const editLead=event.target.closest('[data-edit-lead]'); if(editLead){openLeadEdit(editLead.dataset.editLead);return;}
     const editJob=event.target.closest('[data-edit-job]'); if(editJob){openJobEdit(editJob.dataset.editJob);return;}
     const editAppt=event.target.closest('[data-edit-appointment]'); if(editAppt){openAppointmentEdit(editAppt.dataset.editAppointment);return;}
@@ -3731,7 +3812,7 @@ $('saveCommunicationBtn').onclick=saveCommunication;
 $('newTaskBtn').onclick=()=>{clearTaskForm();$('taskDialog').showModal();};
 if ($('newProspectBtn')) $('newProspectBtn').onclick=()=>openProspectDialog();
 $('newLeadBtn').onclick=()=>{clearLeadForm();openLeadDialog();};
-if ($('leadSearch')) $('leadSearch').oninput=()=>renderProspectsLeads();
+if ($('leadSearch')) $('leadSearch').oninput=()=>{ selectedLeadId=''; renderProspectsLeads(); };
 $('newJobBtn').onclick=()=>{clearJobForm();$('jobDialog').showModal();};
 
 
