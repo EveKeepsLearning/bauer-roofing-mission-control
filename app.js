@@ -2459,8 +2459,9 @@ $('newTaskBtn').onclick =
 $('saveTaskBtn').onclick =
   saveTask;
 
-$('newProspectBtn').onclick =
-  openProspectDialog;
+if ($('newProspectBtn')) {
+  $('newProspectBtn').onclick = openProspectDialog;
+}
 
 $('saveProspectBtn').onclick =
   saveProspect;
