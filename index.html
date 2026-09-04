@@ -65,6 +65,7 @@
     .dot.repair{background:var(--repair)}
     .dot.reroof{background:var(--reroof)}
     .review-dot{width:9px;height:9px;background:var(--warning);border-radius:50%;display:inline-block}
+    .lead-match-dot{width:10px;height:10px;background:#1a73e8;border-radius:50%;display:inline-block}
     .matched-dot{width:10px;height:10px;background:var(--success);border-radius:50%;display:inline-block}
 
     .message{
@@ -143,7 +144,7 @@
     .event-title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .event-time{opacity:.95;margin-top:2px}
     .event-contact{opacity:.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .event .review-dot,.event .matched-dot{position:absolute;right:5px;top:5px;border:1px solid rgba(255,255,255,.8)}
+    .event .review-dot,.event .lead-match-dot,.event .matched-dot{position:absolute;right:5px;top:5px;border:1px solid rgba(255,255,255,.8)}
 
     .now-line{
       position:absolute;height:2px;background:#ea4335;left:0;right:0;z-index:10;pointer-events:none;
@@ -202,6 +203,9 @@
       display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;
     }
     .status-line{font-size:12px;color:var(--muted);margin-top:8px}
+    .sync-status{
+      font-size:12px;color:var(--muted);min-width:120px;text-align:right;
+    }
     .create-lead-box{
       margin-top:13px;padding-top:13px;border-top:1px solid var(--line);
       display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
@@ -227,7 +231,7 @@
       <div class="brand">Bauer Roofing Mission Control</div>
 
       <div class="top-actions">
-        <a class="btn" href="index.html">Mission Control</a>
+        <a class="btn" href="https://evekeepslearning.github.io/bauer-roofing-mission-control/index.html">Mission Control</a>
         <button class="btn" id="todayBtn">Today</button>
         <button class="btn icon" id="prevBtn" aria-label="Previous week">‹</button>
         <button class="btn icon" id="nextBtn" aria-label="Next week">›</button>
@@ -237,14 +241,17 @@
 
       <div class="spacer"></div>
 
-      <button class="btn" id="refreshBtn">Refresh</button>
+      <div class="sync-status" id="syncStatus"></div>
+      <button class="btn primary" id="syncCalendarBtn">Sync Google Calendar</button>
+      <button class="btn" id="refreshBtn">Refresh View</button>
     </div>
 
     <div class="legend">
       <span class="legend-item"><span class="dot repair"></span> Repair appointment</span>
       <span class="legend-item"><span class="dot reroof"></span> Reroof / measure / presentation</span>
-      <span class="legend-item"><span class="review-dot"></span> Return visit needs review</span>
-      <span class="legend-item"><span class="matched-dot"></span> Matched to a lead</span>
+      <span class="legend-item"><span class="lead-match-dot"></span> Sales appointment needs Lead match</span>
+      <span class="legend-item"><span class="review-dot"></span> Likely return visit needs review</span>
+      <span class="legend-item"><span class="matched-dot"></span> Matched to a Lead</span>
       <span class="legend-item">Google Calendar remains the schedule</span>
     </div>
 
@@ -263,10 +270,8 @@
       <div id="matchBanner" class="match-banner hidden"></div>
 
       <div id="reviewBox" class="review-box hidden">
-        <div class="review-title">Likely return visit — match it to the existing lead</div>
-        <div class="review-sub">
-          This calendar event does not follow the normal Source-Type-Address sales appointment format, so Mission Control is treating it as a likely return visit. It suggests existing leads below, but nothing is linked until you approve it.
-        </div>
+        <div class="review-title" id="reviewTitle">Review calendar event</div>
+        <div class="review-sub" id="reviewSub"></div>
 
         <div id="suggestions" class="suggestions"></div>
 
@@ -278,7 +283,7 @@
         <div id="matchStatus" class="status-line"></div>
 
         <div class="create-lead-box">
-          <div class="create-lead-copy">If this is actually a brand-new opportunity, create a Lead from the calendar information.</div>
+          <div class="create-lead-copy">If no existing Lead is correct, create a Lead from the calendar information without retyping it.</div>
           <button class="btn primary small" id="createLeadBtn">Create New Lead</button>
         </div>
       </div>
@@ -374,6 +379,20 @@ function isReturnVisitCandidate(row){
   if(row.matched_lead_id) return false;
   if(row.calendar_classification === 'Not Sales Related') return false;
   return row.calendar_classification === 'Needs Review' && !isStructuredSalesAppointment(row);
+}
+
+function isSalesLeadMatchCandidate(row){
+  if(row.matched_lead_id) return false;
+  if(row.calendar_classification === 'Not Sales Related') return false;
+  return isStructuredSalesAppointment(row);
+}
+
+function hasEnoughInfoToCreateLead(row){
+  if(!isStructuredSalesAppointment(row)) return false;
+  const hasName = Boolean(row.contact_first_name || row.contact_last_name);
+  const hasAddress = Boolean(row.property_text);
+  const hasContact = Boolean(row.phone_primary || row.phone_secondary || row.email);
+  return hasName && hasAddress && hasContact;
 }
 
 function leadName(lead){
@@ -574,15 +593,32 @@ function inferHomeownerName(row){
   return first || last || '';
 }
 
-function inferStreetAddress(row){
-  return String(row.property_text || '').trim();
+function inferPropertyFields(row){
+  const raw = String(row.property_text || '').trim();
+  if(!raw) return {street_address:null,city:null,state:'SC',zip:null};
+
+  const zipMatch = raw.match(/(?:,\s*)?(\d{5})(?:-\d{4})?\s*$/);
+  const zip = zipMatch ? zipMatch[1] : null;
+  let street = raw;
+
+  if(zipMatch){
+    street = raw.substring(0,zipMatch.index).replace(/,\s*$/,'').trim();
+  }
+
+  return {
+    street_address: street || raw,
+    city: null,
+    state: 'SC',
+    zip: zip
+  };
 }
 
 async function createLeadFromCalendarEvent(){
   if(!activeEvent) return;
 
   const homeownerName = inferHomeownerName(activeEvent);
-  const streetAddress = inferStreetAddress(activeEvent);
+  const property = inferPropertyFields(activeEvent);
+  const streetAddress = property.street_address;
   const phone = activeEvent.phone_primary || activeEvent.phone_secondary || null;
   const email = activeEvent.email || null;
   const source = inferLeadSource(activeEvent);
@@ -602,13 +638,22 @@ async function createLeadFromCalendarEvent(){
 
   const payload = {
     homeowner_name: homeownerName || null,
+    first_name: activeEvent.contact_first_name || null,
+    last_name: activeEvent.contact_last_name || null,
     street_address: streetAddress || null,
+    city: property.city,
+    state: property.state,
+    zip: property.zip,
     phone: phone,
     email: email,
     source: source,
     source_reference: activeEvent.google_event_id || null,
     lead_status: 'Active',
-    notes: 'Created from Google Calendar event: ' + (activeEvent.summary || 'Calendar event')
+    notes:
+      'Created from Google Calendar. ' +
+      'Appointment: ' + (activeEvent.summary || 'Calendar event') +
+      '. Date: ' + new Date(activeEvent.start_at).toLocaleString() +
+      (activeEvent.phone_secondary ? '. Secondary phone: ' + activeEvent.phone_secondary : '')
   };
 
   const {data:lead,error:leadError} = await db
@@ -628,8 +673,8 @@ async function createLeadFromCalendarEvent(){
     matched_lead_id: lead.id,
     matched_lead_number: lead.lead_number || null,
     match_confidence: 100,
-    match_reason: 'New lead created from calendar event',
-    calendar_classification: 'Sales Appointment',
+    match_reason: 'New Lead created from calendar event',
+    calendar_classification: isStructuredSalesAppointment(activeEvent) ? 'Sales Appointment' : 'Return Visit',
     updated_at: new Date().toISOString()
   };
 
@@ -651,6 +696,113 @@ async function createLeadFromCalendarEvent(){
   renderCalendar();
   renderReview(eventRow);
 }
+
+
+function getCalendarSyncUrl(){
+  const configured = String(cfg.CALENDAR_SYNC_WEB_APP_URL || '').trim();
+  if(configured) return configured;
+
+  return String(localStorage.getItem('bauerCalendarSyncWebAppUrl') || '').trim();
+}
+
+function askForCalendarSyncUrl(){
+  const current = getCalendarSyncUrl();
+  const entered = prompt(
+    'Paste the Bauer Roofing Calendar Sync Web App URL from Google Apps Script.\\n\\nYou only need to do this once on this browser.',
+    current
+  );
+
+  if(!entered) return null;
+
+  const cleaned = String(entered).trim();
+  if(!/^https:\/\/script\.google\.com\//i.test(cleaned)){
+    alert('That does not look like a Google Apps Script Web App URL.');
+    return null;
+  }
+
+  localStorage.setItem('bauerCalendarSyncWebAppUrl', cleaned);
+  return cleaned;
+}
+
+function runCalendarSyncJsonp_(webAppUrl){
+  return new Promise((resolve,reject)=>{
+    const callbackName = 'bauerCalendarSyncCallback_' + Date.now() + '_' + Math.floor(Math.random()*100000);
+    const script = document.createElement('script');
+    const timeoutMs = 45000;
+
+    const cleanup = ()=>{
+      try{ delete window[callbackName]; }catch(e){ window[callbackName]=undefined; }
+      if(script.parentNode) script.parentNode.removeChild(script);
+    };
+
+    const timer = setTimeout(()=>{
+      cleanup();
+      reject(new Error('The Google Calendar sync did not respond within 45 seconds.'));
+    },timeoutMs);
+
+    window[callbackName] = payload=>{
+      clearTimeout(timer);
+      cleanup();
+      resolve(payload);
+    };
+
+    const separator = webAppUrl.includes('?') ? '&' : '?';
+    script.src = webAppUrl + separator +
+      'action=sync&callback=' + encodeURIComponent(callbackName) +
+      '&_=' + Date.now();
+
+    script.onerror = ()=>{
+      clearTimeout(timer);
+      cleanup();
+      reject(new Error('Mission Control could not reach the Google Calendar sync web app.'));
+    };
+
+    document.head.appendChild(script);
+  });
+}
+
+async function syncGoogleCalendarNow(){
+  let url = getCalendarSyncUrl();
+  if(!url) url = askForCalendarSyncUrl();
+  if(!url) return;
+
+  const button = $('syncCalendarBtn');
+  const status = $('syncStatus');
+
+  button.disabled = true;
+  button.textContent = 'Syncing…';
+  status.textContent = 'Reading Google Calendar…';
+
+  try{
+    const payload = await runCalendarSyncJsonp_(url);
+
+    if(!payload || !payload.ok){
+      throw new Error(payload?.error || 'Calendar sync failed.');
+    }
+
+    const result = payload.result || {};
+    status.textContent =
+      'Synced ' + (result.synced ?? 0) +
+      (result.duplicatesRemoved ? ' • ' + result.duplicatesRemoved + ' duplicate removed' : '');
+
+    await loadWeek();
+
+    setTimeout(()=>{
+      if(status.textContent.startsWith('Synced')) status.textContent = 'Up to date';
+    },5000);
+  }catch(err){
+    status.textContent = 'Sync failed';
+    alert(
+      'Google Calendar could not be synced.\\n\\n' +
+      String(err && err.message ? err.message : err) +
+      '\\n\\nIf the Apps Script Web App URL changed, clear it from this browser and try again.'
+    );
+  }finally{
+    button.disabled = false;
+    button.textContent = 'Sync Google Calendar';
+  }
+}
+
 
 async function init(){
   if(!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY){
@@ -778,10 +930,12 @@ function renderCalendar(){
 
       const contact=eventContact(row);
       const marker = row.matched_lead_id
-        ? '<span class="matched-dot" title="Matched to a lead"></span>'
-        : isReturnVisitCandidate(row)
-          ? '<span class="review-dot" title="Likely return visit needs review"></span>'
-          : '';
+        ? '<span class="matched-dot" title="Matched to a Lead"></span>'
+        : isSalesLeadMatchCandidate(row)
+          ? '<span class="lead-match-dot" title="Sales appointment needs Lead match"></span>'
+          : isReturnVisitCandidate(row)
+            ? '<span class="review-dot" title="Likely return visit needs review"></span>'
+            : '';
 
       el.innerHTML=
         '<div class="event-title">'+esc(row.summary || 'Calendar event')+'</div>'+
@@ -830,7 +984,7 @@ function renderSuggestionCard(result,index){
         data-match-lead="${esc(lead.id)}"
         data-match-score="${esc(result.score)}"
         data-match-reason="${esc(result.reasons.join(' • '))}">
-        Match Return Visit
+        ${isStructuredSalesAppointment(activeEvent) ? 'Match Sales Appointment' : 'Match Return Visit'}
       </button>
     </div>
   `;
@@ -838,8 +992,10 @@ function renderSuggestionCard(result,index){
 
 function renderReview(event){
   const returnVisitCandidate = isReturnVisitCandidate(event);
+  const salesMatchCandidate = isSalesLeadMatchCandidate(event);
+  const needsReview = returnVisitCandidate || salesMatchCandidate;
 
-  $('reviewBox').classList.toggle('hidden',!returnVisitCandidate);
+  $('reviewBox').classList.toggle('hidden',!needsReview);
   $('matchBanner').classList.add('hidden');
   $('manualResults').innerHTML='';
   $('matchStatus').textContent='';
@@ -847,8 +1003,9 @@ function renderReview(event){
 
   if(event.matched_lead_id){
     const lead=leads.find(l=>l.id===event.matched_lead_id);
+    const label=isStructuredSalesAppointment(event) ? 'Matched sales appointment:' : 'Matched return visit:';
     $('matchBanner').innerHTML = lead
-      ? '<b>Matched return visit:</b> '+esc(leadName(lead))+
+      ? '<b>'+esc(label)+'</b> '+esc(leadName(lead))+
         (lead.lead_number ? ' • Lead # '+esc(lead.lead_number) : '')+
         (leadAddress(lead) ? '<br>'+esc(leadAddress(lead)) : '')
       : '<b>Matched to Lead # '+esc(event.matched_lead_number || '')+'</b>';
@@ -864,18 +1021,35 @@ function renderReview(event){
     return;
   }
 
-  if(!returnVisitCandidate){
+  if(!needsReview){
     $('notSalesBtn').classList.add('hidden');
     $('reviewBox').classList.add('hidden');
     return;
   }
 
+  if(salesMatchCandidate){
+    $('reviewTitle').textContent='Sales appointment — connect it to a Mission Control Lead';
+    $('reviewSub').textContent=
+      'This event has the normal Bauer sales appointment format. Mission Control checks existing Leads first. ' +
+      'If none is correct, you can create a new Lead from the calendar information with one click.';
+  }else{
+    $('reviewTitle').textContent='Likely return visit — match it to the existing Lead';
+    $('reviewSub').textContent=
+      'This event does not follow the normal Source-Type-Address sales appointment format, so Mission Control is treating it as a likely return visit. ' +
+      'Choose the existing Lead it belongs to, or create a new Lead only if this is actually a new opportunity.';
+  }
+
   $('notSalesBtn').classList.remove('hidden');
+  $('createLeadBtn').textContent = salesMatchCandidate ? 'Add to Leads' : 'Create New Lead';
 
   const suggestions=suggestedLeads(event);
   $('suggestions').innerHTML=suggestions.length
     ? suggestions.map(renderSuggestionCard).join('')
-    : '<div class="suggestion"><div><b>No strong automatic suggestion yet.</b><div class="suggestion-meta">Search the Leads list below.</div></div></div>';
+    : salesMatchCandidate
+      ? '<div class="suggestion"><div><b>No matching Lead found.</b><div class="suggestion-meta">If this is a new opportunity, use Create New Lead below.</div></div></div>'
+      : '<div class="suggestion"><div><b>No strong automatic suggestion yet.</b><div class="suggestion-meta">Search the Leads list below.</div></div></div>';
+
+  $('createLeadBtn').classList.toggle('hidden',salesMatchCandidate && !hasEnoughInfoToCreateLead(event));
 }
 
 function openDetails(row){
@@ -888,9 +1062,11 @@ function openDetails(row){
     displayDate(start,{weekday:'long',month:'long',day:'numeric',year:'numeric'})+
     ' • '+timeText(start)+' - '+timeText(end);
 
-  const displayClassification = isStructuredSalesAppointment(row)
-    ? 'Sales Appointment'
-    : row.calendar_classification;
+  const displayClassification = row.matched_lead_id
+    ? (isStructuredSalesAppointment(row) ? 'Sales Appointment — Matched' : row.calendar_classification)
+    : isStructuredSalesAppointment(row)
+      ? 'Sales Appointment — Needs Lead Match'
+      : row.calendar_classification;
 
   const fields=[
     ['Classification',displayClassification],
@@ -921,12 +1097,14 @@ async function matchEventToLead(leadId,score,reason){
 
   $('matchStatus').textContent='Saving match…';
 
+  const structured = isStructuredSalesAppointment(activeEvent);
+
   const patch={
     matched_lead_id:lead.id,
     matched_lead_number:lead.lead_number || null,
     match_confidence:Number(score || 0),
     match_reason:reason || 'Manually selected',
-    calendar_classification:'Return Visit',
+    calendar_classification:structured ? 'Sales Appointment' : 'Return Visit',
     updated_at:new Date().toISOString()
   };
 
@@ -997,7 +1175,7 @@ function searchLeads(){
             ${lead.phone ? ' • '+esc(lead.phone) : ''}
           </div>
         </div>
-        <button class="btn success small" data-manual-match="${esc(lead.id)}">Match Return Visit</button>
+        <button class="btn success small" data-manual-match="${esc(lead.id)}">${isStructuredSalesAppointment(activeEvent) ? 'Match Sales Appointment' : 'Match Return Visit'}</button>
       </div>
     `).join('')
     : '<div class="status-line">No leads matched that search.</div>';
@@ -1016,7 +1194,13 @@ document.addEventListener('click',event=>{
 
   const manualBtn=event.target.closest('[data-manual-match]');
   if(manualBtn){
-    matchEventToLead(manualBtn.dataset.manualMatch,50,'Manually selected from lead search');
+    matchEventToLead(
+      manualBtn.dataset.manualMatch,
+      50,
+      isStructuredSalesAppointment(activeEvent)
+        ? 'Sales appointment manually matched from lead search'
+        : 'Return visit manually matched from lead search'
+    );
   }
 });
 
@@ -1032,8 +1216,9 @@ $('nextBtn').onclick=async()=>{
   weekStart=addDays(weekStart,7);
   await loadWeek();
 };
+$('syncCalendarBtn').onclick=syncGoogleCalendarNow;
 $('refreshBtn').onclick=async()=>{
-  await init();
+  await loadWeek();
 };
 $('closeDialogBtn').onclick=()=>$('eventDialog').close();
 $('leadSearchBtn').onclick=searchLeads;
