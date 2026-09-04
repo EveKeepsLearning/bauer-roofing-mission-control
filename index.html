@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="styles.css">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="config.js"></script>
 </head>
 
@@ -515,15 +516,15 @@
 
         <div class="card">
           <h3>Import New Angi Export</h3>
-          <p class="auth-note">Use this for new Angi downloads going forward. Choose which Angi account the export came from, then select the downloaded .csv file. Existing Angi reference numbers are skipped instead of overwritten.</p>
+          <p class="auth-note">Use this for new Angi downloads going forward. Choose which Angi account the export came from, then select the .xls file exactly as Angi downloaded it. Existing Angi reference numbers are skipped instead of overwritten.</p>
           <div class="toolbar">
             <select id="angiImportAccount" style="max-width:260px">
               <option value="">Choose Angi account…</option>
               <option>Bauer Roofing - PPL</option>
               <option>Bauer Roofing Inc - Angi Ads</option>
             </select>
-            <input id="angiImportFile" type="file" accept=".csv,text/csv,text/plain">
-            <button class="btn primary small" id="angiImportBtn" type="button">Import New Prospects</button>
+            <input id="angiImportFile" type="file" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+            <button class="btn primary small" id="angiImportBtn" type="button">Import Angi .xls</button>
           </div>
           <div id="angiImportStatus" class="meta"></div>
         </div>
