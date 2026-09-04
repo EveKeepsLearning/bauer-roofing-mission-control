@@ -203,6 +203,15 @@
       display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;
     }
     .status-line{font-size:12px;color:var(--muted);margin-top:8px}
+    .lead-form-grid{
+      display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;margin-top:14px;
+    }
+    .lead-form-grid .wide{grid-column:1/-1}
+    .lead-form-grid label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+    .lead-form-grid input,.lead-form-grid select,.lead-form-grid textarea{
+      width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 10px;font:inherit;
+    }
+    .lead-form-grid textarea{min-height:78px;resize:vertical}
     .sync-status{
       font-size:12px;color:var(--muted);min-width:120px;text-align:right;
     }
@@ -614,47 +623,73 @@ function inferPropertyFields(row){
   };
 }
 
-async function createLeadFromCalendarEvent(){
+function inferWorkCategory(row){
+  if(row.appointment_code === 'F' || row.appointment_type === 'Repair') return 'Roofing';
+  if(row.appointment_code === 'M' || row.appointment_code === 'P') return 'Roofing';
+  return 'Roofing';
+}
+
+function openCreateLeadDialog(){
   if(!activeEvent) return;
 
-  const homeownerName = inferHomeownerName(activeEvent);
   const property = inferPropertyFields(activeEvent);
-  const streetAddress = property.street_address;
-  const phone = activeEvent.phone_primary || activeEvent.phone_secondary || null;
-  const email = activeEvent.email || null;
-  const source = inferLeadSource(activeEvent);
 
-  const confirmed = confirm(
-    'Create a new Lead from this calendar event?' +
-    '\n\nHomeowner: ' + (homeownerName || 'Not available') +
-    '\nAddress: ' + (streetAddress || 'Not available') +
-    '\nPhone: ' + (phone || 'Not available') +
-    '\nEmail: ' + (email || 'Not available') +
-    '\nSource: ' + (source || 'Not available')
-  );
+  $('calLeadNumber').value = '';
+  $('calLeadSource').value = inferLeadSource(activeEvent);
+  $('calLeadFirstName').value = activeEvent.contact_first_name || '';
+  $('calLeadLastName').value = activeEvent.contact_last_name || '';
+  $('calLeadStreet').value = property.street_address || '';
+  $('calLeadCity').value = property.city || '';
+  $('calLeadState').value = property.state || 'SC';
+  $('calLeadZip').value = property.zip || '';
+  $('calLeadPhone').value = activeEvent.phone_primary || '';
+  $('calLeadPhone2').value = activeEvent.phone_secondary || '';
+  $('calLeadEmail').value = activeEvent.email || '';
+  $('calLeadStatus').value = 'Appointment Scheduled';
+  $('calLeadWorkCategory').value = inferWorkCategory(activeEvent);
+  $('calLeadNotes').value =
+    'Created from Google Calendar. Appointment: ' +
+    (activeEvent.summary || 'Calendar event') +
+    '. Date: ' + new Date(activeEvent.start_at).toLocaleString();
 
-  if(!confirmed) return;
+  $('newLeadSaveStatus').textContent = '';
+  $('newLeadDialog').showModal();
+}
 
-  $('matchStatus').textContent = 'Creating lead…';
+async function saveLeadFromCalendarDialog(){
+  if(!activeEvent) return;
+
+  const saveBtn = $('saveNewLeadBtn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Adding…';
+  $('newLeadSaveStatus').textContent = '';
+
+  const firstName = $('calLeadFirstName').value.trim() || null;
+  const lastName = $('calLeadLastName').value.trim() || null;
+  const homeownerName = [firstName,lastName].filter(Boolean).join(' ') || null;
+  const phone2 = $('calLeadPhone2').value.trim();
+
+  const notesParts = [
+    $('calLeadNotes').value.trim(),
+    phone2 ? 'Secondary phone: ' + phone2 : ''
+  ].filter(Boolean);
 
   const payload = {
-    homeowner_name: homeownerName || null,
-    first_name: activeEvent.contact_first_name || null,
-    last_name: activeEvent.contact_last_name || null,
-    street_address: streetAddress || null,
-    city: property.city,
-    state: property.state,
-    zip: property.zip,
-    phone: phone,
-    email: email,
-    source: source,
+    lead_number: $('calLeadNumber').value.trim() || null,
+    homeowner_name: homeownerName,
+    first_name: firstName,
+    last_name: lastName,
+    street_address: $('calLeadStreet').value.trim() || null,
+    city: $('calLeadCity').value.trim() || null,
+    state: $('calLeadState').value.trim() || 'SC',
+    zip: $('calLeadZip').value.trim() || null,
+    phone: $('calLeadPhone').value.trim() || null,
+    email: $('calLeadEmail').value.trim() || null,
+    source: $('calLeadSource').value.trim() || 'Other',
     source_reference: activeEvent.google_event_id || null,
-    lead_status: 'Active',
-    notes:
-      'Created from Google Calendar. ' +
-      'Appointment: ' + (activeEvent.summary || 'Calendar event') +
-      '. Date: ' + new Date(activeEvent.start_at).toLocaleString() +
-      (activeEvent.phone_secondary ? '. Secondary phone: ' + activeEvent.phone_secondary : '')
+    lead_status: $('calLeadStatus').value,
+    work_category: $('calLeadWorkCategory').value,
+    notes: notesParts.join('\n') || null
   };
 
   const {data:lead,error:leadError} = await db
@@ -664,7 +699,9 @@ async function createLeadFromCalendarEvent(){
     .single();
 
   if(leadError){
-    $('matchStatus').textContent = 'Could not create lead: ' + leadError.message;
+    $('newLeadSaveStatus').textContent = 'Could not create lead: ' + leadError.message;
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Add Lead';
     return;
   }
 
@@ -674,7 +711,7 @@ async function createLeadFromCalendarEvent(){
     matched_lead_id: lead.id,
     matched_lead_number: lead.lead_number || null,
     match_confidence: 100,
-    match_reason: 'New Lead created from calendar event',
+    match_reason: 'New Lead created from calendar event after review',
     calendar_classification: isStructuredSalesAppointment(activeEvent) ? 'Sales Appointment' : 'Return Visit',
     updated_at: new Date().toISOString()
   };
@@ -687,150 +724,23 @@ async function createLeadFromCalendarEvent(){
     .single();
 
   if(eventError){
-    $('matchStatus').textContent =
+    $('newLeadSaveStatus').textContent =
       'Lead was created, but the calendar event could not be linked: ' + eventError.message;
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Add Lead';
     return;
   }
 
   events = events.map(e => e.id === eventRow.id ? eventRow : e);
   activeEvent = eventRow;
+
+  $('newLeadDialog').close();
   renderCalendar();
   renderReview(eventRow);
+
+  saveBtn.disabled = false;
+  saveBtn.textContent = 'Add Lead';
 }
-
-
-function getCalendarSyncUrl(){
-  const configured = String(cfg.CALENDAR_SYNC_WEB_APP_URL || '').trim();
-  if(configured) return configured;
-
-  return String(localStorage.getItem('bauerCalendarSyncWebAppUrl') || '').trim();
-}
-
-function askForCalendarSyncUrl(){
-  const current = getCalendarSyncUrl();
-  const entered = prompt(
-    'Paste the Bauer Roofing Calendar Sync Web App URL from Google Apps Script.\n\nYou only need to do this once on this browser.',
-    current
-  );
-
-  if(!entered) return null;
-
-  const cleaned = String(entered).trim();
-  if(!/^https:\/\/script\.google\.com\//i.test(cleaned)){
-    alert('That does not look like a Google Apps Script Web App URL.');
-    return null;
-  }
-
-  localStorage.setItem('bauerCalendarSyncWebAppUrl', cleaned);
-  return cleaned;
-}
-
-function runCalendarSyncJsonp_(webAppUrl){
-  return new Promise((resolve,reject)=>{
-    const callbackName = 'bauerCalendarSyncCallback_' + Date.now() + '_' + Math.floor(Math.random()*100000);
-    const script = document.createElement('script');
-    const timeoutMs = 45000;
-
-    const cleanup = ()=>{
-      try{ delete window[callbackName]; }catch(e){ window[callbackName]=undefined; }
-      if(script.parentNode) script.parentNode.removeChild(script);
-    };
-
-    const timer = setTimeout(()=>{
-      cleanup();
-      reject(new Error('The Google Calendar sync did not respond within 45 seconds.'));
-    },timeoutMs);
-
-    window[callbackName] = payload=>{
-      clearTimeout(timer);
-      cleanup();
-      resolve(payload);
-    };
-
-    const separator = webAppUrl.includes('?') ? '&' : '?';
-    script.src = webAppUrl + separator +
-      'action=sync&callback=' + encodeURIComponent(callbackName) +
-      '&_=' + Date.now();
-
-    script.onerror = ()=>{
-      clearTimeout(timer);
-      cleanup();
-      reject(new Error('Mission Control could not reach the Google Calendar sync web app.'));
-    };
-
-    document.head.appendChild(script);
-  });
-}
-
-
-function changeCalendarSyncUrl(){
-  const current = getCalendarSyncUrl();
-  localStorage.removeItem('bauerCalendarSyncWebAppUrl');
-
-  const entered = prompt(
-    'Paste the Google Apps Script Web App URL ending in /exec.\n\nDo not paste the script.googleusercontent.com redirected URL.',
-    current && current.includes('script.google.com') ? current : ''
-  );
-
-  if(!entered) return;
-
-  const cleaned = String(entered).trim();
-
-  if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/i.test(cleaned)){
-    alert(
-      'That does not look like the Apps Script deployment URL.\n\n' +
-      'Copy it from Apps Script → Deploy → Manage deployments. ' +
-      'It should begin with https://script.google.com/macros/s/ and end in /exec.'
-    );
-    return;
-  }
-
-  localStorage.setItem('bauerCalendarSyncWebAppUrl', cleaned);
-  $('syncStatus').textContent = 'Sync URL updated';
-}
-
-async function syncGoogleCalendarNow(){
-  let url = getCalendarSyncUrl();
-  if(!url) url = askForCalendarSyncUrl();
-  if(!url) return;
-
-  const button = $('syncCalendarBtn');
-  const status = $('syncStatus');
-
-  button.disabled = true;
-  button.textContent = 'Syncing…';
-  status.textContent = 'Reading Google Calendar…';
-
-  try{
-    const payload = await runCalendarSyncJsonp_(url);
-
-    if(!payload || !payload.ok){
-      throw new Error(payload?.error || 'Calendar sync failed.');
-    }
-
-    const result = payload.result || {};
-    status.textContent =
-      'Synced ' + (result.synced ?? 0) +
-      (result.duplicatesRemoved ? ' • ' + result.duplicatesRemoved + ' duplicate removed' : '');
-
-    await loadWeek();
-
-    setTimeout(()=>{
-      if(status.textContent.startsWith('Synced')) status.textContent = 'Up to date';
-    },5000);
-  }catch(err){
-    status.textContent = 'Sync failed';
-    alert(
-      'Google Calendar could not be synced.\n\n' +
-      String(err && err.message ? err.message : err) +
-      '\n\nIf the Apps Script Web App URL changed, clear it from this browser and try again.'
-    );
-  }finally{
-    button.disabled = false;
-    button.textContent = 'Sync Google Calendar';
-  }
-}
-
 
 async function init(){
   if(!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY){
@@ -1253,9 +1163,116 @@ $('closeDialogBtn').onclick=()=>$('eventDialog').close();
 $('leadSearchBtn').onclick=searchLeads;
 $('leadSearch').addEventListener('keydown',e=>{if(e.key==='Enter') searchLeads();});
 $('notSalesBtn').onclick=markNotSalesRelated;
-$('createLeadBtn').onclick=createLeadFromCalendarEvent;
+$('createLeadBtn').onclick=openCreateLeadDialog;
+$('saveNewLeadBtn').onclick=saveLeadFromCalendarDialog;
+$('cancelNewLeadBtn').onclick=()=>$('newLeadDialog').close();
 
 init();
 </script>
+
+  <dialog id="newLeadDialog">
+    <div class="dialog-card">
+      <h2>Add Lead from Calendar</h2>
+      <div class="dialog-sub">
+        Review and edit the information before it is added to Mission Control.
+      </div>
+
+      <div class="lead-form-grid">
+        <div>
+          <label>Bauer Lead #</label>
+          <input id="calLeadNumber" placeholder="Optional">
+        </div>
+
+        <div>
+          <label>Source</label>
+          <input id="calLeadSource">
+        </div>
+
+        <div>
+          <label>First name</label>
+          <input id="calLeadFirstName">
+        </div>
+
+        <div>
+          <label>Last name</label>
+          <input id="calLeadLastName">
+        </div>
+
+        <div class="wide">
+          <label>Street address</label>
+          <input id="calLeadStreet">
+        </div>
+
+        <div>
+          <label>City</label>
+          <input id="calLeadCity">
+        </div>
+
+        <div>
+          <label>State</label>
+          <input id="calLeadState" value="SC">
+        </div>
+
+        <div>
+          <label>ZIP</label>
+          <input id="calLeadZip">
+        </div>
+
+        <div>
+          <label>Primary phone</label>
+          <input id="calLeadPhone">
+        </div>
+
+        <div>
+          <label>Secondary phone</label>
+          <input id="calLeadPhone2">
+        </div>
+
+        <div class="wide">
+          <label>Email</label>
+          <input id="calLeadEmail" type="email">
+        </div>
+
+        <div>
+          <label>Lead status</label>
+          <select id="calLeadStatus">
+            <option>Appointment Wanted</option>
+            <option>Scheduling</option>
+            <option selected>Appointment Scheduled</option>
+            <option>Estimate Pending</option>
+            <option>Estimate Sent</option>
+            <option>Sold</option>
+            <option>Not Moving Forward</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Work requested</label>
+          <select id="calLeadWorkCategory">
+            <option>Roofing</option>
+            <option>Windows</option>
+            <option>Siding</option>
+            <option>Gutters</option>
+            <option>Multiple</option>
+            <option>Not Sure</option>
+            <option>Other</option>
+          </select>
+        </div>
+
+        <div class="wide">
+          <label>Notes</label>
+          <textarea id="calLeadNotes"></textarea>
+        </div>
+      </div>
+
+      <div id="newLeadSaveStatus" class="status-line"></div>
+
+      <div class="dialog-actions">
+        <button class="btn" id="cancelNewLeadBtn" type="button">Cancel</button>
+        <button class="btn primary" id="saveNewLeadBtn" type="button">Add Lead</button>
+      </div>
+    </div>
+  </dialog>
+
 </body>
 </html>
