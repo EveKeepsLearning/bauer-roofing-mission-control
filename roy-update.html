@@ -1,0 +1,475 @@
+-- Bauer Roofing Mission Control
+-- Roy Daily Appointment Updates - Phase 1
+--
+-- This creates:
+--   1) a secure daily update-session token
+--   2) a permanent appointment-outcome history
+--   3) RPC functions that let Eve create a link and Roy submit outcomes
+--
+-- Roy does NOT need a Mission Control login.
+-- The public link can only read the limited appointment data tied to its token.
+
+create extension if not exists pgcrypto;
+
+create table if not exists public.roy_update_sessions (
+  id uuid primary key default gen_random_uuid(),
+  token uuid not null unique default gen_random_uuid(),
+  update_date date not null,
+  created_by uuid,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null default (now() + interval '3 days')
+);
+
+create unique index if not exists roy_update_sessions_date_idx
+  on public.roy_update_sessions (update_date);
+
+create table if not exists public.roy_appointment_outcomes (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references public.roy_update_sessions(id) on delete cascade,
+  calendar_event_id uuid not null references public.calendar_events(id) on delete cascade,
+  lead_id uuid references public.leads(id) on delete set null,
+  outcome text not null,
+  note text,
+  submitted_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (calendar_event_id)
+);
+
+create index if not exists roy_appointment_outcomes_lead_idx
+  on public.roy_appointment_outcomes (lead_id);
+
+create table if not exists public.roy_estimate_updates (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references public.roy_update_sessions(id) on delete cascade,
+  lead_id uuid not null references public.leads(id) on delete cascade,
+  outcome text not null,
+  note text,
+  submitted_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (session_id, lead_id)
+);
+
+create index if not exists roy_estimate_updates_lead_idx
+  on public.roy_estimate_updates (lead_id);
+
+alter table public.roy_update_sessions enable row level security;
+alter table public.roy_appointment_outcomes enable row level security;
+alter table public.roy_estimate_updates enable row level security;
+
+revoke all on table public.roy_update_sessions from anon, authenticated;
+revoke all on table public.roy_appointment_outcomes from anon, authenticated;
+revoke all on table public.roy_estimate_updates from anon, authenticated;
+
+-- Eve/admin creates or reuses today's secure link.
+create or replace function public.create_roy_update_session(
+  p_update_date date
+)
+returns table(token uuid)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_token uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+
+  insert into public.roy_update_sessions(
+    update_date,
+    created_by,
+    expires_at
+  )
+  values(
+    p_update_date,
+    auth.uid(),
+    ((p_update_date + 3)::timestamp at time zone 'America/New_York')
+  )
+  on conflict (update_date)
+  do update set
+    expires_at = greatest(
+      public.roy_update_sessions.expires_at,
+      ((p_update_date + 3)::timestamp at time zone 'America/New_York')
+    )
+  returning public.roy_update_sessions.token into v_token;
+
+  return query select v_token;
+end;
+$$;
+
+-- Roy's page only receives the matched sales appointments for that session date.
+create or replace function public.get_roy_update_appointments(
+  p_token uuid
+)
+returns table(
+  calendar_event_id uuid,
+  start_at timestamptz,
+  end_at timestamptz,
+  summary text,
+  appointment_type text,
+  property_text text,
+  contact_first_name text,
+  contact_last_name text,
+  matched_lead_id uuid,
+  matched_lead_number text,
+  existing_outcome text
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_session public.roy_update_sessions%rowtype;
+begin
+  select *
+  into v_session
+  from public.roy_update_sessions
+  where token = p_token
+    and expires_at > now();
+
+  if v_session.id is null then
+    raise exception 'Invalid or expired update link';
+  end if;
+
+  return query
+  select
+    ce.id,
+    ce.start_at,
+    ce.end_at,
+    ce.summary,
+    ce.appointment_type,
+    ce.property_text,
+    ce.contact_first_name,
+    ce.contact_last_name,
+    ce.matched_lead_id,
+    ce.matched_lead_number,
+    ro.outcome
+  from public.calendar_events ce
+  left join public.roy_appointment_outcomes ro
+    on ro.calendar_event_id = ce.id
+  where
+    ce.matched_lead_id is not null
+    and (
+      ce.is_sales_appointment is true
+      or ce.calendar_classification = 'Sales Appointment'
+    )
+    and (ce.start_at at time zone 'America/New_York')::date = v_session.update_date
+    and ro.id is null
+  order by ce.start_at;
+end;
+$$;
+
+-- Save one outcome and apply only conservative Lead-status changes.
+create or replace function public.save_roy_appointment_outcome(
+  p_token uuid,
+  p_calendar_event_id uuid,
+  p_outcome text,
+  p_note text default null
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_session public.roy_update_sessions%rowtype;
+  v_event public.calendar_events%rowtype;
+  v_outcome text;
+begin
+  select *
+  into v_session
+  from public.roy_update_sessions
+  where token = p_token
+    and expires_at > now();
+
+  if v_session.id is null then
+    raise exception 'Invalid or expired update link';
+  end if;
+
+  v_outcome := trim(coalesce(p_outcome,''));
+
+  if v_outcome not in (
+    'Estimate needed',
+    'Estimate sent / given',
+    'Another appointment needed',
+    'Another professional needs to look at the work',
+    'Contract signed',
+    'Customer thinking / follow up',
+    'Not interested',
+    'Reschedule',
+    'Other'
+  ) then
+    raise exception 'Invalid outcome';
+  end if;
+
+  select *
+  into v_event
+  from public.calendar_events
+  where id = p_calendar_event_id
+    and matched_lead_id is not null
+    and (start_at at time zone 'America/New_York')::date = v_session.update_date;
+
+  if v_event.id is null then
+    raise exception 'Appointment is not part of this update session';
+  end if;
+
+  insert into public.roy_appointment_outcomes(
+    session_id,
+    calendar_event_id,
+    lead_id,
+    outcome,
+    note,
+    submitted_at,
+    updated_at
+  )
+  values(
+    v_session.id,
+    v_event.id,
+    v_event.matched_lead_id,
+    v_outcome,
+    nullif(trim(coalesce(p_note,'')),''),
+    now(),
+    now()
+  )
+  on conflict (calendar_event_id)
+  do update set
+    session_id = excluded.session_id,
+    lead_id = excluded.lead_id,
+    outcome = excluded.outcome,
+    note = excluded.note,
+    submitted_at = excluded.submitted_at,
+    updated_at = excluded.updated_at;
+
+  -- Keep these changes deliberately conservative and limited to statuses
+  -- that already exist in Mission Control's Lead form.
+  if v_event.matched_lead_id is not null then
+    if v_outcome = 'Estimate needed' then
+      update public.leads
+      set lead_status = 'Estimate Pending', estimate_status = 'Expected'
+      where id = v_event.matched_lead_id;
+
+    elsif v_outcome = 'Estimate sent / given' then
+      update public.leads
+      set lead_status = 'Estimate Sent', estimate_status = 'Sent'
+      where id = v_event.matched_lead_id;
+
+    elsif v_outcome = 'Another appointment needed' then
+      update public.leads
+      set lead_status = 'Scheduling'
+      where id = v_event.matched_lead_id;
+
+    elsif v_outcome = 'Contract signed' then
+      update public.leads
+      set lead_status = 'Sold'
+      where id = v_event.matched_lead_id;
+
+    elsif v_outcome = 'Not interested' then
+      update public.leads
+      set lead_status = 'Not Moving Forward'
+      where id = v_event.matched_lead_id;
+
+    elsif v_outcome = 'Reschedule' then
+      update public.leads
+      set lead_status = 'Scheduling'
+      where id = v_event.matched_lead_id;
+
+    elsif v_outcome = 'Another professional needs to look at the work' then
+      update public.leads
+      set
+        lead_status = 'Estimate Pending',
+        estimate_status = 'Expected'
+      where id = v_event.matched_lead_id;
+    end if;
+  end if;
+
+  return true;
+end;
+$$;
+
+-- Older leads with estimates still outstanding are included every day until
+-- Roy marks them sent. This is what lets him update work from a past visit.
+create or replace function public.get_roy_pending_estimates(
+  p_token uuid
+)
+returns table(
+  lead_id uuid,
+  lead_number text,
+  homeowner_name text,
+  first_name text,
+  last_name text,
+  street_address text,
+  lead_status text,
+  estimate_status text
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_session public.roy_update_sessions%rowtype;
+begin
+  select * into v_session
+  from public.roy_update_sessions
+  where token = p_token and expires_at > now();
+
+  if v_session.id is null then
+    raise exception 'Invalid or expired update link';
+  end if;
+
+  return query
+  select
+    l.id,
+    l.lead_number,
+    l.homeowner_name,
+    l.first_name,
+    l.last_name,
+    l.street_address,
+    l.lead_status,
+    l.estimate_status
+  from public.leads l
+  left join public.roy_estimate_updates re
+    on re.session_id = v_session.id and re.lead_id = l.id
+  where re.id is null
+    and coalesce(l.assigned_to, 'Roy') = 'Roy'
+    and coalesce(l.lead_status,'') not in ('Sold','Not Moving Forward')
+    and (
+      l.lead_status = 'Estimate Pending'
+      or l.estimate_status in ('Expected','Customer Says Not Received')
+    )
+    and not exists (
+      select 1
+      from public.calendar_events ce
+      where ce.matched_lead_id = l.id
+        and (ce.start_at at time zone 'America/New_York')::date = v_session.update_date
+    )
+  order by l.created_at;
+end;
+$$;
+
+create or replace function public.save_roy_estimate_update(
+  p_token uuid,
+  p_lead_id uuid,
+  p_outcome text,
+  p_note text default null
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_session public.roy_update_sessions%rowtype;
+  v_outcome text;
+begin
+  select * into v_session
+  from public.roy_update_sessions
+  where token = p_token and expires_at > now();
+
+  if v_session.id is null then
+    raise exception 'Invalid or expired update link';
+  end if;
+
+  v_outcome := trim(coalesce(p_outcome,''));
+  if v_outcome not in (
+    'Estimate sent today',
+    'Still working on it',
+    'Another professional needs to look at the work',
+    'Customer follow up needed'
+  ) then
+    raise exception 'Invalid outcome';
+  end if;
+
+  if not exists (
+    select 1 from public.leads l
+    where l.id = p_lead_id and coalesce(l.assigned_to,'Roy') = 'Roy'
+  ) then
+    raise exception 'Lead is not available for this update';
+  end if;
+
+  insert into public.roy_estimate_updates(session_id,lead_id,outcome,note)
+  values(v_session.id,p_lead_id,v_outcome,nullif(trim(coalesce(p_note,'')),''))
+  on conflict (session_id,lead_id)
+  do update set
+    outcome=excluded.outcome,
+    note=excluded.note,
+    submitted_at=now(),
+    updated_at=now();
+
+  if v_outcome = 'Estimate sent today' then
+    update public.leads
+    set lead_status='Estimate Sent', estimate_status='Sent'
+    where id=p_lead_id;
+  elsif v_outcome = 'Another professional needs to look at the work' then
+    update public.leads
+    set lead_status='Estimate Pending', estimate_status='Expected'
+    where id=p_lead_id;
+  end if;
+
+  return true;
+end;
+$$;
+
+-- Mission Control uses this authenticated-only feed to show Eve Roy's latest
+-- check-offs, including any optional note he entered.
+create or replace function public.get_recent_roy_updates(
+  p_days integer default 7
+)
+returns table(
+  item_type text,
+  homeowner_name text,
+  street_address text,
+  lead_number text,
+  outcome text,
+  note text,
+  submitted_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+
+  return query
+  select *
+  from (
+    select
+      'appointment'::text as item_type,
+      coalesce(l.homeowner_name,concat_ws(' ',l.first_name,l.last_name),ce.summary)::text as homeowner_name,
+      coalesce(l.street_address,ce.property_text)::text as street_address,
+      l.lead_number::text,
+      ro.outcome::text,
+      ro.note::text,
+      ro.submitted_at
+    from public.roy_appointment_outcomes ro
+    join public.calendar_events ce on ce.id=ro.calendar_event_id
+    left join public.leads l on l.id=ro.lead_id
+    where ro.submitted_at >= now() - make_interval(days => greatest(1,least(coalesce(p_days,7),30)))
+
+    union all
+
+    select
+      'estimate'::text,
+      coalesce(l.homeowner_name,concat_ws(' ',l.first_name,l.last_name))::text,
+      l.street_address::text,
+      l.lead_number::text,
+      re.outcome::text,
+      re.note::text,
+      re.submitted_at
+    from public.roy_estimate_updates re
+    join public.leads l on l.id=re.lead_id
+    where re.submitted_at >= now() - make_interval(days => greatest(1,least(coalesce(p_days,7),30)))
+  ) recent
+  order by recent.submitted_at desc;
+end;
+$$;
+
+grant execute on function public.create_roy_update_session(date) to authenticated;
+grant execute on function public.get_roy_update_appointments(uuid) to anon, authenticated;
+grant execute on function public.save_roy_appointment_outcome(uuid,uuid,text,text) to anon, authenticated;
+grant execute on function public.get_roy_pending_estimates(uuid) to anon, authenticated;
+grant execute on function public.save_roy_estimate_update(uuid,uuid,text,text) to anon, authenticated;
+grant execute on function public.get_recent_roy_updates(integer) to authenticated;
