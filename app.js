@@ -806,6 +806,13 @@ function formatWhen(value) {
   return d.toLocaleString();
 }
 
+function formatDate(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString();
+}
+
 
 function prospectName(p) {
   return p.customer_name || [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Unnamed prospect';
@@ -820,6 +827,23 @@ function leadName(l) {
 
 function angiImportKey(sourceAccount, sourceReference) {
   return `${String(sourceAccount || '').trim().toLowerCase()}|${String(sourceReference || '').trim()}`;
+}
+
+function sanitizeHistoricalTimestamp(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const s = String(value).trim();
+  // Excel time-only placeholders such as 00:00:00 are not valid timestamptz values.
+  if (/^\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(s)) return null;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function sanitizeHistoricalProspectRow(raw) {
+  const row = {...raw};
+  for (const key of ['received_at','last_attempt_at','next_follow_up_at','last_communication_at','converted_to_lead_at','created_at','updated_at','archived_at','deleted_at']) {
+    if (key in row) row[key] = sanitizeHistoricalTimestamp(row[key]);
+  }
+  return row;
 }
 
 async function importAngiHistoricalPackage() {
@@ -842,7 +866,7 @@ async function importAngiHistoricalPackage() {
       const key = angiImportKey(raw.source_account,raw.source_reference);
       let existing = prospectMap.get(key);
       if (!existing) {
-        const row = {...raw};
+        const row = sanitizeHistoricalProspectRow(raw);
         delete row._archive_flag_raw; delete row._appointment_at; delete row._historical_attempts; delete row._historical_review_only;
         const r = await db.from('prospects').insert(row).select().single();
         if (r.error) throw r.error;
@@ -858,7 +882,7 @@ async function importAngiHistoricalPackage() {
           source: raw.source || existing.source || 'Angi',
           source_account: raw.source_account || existing.source_account || null,
           source_reference: raw.source_reference || existing.source_reference || null,
-          received_at: raw.received_at || existing.received_at || null,
+          received_at: sanitizeHistoricalTimestamp(raw.received_at) || existing.received_at || null,
           first_name: raw.first_name || existing.first_name || null,
           last_name: raw.last_name || existing.last_name || null,
           customer_name: raw.customer_name || existing.customer_name || null,
@@ -871,7 +895,7 @@ async function importAngiHistoricalPackage() {
           work_category: raw.work_category || existing.work_category || null,
           current_status: raw.current_status || existing.current_status || 'New',
           attempts_count: raw.attempts_count ?? existing.attempts_count ?? 0,
-          next_follow_up_at: raw.next_follow_up_at || null,
+          next_follow_up_at: sanitizeHistoricalTimestamp(raw.next_follow_up_at),
           next_action: raw.next_action || existing.next_action || null,
           last_result: raw.last_result || existing.last_result || null,
           duplicate_flag: raw.duplicate_flag ?? existing.duplicate_flag ?? false,
@@ -898,6 +922,7 @@ async function importAngiHistoricalPackage() {
         if (found.data?.length) { communicationsSkipped++; continue; }
       }
       const row = {...c, prospect_id:p.id};
+      for (const key of ['communication_at','created_at','updated_at','follow_up_at','next_follow_up_at']) { if (key in row) row[key] = sanitizeHistoricalTimestamp(row[key]); }
       delete row.source_reference; delete row.source_account;
       const r = await db.from('sales_communications').insert(row);
       if (r.error) throw r.error;
@@ -922,19 +947,19 @@ async function importAngiHistoricalPackage() {
           city:a.city || p.city, state:a.state || p.state, zip:a.zip || p.zip, phone:a.phone || p.phone,
           email:a.email || p.email, work_category:a.work_category || p.work_category,
           lead_status:a.appointment_at ? 'Appointment Scheduled' : 'Appointment Wanted', assigned_to:a.assigned_to || p.assigned_to,
-          qualified_at:a.created_at || a.appointment_at || p.received_at || new Date().toISOString(), notes:a.notes || null
+          qualified_at:sanitizeHistoricalTimestamp(a.created_at) || sanitizeHistoricalTimestamp(a.appointment_at) || p.received_at || new Date().toISOString(), notes:a.notes || null
         }).select().single();
         if (lr.error) throw lr.error;
         lead = lr.data; leadByProspect.set(p.id,lead); leadsCreated++;
       }
       const ar = await db.from('appointments').insert({
-        lead_id:lead.id, prospect_id:p.id, appointment_at:a.appointment_at, appointment_status:a.appointment_status || 'Scheduled',
+        lead_id:lead.id, prospect_id:p.id, appointment_at:sanitizeHistoricalTimestamp(a.appointment_at), appointment_status:a.appointment_status || 'Scheduled',
         assigned_to:a.assigned_to, notes:a.notes, marketsharp_status:a.marketsharp_status || 'Not Needed Yet',
         marketsharp_action:a.marketsharp_action, import_source:'Angi Historical Tracker', external_import_key:a.external_import_key,
-        created_at:a.created_at || undefined, updated_at:a.updated_at || undefined
+        created_at:sanitizeHistoricalTimestamp(a.created_at) || undefined, updated_at:sanitizeHistoricalTimestamp(a.updated_at) || undefined
       });
       if (ar.error) throw ar.error;
-      const pr = await db.from('prospects').update({converted_to_lead_at:a.created_at || a.appointment_at || new Date().toISOString()}).eq('id',p.id);
+      const pr = await db.from('prospects').update({converted_to_lead_at:sanitizeHistoricalTimestamp(a.created_at) || sanitizeHistoricalTimestamp(a.appointment_at) || new Date().toISOString()}).eq('id',p.id);
       if (pr.error) throw pr.error;
       appointmentsAdded++;
     }
