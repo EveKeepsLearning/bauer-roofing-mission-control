@@ -202,6 +202,11 @@
       display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;
     }
     .status-line{font-size:12px;color:var(--muted);margin-top:8px}
+    .create-lead-box{
+      margin-top:13px;padding-top:13px;border-top:1px solid var(--line);
+      display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+    }
+    .create-lead-copy{font-size:13px;color:var(--muted)}
 
     @media(max-width:700px){
       .brand{font-size:17px}
@@ -260,8 +265,7 @@
       <div id="reviewBox" class="review-box hidden">
         <div class="review-title">Likely return visit — match it to the existing lead</div>
         <div class="review-sub">
-          Mission Control is suggesting leads based on the calendar text, homeowner information,
-          property address, and recent appointment history. Nothing is linked until you approve it.
+          This calendar event does not follow the normal Source-Type-Address sales appointment format, so Mission Control is treating it as a likely return visit. It suggests existing leads below, but nothing is linked until you approve it.
         </div>
 
         <div id="suggestions" class="suggestions"></div>
@@ -272,6 +276,11 @@
         </div>
         <div id="manualResults" class="manual-results"></div>
         <div id="matchStatus" class="status-line"></div>
+
+        <div class="create-lead-box">
+          <div class="create-lead-copy">If this is actually a brand-new opportunity, create a Lead from the calendar information.</div>
+          <button class="btn primary small" id="createLeadBtn">Create New Lead</button>
+        </div>
       </div>
 
       <div class="dialog-actions">
@@ -351,6 +360,20 @@ function eventClass(row){
 
 function eventContact(row){
   return [row.contact_last_name,row.contact_first_name].filter(Boolean).join(', ');
+}
+
+function isStructuredSalesAppointment(row){
+  if(row.is_detailed || row.is_sales_appointment) return true;
+  if(row.source_code && row.appointment_code && row.property_text) return true;
+
+  const title = String(row.summary || '').trim();
+  return /^(Mail|HA|INT|RB|Ref|SI|YP|HS|Y|WF|AA)\s*-\s*[FMP]\s*-\s*.+$/i.test(title);
+}
+
+function isReturnVisitCandidate(row){
+  if(row.matched_lead_id) return false;
+  if(row.calendar_classification === 'Not Sales Related') return false;
+  return row.calendar_classification === 'Needs Review' && !isStructuredSalesAppointment(row);
 }
 
 function leadName(lead){
@@ -539,6 +562,96 @@ function leadMatchesSearch(lead,query){
   return q.split(' ').every(part=>haystack.includes(part));
 }
 
+
+function inferLeadSource(row){
+  return row.source_label || row.source_code || 'Other';
+}
+
+function inferHomeownerName(row){
+  const first = String(row.contact_first_name || '').trim();
+  const last = String(row.contact_last_name || '').trim();
+  if(first && last) return first + ' ' + last;
+  return first || last || '';
+}
+
+function inferStreetAddress(row){
+  return String(row.property_text || '').trim();
+}
+
+async function createLeadFromCalendarEvent(){
+  if(!activeEvent) return;
+
+  const homeownerName = inferHomeownerName(activeEvent);
+  const streetAddress = inferStreetAddress(activeEvent);
+  const phone = activeEvent.phone_primary || activeEvent.phone_secondary || null;
+  const email = activeEvent.email || null;
+  const source = inferLeadSource(activeEvent);
+
+  const confirmed = confirm(
+    'Create a new Lead from this calendar event?' +
+    '\n\nHomeowner: ' + (homeownerName || 'Not available') +
+    '\nAddress: ' + (streetAddress || 'Not available') +
+    '\nPhone: ' + (phone || 'Not available') +
+    '\nEmail: ' + (email || 'Not available') +
+    '\nSource: ' + (source || 'Not available')
+  );
+
+  if(!confirmed) return;
+
+  $('matchStatus').textContent = 'Creating lead…';
+
+  const payload = {
+    homeowner_name: homeownerName || null,
+    street_address: streetAddress || null,
+    phone: phone,
+    email: email,
+    source: source,
+    source_reference: activeEvent.google_event_id || null,
+    lead_status: 'Active',
+    notes: 'Created from Google Calendar event: ' + (activeEvent.summary || 'Calendar event')
+  };
+
+  const {data:lead,error:leadError} = await db
+    .from('leads')
+    .insert(payload)
+    .select()
+    .single();
+
+  if(leadError){
+    $('matchStatus').textContent = 'Could not create lead: ' + leadError.message;
+    return;
+  }
+
+  leads.unshift(lead);
+
+  const patch = {
+    matched_lead_id: lead.id,
+    matched_lead_number: lead.lead_number || null,
+    match_confidence: 100,
+    match_reason: 'New lead created from calendar event',
+    calendar_classification: 'Sales Appointment',
+    updated_at: new Date().toISOString()
+  };
+
+  const {data:eventRow,error:eventError} = await db
+    .from('calendar_events')
+    .update(patch)
+    .eq('id',activeEvent.id)
+    .select()
+    .single();
+
+  if(eventError){
+    $('matchStatus').textContent =
+      'Lead was created, but the calendar event could not be linked: ' + eventError.message;
+    return;
+  }
+
+  events = events.map(e => e.id === eventRow.id ? eventRow : e);
+  activeEvent = eventRow;
+  renderCalendar();
+  renderReview(eventRow);
+}
+
 async function init(){
   if(!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY){
     showMessage('Mission Control config.js could not be found.');
@@ -666,8 +779,8 @@ function renderCalendar(){
       const contact=eventContact(row);
       const marker = row.matched_lead_id
         ? '<span class="matched-dot" title="Matched to a lead"></span>'
-        : row.calendar_classification==='Needs Review'
-          ? '<span class="review-dot" title="Return visit needs review"></span>'
+        : isReturnVisitCandidate(row)
+          ? '<span class="review-dot" title="Likely return visit needs review"></span>'
           : '';
 
       el.innerHTML=
@@ -724,7 +837,9 @@ function renderSuggestionCard(result,index){
 }
 
 function renderReview(event){
-  $('reviewBox').classList.toggle('hidden',Boolean(event.matched_lead_id) || event.calendar_classification==='Not Sales Related');
+  const returnVisitCandidate = isReturnVisitCandidate(event);
+
+  $('reviewBox').classList.toggle('hidden',!returnVisitCandidate);
   $('matchBanner').classList.add('hidden');
   $('manualResults').innerHTML='';
   $('matchStatus').textContent='';
@@ -749,12 +864,13 @@ function renderReview(event){
     return;
   }
 
-  $('notSalesBtn').classList.remove('hidden');
-
-  if(event.calendar_classification!=='Needs Review'){
+  if(!returnVisitCandidate){
+    $('notSalesBtn').classList.add('hidden');
     $('reviewBox').classList.add('hidden');
     return;
   }
+
+  $('notSalesBtn').classList.remove('hidden');
 
   const suggestions=suggestedLeads(event);
   $('suggestions').innerHTML=suggestions.length
@@ -772,8 +888,12 @@ function openDetails(row){
     displayDate(start,{weekday:'long',month:'long',day:'numeric',year:'numeric'})+
     ' • '+timeText(start)+' - '+timeText(end);
 
+  const displayClassification = isStructuredSalesAppointment(row)
+    ? 'Sales Appointment'
+    : row.calendar_classification;
+
   const fields=[
-    ['Classification',row.calendar_classification],
+    ['Classification',displayClassification],
     ['Lead source',row.source_label || row.source_code],
     ['Appointment type',row.appointment_type || row.appointment_code],
     ['Property',row.property_text],
@@ -919,6 +1039,7 @@ $('closeDialogBtn').onclick=()=>$('eventDialog').close();
 $('leadSearchBtn').onclick=searchLeads;
 $('leadSearch').addEventListener('keydown',e=>{if(e.key==='Enter') searchLeads();});
 $('notSalesBtn').onclick=markNotSalesRelated;
+$('createLeadBtn').onclick=createLeadFromCalendarEvent;
 
 init();
 </script>
