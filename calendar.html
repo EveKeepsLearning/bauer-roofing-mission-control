@@ -305,6 +305,110 @@
     </div>
   </dialog>
 
+<dialog id="newLeadDialog">
+    <div class="dialog-card">
+      <h2>Add Lead from Calendar</h2>
+      <div class="dialog-sub">
+        Review and edit the information before it is added to Mission Control.
+      </div>
+
+      <div class="lead-form-grid">
+        <div>
+          <label>Bauer Lead #</label>
+          <input id="calLeadNumber" placeholder="Optional">
+        </div>
+
+        <div>
+          <label>Source</label>
+          <input id="calLeadSource">
+        </div>
+
+        <div>
+          <label>First name</label>
+          <input id="calLeadFirstName">
+        </div>
+
+        <div>
+          <label>Last name</label>
+          <input id="calLeadLastName">
+        </div>
+
+        <div class="wide">
+          <label>Street address</label>
+          <input id="calLeadStreet">
+        </div>
+
+        <div>
+          <label>City</label>
+          <input id="calLeadCity">
+        </div>
+
+        <div>
+          <label>State</label>
+          <input id="calLeadState" value="SC">
+        </div>
+
+        <div>
+          <label>ZIP</label>
+          <input id="calLeadZip">
+        </div>
+
+        <div>
+          <label>Primary phone</label>
+          <input id="calLeadPhone">
+        </div>
+
+        <div>
+          <label>Secondary phone</label>
+          <input id="calLeadPhone2">
+        </div>
+
+        <div class="wide">
+          <label>Email</label>
+          <input id="calLeadEmail" type="email">
+        </div>
+
+        <div>
+          <label>Lead status</label>
+          <select id="calLeadStatus">
+            <option>Appointment Wanted</option>
+            <option>Scheduling</option>
+            <option selected>Appointment Scheduled</option>
+            <option>Estimate Pending</option>
+            <option>Estimate Sent</option>
+            <option>Sold</option>
+            <option>Not Moving Forward</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Work requested</label>
+          <select id="calLeadWorkCategory">
+            <option>Roofing</option>
+            <option>Windows</option>
+            <option>Siding</option>
+            <option>Gutters</option>
+            <option>Multiple</option>
+            <option>Not Sure</option>
+            <option>Other</option>
+          </select>
+        </div>
+
+        <div class="wide">
+          <label>Notes</label>
+          <textarea id="calLeadNotes"></textarea>
+        </div>
+      </div>
+
+      <div id="newLeadSaveStatus" class="status-line"></div>
+
+      <div class="dialog-actions">
+        <button class="btn" id="cancelNewLeadBtn" type="button">Cancel</button>
+        <button class="btn primary" id="saveNewLeadBtn" type="button">Add Lead</button>
+      </div>
+    </div>
+  </dialog>
+
 <script>
 'use strict';
 
@@ -734,6 +838,19 @@ async function saveLeadFromCalendarDialog(){
   events = events.map(e => e.id === eventRow.id ? eventRow : e);
   activeEvent = eventRow;
 
+  if(isStructuredSalesAppointment(eventRow)){
+    try{
+      await ensureMissionControlAppointment(eventRow,lead);
+    }catch(appointmentError){
+      $('newLeadSaveStatus').textContent =
+        'Lead was created and linked, but the Mission Control appointment could not be saved: ' +
+        (appointmentError.message || String(appointmentError));
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Add Lead';
+      return;
+    }
+  }
+
   $('newLeadDialog').close();
   renderCalendar();
   renderReview(eventRow);
@@ -1027,6 +1144,83 @@ function openDetails(row){
   $('eventDialog').showModal();
 }
 
+
+function appointmentExternalKey(row){
+  return 'google-calendar|' +
+    String(row.google_calendar_id || '') + '|' +
+    String(row.google_event_id || '');
+}
+
+function calendarMarketSharpStatus(row){
+  const source = String(row.source_code || '').toUpperCase();
+
+  if(source === 'HA') return 'Automatic';
+  if(source === 'AA') return 'Needs Entry';
+
+  return 'Not Needed Yet';
+}
+
+async function ensureMissionControlAppointment(row,lead){
+  if(!row || !lead || !isStructuredSalesAppointment(row)) return null;
+
+  const externalKey = appointmentExternalKey(row);
+
+  const appointmentPayload = {
+    lead_id: lead.id,
+    appointment_at: row.start_at,
+    appointment_status: 'Scheduled',
+    assigned_to: lead.assigned_to || 'Roy',
+    notes:
+      'Google Calendar: ' + (row.summary || 'Sales appointment') +
+      (row.appointment_type ? '\nAppointment type: ' + row.appointment_type : ''),
+    marketsharp_status: calendarMarketSharpStatus(row),
+    google_calendar_status: 'Added',
+    import_source: 'Google Calendar',
+    external_import_key: externalKey,
+    updated_at: new Date().toISOString()
+  };
+
+  const existing = await db
+    .from('appointments')
+    .select('*')
+    .eq('external_import_key',externalKey)
+    .limit(1);
+
+  if(existing.error) throw existing.error;
+
+  let saved;
+
+  if(existing.data && existing.data.length){
+    const current = existing.data[0];
+
+    const update = await db
+      .from('appointments')
+      .update(appointmentPayload)
+      .eq('id',current.id)
+      .select()
+      .single();
+
+    if(update.error) throw update.error;
+    saved = update.data;
+    appointments = appointments.map(a => a.id === saved.id ? saved : a);
+  }else{
+    const insert = await db
+      .from('appointments')
+      .insert({
+        ...appointmentPayload,
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if(insert.error) throw insert.error;
+    saved = insert.data;
+    appointments.push(saved);
+  }
+
+  return saved;
+}
+
 async function matchEventToLead(leadId,score,reason){
   if(!activeEvent) return;
 
@@ -1060,6 +1254,20 @@ async function matchEventToLead(leadId,score,reason){
 
   events=events.map(e=>e.id===data.id ? data : e);
   activeEvent=data;
+
+  if(isStructuredSalesAppointment(data)){
+    try{
+      await ensureMissionControlAppointment(data,lead);
+    }catch(appointmentError){
+      renderCalendar();
+      renderReview(data);
+      $('matchStatus').textContent =
+        'Lead was matched, but the Mission Control appointment could not be saved: ' +
+        (appointmentError.message || String(appointmentError));
+      return;
+    }
+  }
+
   renderCalendar();
   renderReview(data);
 }
@@ -1169,110 +1377,5 @@ $('cancelNewLeadBtn').onclick=()=>$('newLeadDialog').close();
 
 init();
 </script>
-
-  <dialog id="newLeadDialog">
-    <div class="dialog-card">
-      <h2>Add Lead from Calendar</h2>
-      <div class="dialog-sub">
-        Review and edit the information before it is added to Mission Control.
-      </div>
-
-      <div class="lead-form-grid">
-        <div>
-          <label>Bauer Lead #</label>
-          <input id="calLeadNumber" placeholder="Optional">
-        </div>
-
-        <div>
-          <label>Source</label>
-          <input id="calLeadSource">
-        </div>
-
-        <div>
-          <label>First name</label>
-          <input id="calLeadFirstName">
-        </div>
-
-        <div>
-          <label>Last name</label>
-          <input id="calLeadLastName">
-        </div>
-
-        <div class="wide">
-          <label>Street address</label>
-          <input id="calLeadStreet">
-        </div>
-
-        <div>
-          <label>City</label>
-          <input id="calLeadCity">
-        </div>
-
-        <div>
-          <label>State</label>
-          <input id="calLeadState" value="SC">
-        </div>
-
-        <div>
-          <label>ZIP</label>
-          <input id="calLeadZip">
-        </div>
-
-        <div>
-          <label>Primary phone</label>
-          <input id="calLeadPhone">
-        </div>
-
-        <div>
-          <label>Secondary phone</label>
-          <input id="calLeadPhone2">
-        </div>
-
-        <div class="wide">
-          <label>Email</label>
-          <input id="calLeadEmail" type="email">
-        </div>
-
-        <div>
-          <label>Lead status</label>
-          <select id="calLeadStatus">
-            <option>Appointment Wanted</option>
-            <option>Scheduling</option>
-            <option selected>Appointment Scheduled</option>
-            <option>Estimate Pending</option>
-            <option>Estimate Sent</option>
-            <option>Sold</option>
-            <option>Not Moving Forward</option>
-          </select>
-        </div>
-
-        <div>
-          <label>Work requested</label>
-          <select id="calLeadWorkCategory">
-            <option>Roofing</option>
-            <option>Windows</option>
-            <option>Siding</option>
-            <option>Gutters</option>
-            <option>Multiple</option>
-            <option>Not Sure</option>
-            <option>Other</option>
-          </select>
-        </div>
-
-        <div class="wide">
-          <label>Notes</label>
-          <textarea id="calLeadNotes"></textarea>
-        </div>
-      </div>
-
-      <div id="newLeadSaveStatus" class="status-line"></div>
-
-      <div class="dialog-actions">
-        <button class="btn" id="cancelNewLeadBtn" type="button">Cancel</button>
-        <button class="btn primary" id="saveNewLeadBtn" type="button">Add Lead</button>
-      </div>
-    </div>
-  </dialog>
-
 </body>
 </html>
