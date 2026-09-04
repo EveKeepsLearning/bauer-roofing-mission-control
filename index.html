@@ -3,1230 +3,1441 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Bauer Roofing Mission Control - Calendar</title>
+
+  <title>Bauer Roofing Mission Control</title>
+
+  <link rel="stylesheet" href="styles.css">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
-
-  <style>
-    :root{
-      --bg:#f8f9fa;
-      --panel:#fff;
-      --text:#202124;
-      --muted:#5f6368;
-      --line:#dadce0;
-      --soft-line:#e8eaed;
-      --today:#e8f0fe;
-      --today-strong:#1a73e8;
-      --repair:#4054b2;
-      --reroof:#039be5;
-      --other:#039be5;
-      --warning:#f9ab00;
-      --success:#188038;
-      --success-bg:#e6f4ea;
-      --danger:#d93025;
-      --hour-height:64px;
-      --header-height:70px;
-      --time-width:72px;
-    }
-
-    *{box-sizing:border-box}
-    html,body{margin:0;min-height:100%;font-family:Arial,Helvetica,sans-serif;color:var(--text);background:var(--bg)}
-    button,input{font:inherit}
-    .hidden{display:none!important}
-
-    .topbar{
-      position:sticky;top:0;z-index:50;
-      background:#fff;border-bottom:1px solid var(--line);
-      padding:12px 18px;
-      display:flex;align-items:center;gap:14px;flex-wrap:wrap;
-    }
-    .brand{font-size:20px;font-weight:600;white-space:nowrap}
-    .top-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .spacer{flex:1}
-    .btn{
-      border:1px solid var(--line);background:#fff;color:#3c4043;
-      border-radius:20px;padding:9px 15px;cursor:pointer;text-decoration:none;
-    }
-    .btn:hover{background:#f1f3f4}
-    .btn.icon{padding:8px 12px;font-size:18px;line-height:1}
-    .btn.primary{background:#1a73e8;color:white;border-color:#1a73e8}
-    .btn.success{background:var(--success);color:white;border-color:var(--success)}
-    .btn.small{padding:6px 10px;border-radius:16px;font-size:12px}
-    .period-title{font-size:22px;font-weight:400;min-width:180px}
-
-    .legend{
-      background:#fff;border-bottom:1px solid var(--line);
-      display:flex;align-items:center;gap:18px;flex-wrap:wrap;
-      padding:8px 18px;color:var(--muted);font-size:13px;
-    }
-    .legend-item{display:flex;align-items:center;gap:7px}
-    .dot{width:11px;height:11px;border-radius:3px;display:inline-block}
-    .dot.repair{background:var(--repair)}
-    .dot.reroof{background:var(--reroof)}
-    .review-dot{width:9px;height:9px;background:var(--warning);border-radius:50%;display:inline-block}
-    .lead-match-dot{width:10px;height:10px;background:#1a73e8;border-radius:50%;display:inline-block}
-    .matched-dot{width:10px;height:10px;background:var(--success);border-radius:50%;display:inline-block}
-
-    .message{
-      margin:14px 18px;padding:12px 14px;border-radius:8px;
-      background:#fff3cd;border:1px solid #ffe69c;color:#664d03;
-    }
-
-    .calendar-shell{
-      height:calc(100vh - 112px);
-      min-height:600px;
-      overflow:auto;background:#fff;
-    }
-
-    .calendar{
-      min-width:1100px;
-      display:grid;
-      grid-template-columns:var(--time-width) repeat(7,minmax(145px,1fr));
-      position:relative;
-    }
-
-    .corner{
-      position:sticky;top:0;left:0;z-index:35;background:#fff;
-      border-right:1px solid var(--line);border-bottom:1px solid var(--line);
-      height:var(--header-height);
-    }
-
-    .day-head{
-      position:sticky;top:0;z-index:30;background:#fff;
-      height:var(--header-height);
-      display:flex;flex-direction:column;align-items:center;justify-content:center;
-      border-bottom:1px solid var(--line);
-    }
-    .day-head.today{background:#f8fbff}
-    .day-name{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px}
-    .day-number{
-      margin-top:6px;width:38px;height:38px;border-radius:50%;
-      display:flex;align-items:center;justify-content:center;font-size:24px;
-    }
-    .day-head.today .day-number{background:var(--today-strong);color:#fff}
-
-    .time-col{
-      position:sticky;left:0;z-index:15;background:#fff;border-right:1px solid var(--line);
-    }
-    .time-slot{
-      height:var(--hour-height);position:relative;border-bottom:1px solid transparent;
-      color:var(--muted);font-size:11px;text-align:right;padding-right:9px;
-    }
-    .time-slot span{position:relative;top:-7px;background:#fff;padding-left:4px}
-
-    .day-col{
-      position:relative;border-right:1px solid var(--line);
-      background:
-        repeating-linear-gradient(
-          to bottom,
-          transparent 0,
-          transparent calc(var(--hour-height) - 1px),
-          var(--soft-line) calc(var(--hour-height) - 1px),
-          var(--soft-line) var(--hour-height)
-        );
-    }
-    .day-col.today{background-color:#fbfdff}
-
-    .event{
-      position:absolute;left:4px;right:4px;
-      border-radius:5px;padding:5px 7px;
-      color:#fff;font-size:12px;line-height:1.25;
-      overflow:hidden;cursor:pointer;
-      border-left:3px solid rgba(255,255,255,.55);
-      box-shadow:0 1px 2px rgba(0,0,0,.12);
-    }
-    .event:hover{filter:brightness(.96)}
-    .event.repair{background:var(--repair)}
-    .event.reroof{background:var(--reroof)}
-    .event.other{background:var(--other)}
-    .event.matched{outline:2px solid rgba(24,128,56,.55);outline-offset:-2px}
-    .event-title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .event-time{opacity:.95;margin-top:2px}
-    .event-contact{opacity:.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .event .review-dot,.event .lead-match-dot,.event .matched-dot{position:absolute;right:5px;top:5px;border:1px solid rgba(255,255,255,.8)}
-
-    .now-line{
-      position:absolute;height:2px;background:#ea4335;left:0;right:0;z-index:10;pointer-events:none;
-    }
-    .now-line:before{
-      content:"";position:absolute;width:8px;height:8px;background:#ea4335;border-radius:50%;
-      left:-4px;top:-3px;
-    }
-
-    dialog{
-      border:0;border-radius:12px;padding:0;max-width:min(720px,94vw);
-      width:720px;box-shadow:0 18px 50px rgba(0,0,0,.22);
-    }
-    dialog::backdrop{background:rgba(32,33,36,.35)}
-    .dialog-card{padding:22px}
-    .dialog-card h2{margin:0 0 5px;font-size:20px}
-    .dialog-sub{color:var(--muted);margin-bottom:18px}
-    .detail-grid{display:grid;grid-template-columns:145px 1fr;gap:9px 14px;font-size:14px}
-    .detail-label{color:var(--muted)}
-    .dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:22px;flex-wrap:wrap}
-
-    .review-box{
-      margin-top:20px;padding:16px;border:1px solid #f6d36b;
-      background:#fffaf0;border-radius:10px;
-    }
-    .review-title{font-size:16px;font-weight:700;margin-bottom:4px}
-    .review-sub{font-size:13px;color:var(--muted);margin-bottom:12px}
-    .suggestions{display:grid;gap:9px}
-    .suggestion{
-      background:white;border:1px solid var(--line);border-radius:9px;
-      padding:11px 12px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;
-    }
-    .suggestion.best{border-color:#8ab4f8;box-shadow:0 0 0 1px #d2e3fc inset}
-    .suggestion-name{font-weight:700}
-    .suggestion-meta{font-size:12px;color:var(--muted);margin-top:3px}
-    .confidence{
-      display:inline-block;font-size:11px;border-radius:10px;padding:2px 7px;margin-left:6px;
-      background:#f1f3f4;color:#3c4043;
-    }
-    .confidence.high{background:var(--success-bg);color:#137333}
-    .confidence.possible{background:#fef7e0;color:#b06000}
-
-    .match-banner{
-      margin-top:18px;padding:13px 14px;border:1px solid #a8dab5;background:var(--success-bg);
-      border-radius:9px;color:#0d652d;
-    }
-    .match-banner b{color:#0d652d}
-
-    .search-row{display:flex;gap:8px;margin-top:13px}
-    .search-row input{
-      flex:1;border:1px solid var(--line);border-radius:8px;padding:9px 10px;
-    }
-    .manual-results{display:grid;gap:7px;margin-top:9px;max-height:230px;overflow:auto}
-    .manual-result{
-      background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px 10px;
-      display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;
-    }
-    .status-line{font-size:12px;color:var(--muted);margin-top:8px}
-    .sync-status{
-      font-size:12px;color:var(--muted);min-width:120px;text-align:right;
-    }
-    .create-lead-box{
-      margin-top:13px;padding-top:13px;border-top:1px solid var(--line);
-      display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
-    }
-    .create-lead-copy{font-size:13px;color:var(--muted)}
-
-    @media(max-width:700px){
-      .brand{font-size:17px}
-      .period-title{font-size:18px;min-width:auto}
-      .calendar-shell{height:calc(100vh - 150px)}
-      .detail-grid{grid-template-columns:1fr}
-      .detail-label{font-weight:700;margin-top:6px}
-      .suggestion,.manual-result{grid-template-columns:1fr}
-    }
-  </style>
 </head>
+
 <body>
 
-  <div id="authMessage" class="message hidden"></div>
+  <div id="loginView" class="login hidden">
+    <div class="card">
 
-  <div id="calendarApp" class="hidden">
-    <div class="topbar">
-      <div class="brand">Bauer Roofing Mission Control</div>
+      <h1>Bauer Roofing Mission Control</h1>
 
-      <div class="top-actions">
-        <a class="btn" href="https://evekeepslearning.github.io/bauer-roofing-mission-control/index.html">Mission Control</a>
-        <button class="btn" id="todayBtn">Today</button>
-        <button class="btn icon" id="prevBtn" aria-label="Previous week">‹</button>
-        <button class="btn icon" id="nextBtn" aria-label="Next week">›</button>
+      <p class="auth-note">
+        Sign in with your email. Supabase will send a secure sign-in link.
+        Your roofing data stays protected by row-level security even though
+        the website can be hosted publicly.
+      </p>
+
+      <label>Email</label>
+
+      <input
+        id="loginEmail"
+        type="email"
+        autocomplete="email"
+        placeholder="you@example.com"
+      >
+
+      <button
+        class="btn primary"
+        id="loginBtn">
+        Send sign-in link
+      </button>
+
+      <div
+        id="loginMsg"
+        class="notice hidden">
       </div>
 
-      <div class="period-title" id="periodTitle">Calendar</div>
-
-      <div class="spacer"></div>
-
-      <div class="sync-status" id="syncStatus"></div>
-      <button class="btn primary" id="syncCalendarBtn">Sync Google Calendar</button>
-      <button class="btn" id="refreshBtn">Refresh View</button>
-    </div>
-
-    <div class="legend">
-      <span class="legend-item"><span class="dot repair"></span> Repair appointment</span>
-      <span class="legend-item"><span class="dot reroof"></span> Reroof / measure / presentation</span>
-      <span class="legend-item"><span class="lead-match-dot"></span> Sales appointment needs Lead match</span>
-      <span class="legend-item"><span class="review-dot"></span> Likely return visit needs review</span>
-      <span class="legend-item"><span class="matched-dot"></span> Matched to a Lead</span>
-      <span class="legend-item">Google Calendar remains the schedule</span>
-    </div>
-
-    <div class="calendar-shell" id="calendarShell">
-      <div class="calendar" id="calendarGrid"></div>
     </div>
   </div>
 
-  <dialog id="eventDialog">
-    <div class="dialog-card">
-      <h2 id="detailTitle"></h2>
-      <div class="dialog-sub" id="detailWhen"></div>
 
-      <div class="detail-grid" id="detailGrid"></div>
+  <div id="appView" class="hidden">
 
-      <div id="matchBanner" class="match-banner hidden"></div>
+    <header>
 
-      <div id="reviewBox" class="review-box hidden">
-        <div class="review-title" id="reviewTitle">Review calendar event</div>
-        <div class="review-sub" id="reviewSub"></div>
+      <div class="head-row">
 
-        <div id="suggestions" class="suggestions"></div>
+        <div class="brand">
 
-        <div class="search-row">
-          <input id="leadSearch" placeholder="Search another lead by name, address, phone, email, or lead #">
-          <button class="btn small" id="leadSearchBtn">Search</button>
+          <h1>
+            Bauer Roofing Mission Control
+          </h1>
+
+          <div
+            class="sub"
+            id="nowText">
+            Loading…
+          </div>
+
         </div>
-        <div id="manualResults" class="manual-results"></div>
-        <div id="matchStatus" class="status-line"></div>
 
-        <div class="create-lead-box">
-          <div class="create-lead-copy">If no existing Lead is correct, create a Lead from the calendar information without retyping it.</div>
-          <button class="btn primary small" id="createLeadBtn">Create New Lead</button>
+
+        <div class="toolbar">
+
+          <button
+            class="btn ghost small"
+            id="undoBtn"
+            title="Undo the most recent reversible change">
+            Undo
+          </button>
+
+          <button
+            class="btn ghost small"
+            id="refreshBtn">
+            Refresh
+          </button>
+
+          <button
+            class="btn ghost small"
+            id="logoutBtn">
+            Sign out
+          </button>
+
         </div>
+
       </div>
 
-      <div class="dialog-actions">
-        <button class="btn small" id="notSalesBtn">Not related to a lead</button>
-        <button class="btn" id="closeDialogBtn">Close</button>
+
+      <nav
+        class="nav"
+        id="nav">
+
+        <button
+          data-view="today"
+          class="active">
+          Today
+        </button>
+
+        <button data-view="phone">
+          Phone Message
+        </button>
+
+        <button data-view="incoming">
+          Incoming
+        </button>
+
+        <button data-view="angi">
+          Angi Queue
+        </button>
+
+        <button data-view="leads">
+          Prospects / Leads
+        </button>
+
+        <button data-view="jobs">
+          Jobs
+        </button>
+
+        <button data-view="playbook">
+          Playbook
+        </button>
+
+        <button data-view="suggestions">
+          Suggestions
+        </button>
+
+      </nav>
+
+    </header>
+
+
+    <main class="wrap">
+
+      <div
+        id="systemMsg"
+        class="notice hidden">
       </div>
-    </div>
-  </dialog>
 
-<script>
-'use strict';
 
-const cfg = window.BAUER_CONFIG || {};
-const TZ = 'America/New_York';
-const START_HOUR = 6;
-const END_HOUR = 20;
-const HOUR_HEIGHT = 64;
+      <!-- TODAY -->
 
-let db = null;
-let weekStart = startOfWeek(new Date());
-let events = [];
-let leads = [];
-let appointments = [];
-let activeEvent = null;
+      <section id="view-today">
 
-const $ = id => document.getElementById(id);
-const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({
-  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-}[c]));
+        <div class="kpi-row">
 
-function startOfWeek(date){
-  const d = new Date(date);
-  d.setHours(0,0,0,0);
-  d.setDate(d.getDate() - d.getDay());
-  return d;
-}
+          <div class="kpi">
+            <div
+              class="n"
+              id="kpiCritical">
+              0
+            </div>
 
-function addDays(date,days){
-  const d = new Date(date);
-  d.setDate(d.getDate()+days);
-  return d;
-}
+            <div class="l">
+              Critical / overdue
+            </div>
+          </div>
 
-function localDateKey(date){
-  return new Intl.DateTimeFormat('en-CA',{
-    timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit'
-  }).format(date);
-}
 
-function displayDate(date, opts){
-  return new Intl.DateTimeFormat('en-US',{timeZone:TZ,...opts}).format(date);
-}
+          <div class="kpi">
+            <div
+              class="n"
+              id="kpiDue">
+              0
+            </div>
 
-function timeText(date){
-  return displayDate(date,{hour:'numeric',minute:'2-digit'});
-}
+            <div class="l">
+              Due today
+            </div>
+          </div>
 
-function monthRangeTitle(){
-  const end = addDays(weekStart,6);
-  const sameMonth = weekStart.getMonth() === end.getMonth();
-  const sameYear = weekStart.getFullYear() === end.getFullYear();
 
-  if(sameMonth) return displayDate(weekStart,{month:'long',year:'numeric'});
-  if(sameYear){
-    return displayDate(weekStart,{month:'short'}) + ' - ' +
-      displayDate(end,{month:'short',year:'numeric'});
-  }
-  return displayDate(weekStart,{month:'short',year:'numeric'}) + ' - ' +
-    displayDate(end,{month:'short',year:'numeric'});
-}
+          <div class="kpi">
+            <div
+              class="n"
+              id="kpiComms">
+              0
+            </div>
 
-function eventClass(row){
-  if(row.appointment_code === 'F' || row.appointment_type === 'Repair') return 'repair';
-  if(['M','P'].includes(row.appointment_code)) return 'reroof';
-  return 'other';
-}
+            <div class="l">
+              Client communications due
+            </div>
+          </div>
 
-function eventContact(row){
-  return [row.contact_last_name,row.contact_first_name].filter(Boolean).join(', ');
-}
 
-function isStructuredSalesAppointment(row){
-  if(row.is_detailed || row.is_sales_appointment) return true;
-  if(row.source_code && row.appointment_code && row.property_text) return true;
+          <div class="kpi">
+            <div
+              class="n"
+              id="kpiWeekJobs">
+              0
+            </div>
 
-  const title = String(row.summary || '').trim();
-  return /^(Mail|HA|INT|RB|Ref|SI|YP|HS|Y|WF|AA)\s*-\s*[FMP]\s*-\s*.+$/i.test(title);
-}
+            <div class="l">
+              Jobs starting this week
+            </div>
+          </div>
 
-function isReturnVisitCandidate(row){
-  if(row.matched_lead_id) return false;
-  if(row.calendar_classification === 'Not Sales Related') return false;
-  return row.calendar_classification === 'Needs Review' && !isStructuredSalesAppointment(row);
-}
-
-function isSalesLeadMatchCandidate(row){
-  if(row.matched_lead_id) return false;
-  if(row.calendar_classification === 'Not Sales Related') return false;
-  return isStructuredSalesAppointment(row);
-}
-
-function hasEnoughInfoToCreateLead(row){
-  if(!isStructuredSalesAppointment(row)) return false;
-  const hasName = Boolean(row.contact_first_name || row.contact_last_name);
-  const hasAddress = Boolean(row.property_text);
-  const hasContact = Boolean(row.phone_primary || row.phone_secondary || row.email);
-  return hasName && hasAddress && hasContact;
-}
-
-function leadName(lead){
-  return lead.homeowner_name || [lead.first_name,lead.last_name].filter(Boolean).join(' ') || 'Unnamed lead';
-}
-
-function leadAddress(lead){
-  return [lead.street_address,lead.city,lead.state,lead.zip].filter(Boolean).join(', ');
-}
-
-function minuteOfDay(date){
-  const parts = new Intl.DateTimeFormat('en-US',{
-    timeZone:TZ,hour12:false,hour:'2-digit',minute:'2-digit'
-  }).formatToParts(date);
-  const hour = Number(parts.find(p=>p.type==='hour')?.value || 0);
-  const minute = Number(parts.find(p=>p.type==='minute')?.value || 0);
-  return hour*60 + minute;
-}
-
-function showMessage(text){
-  $('authMessage').textContent = text;
-  $('authMessage').classList.remove('hidden');
-}
-
-function normalizeText(value){
-  return String(value || '')
-    .toLowerCase()
-    .replace(/&/g,' and ')
-    .replace(/[^a-z0-9]+/g,' ')
-    .replace(/\s+/g,' ')
-    .trim();
-}
-
-function normalizePhone(value){
-  let digits = String(value || '').replace(/\D/g,'');
-  if(digits.length===11 && digits.startsWith('1')) digits=digits.slice(1);
-  return digits.length===10 ? digits : digits;
-}
-
-function tokens(value){
-  const stop = new Set([
-    'st','street','rd','road','dr','drive','ct','court','ln','lane','ave','avenue',
-    'blvd','way','cir','circle','trl','trail','sc','south','carolina','the','and',
-    'house','home','job','repair','roof','roofing','visit'
-  ]);
-  return normalizeText(value).split(' ').filter(x=>x && x.length>1 && !stop.has(x));
-}
-
-function overlapCount(a,b){
-  const as = new Set(tokens(a));
-  const bs = new Set(tokens(b));
-  let count = 0;
-  as.forEach(t=>{ if(bs.has(t)) count++; });
-  return count;
-}
-
-function confidenceLabel(score){
-  if(score>=75) return {label:'High confidence',cls:'high'};
-  if(score>=40) return {label:'Possible',cls:'possible'};
-  return {label:'Weak',cls:''};
-}
-
-function recentAppointmentBonus(leadId,eventDate){
-  const matching = appointments.filter(a=>a.lead_id===leadId && a.appointment_at);
-  if(!matching.length) return {score:0,reason:null};
-
-  const target = eventDate.getTime();
-  let nearest = Infinity;
-  matching.forEach(a=>{
-    const diff = Math.abs(new Date(a.appointment_at).getTime()-target);
-    if(diff<nearest) nearest=diff;
-  });
-
-  const days = nearest/(24*60*60*1000);
-  if(days<=14) return {score:20,reason:'another appointment for this lead was within 2 weeks'};
-  if(days<=45) return {score:12,reason:'another appointment for this lead was within 45 days'};
-  if(days<=90) return {score:6,reason:'another appointment for this lead was within 90 days'};
-  return {score:0,reason:null};
-}
-
-function scoreLeadForEvent(event,lead){
-  let score = 0;
-  const reasons = [];
-
-  const eventText = [
-    event.summary,event.location_raw,event.description,event.property_text,
-    event.contact_first_name,event.contact_last_name,event.phone_primary,
-    event.phone_secondary,event.email
-  ].filter(Boolean).join(' ');
-
-  const eventNorm = normalizeText(eventText);
-  const eventPhones = [event.phone_primary,event.phone_secondary].filter(Boolean).map(normalizePhone);
-  const leadPhone = normalizePhone(lead.phone);
-  const eventEmail = String(event.email || '').trim().toLowerCase();
-  const leadEmail = String(lead.email || '').trim().toLowerCase();
-
-  if(leadPhone && eventPhones.includes(leadPhone)){
-    score += 100;
-    reasons.push('phone matches');
-  }
-
-  if(eventEmail && leadEmail && eventEmail===leadEmail){
-    score += 100;
-    reasons.push('email matches');
-  }
-
-  const street = normalizeText(lead.street_address);
-  if(street && eventNorm.includes(street)){
-    score += 90;
-    reasons.push('property address appears in the calendar event');
-  }else if(street){
-    const overlap = overlapCount(eventText,lead.street_address);
-    if(overlap>=3){
-      score += 65;
-      reasons.push('strong property-address match');
-    }else if(overlap===2){
-      score += 45;
-      reasons.push('property words match');
-    }else if(overlap===1){
-      score += 18;
-      reasons.push('one property word matches');
-    }
-
-    const streetNumber = String(lead.street_address || '').match(/\b\d+\b/)?.[0];
-    if(streetNumber && normalizeText(eventText).split(' ').includes(streetNumber)){
-      score += 25;
-      reasons.push('street number matches');
-    }
-  }
-
-  const last = normalizeText(lead.last_name);
-  const first = normalizeText(lead.first_name);
-  if(last && eventNorm.split(' ').includes(last)){
-    score += 50;
-    reasons.push('last name matches');
-  }
-  if(first && eventNorm.split(' ').includes(first)){
-    score += 20;
-    reasons.push('first name matches');
-  }
-
-  const homeowner = normalizeText(leadName(lead));
-  if(homeowner && eventNorm.includes(homeowner)){
-    score += 55;
-    reasons.push('homeowner name matches');
-  }
-
-  const city = normalizeText(lead.city);
-  if(city && eventNorm.split(' ').includes(city)){
-    score += 8;
-    reasons.push('city matches');
-  }
-
-  const recent = recentAppointmentBonus(lead.id,new Date(event.start_at));
-  score += recent.score;
-  if(recent.reason) reasons.push(recent.reason);
-
-  if(lead.lead_status && !['Sold','Not Moving Forward'].includes(lead.lead_status)){
-    score += 5;
-  }
-
-  return {lead,score,reasons};
-}
-
-function suggestedLeads(event){
-  return leads
-    .filter(l=>!l.deleted_at)
-    .map(l=>scoreLeadForEvent(event,l))
-    .filter(x=>x.score>=15)
-    .sort((a,b)=>b.score-a.score)
-    .slice(0,3);
-}
-
-function leadMatchesSearch(lead,query){
-  const q = normalizeText(query);
-  if(!q) return false;
-
-  const haystack = normalizeText([
-    leadName(lead),lead.first_name,lead.last_name,lead.street_address,lead.city,
-    lead.state,lead.zip,lead.phone,lead.email,lead.lead_number,lead.source,lead.source_reference
-  ].filter(Boolean).join(' '));
-
-  const qPhone = normalizePhone(query);
-  if(qPhone && qPhone.length>=7 && normalizePhone(lead.phone).includes(qPhone)) return true;
-
-  return q.split(' ').every(part=>haystack.includes(part));
-}
-
-
-function inferLeadSource(row){
-  return row.source_label || row.source_code || 'Other';
-}
-
-function inferHomeownerName(row){
-  const first = String(row.contact_first_name || '').trim();
-  const last = String(row.contact_last_name || '').trim();
-  if(first && last) return first + ' ' + last;
-  return first || last || '';
-}
-
-function inferPropertyFields(row){
-  const raw = String(row.property_text || '').trim();
-  if(!raw) return {street_address:null,city:null,state:'SC',zip:null};
-
-  const zipMatch = raw.match(/(?:,\s*)?(\d{5})(?:-\d{4})?\s*$/);
-  const zip = zipMatch ? zipMatch[1] : null;
-  let street = raw;
-
-  if(zipMatch){
-    street = raw.substring(0,zipMatch.index).replace(/,\s*$/,'').trim();
-  }
-
-  return {
-    street_address: street || raw,
-    city: null,
-    state: 'SC',
-    zip: zip
-  };
-}
-
-async function createLeadFromCalendarEvent(){
-  if(!activeEvent) return;
-
-  const homeownerName = inferHomeownerName(activeEvent);
-  const property = inferPropertyFields(activeEvent);
-  const streetAddress = property.street_address;
-  const phone = activeEvent.phone_primary || activeEvent.phone_secondary || null;
-  const email = activeEvent.email || null;
-  const source = inferLeadSource(activeEvent);
-
-  const confirmed = confirm(
-    'Create a new Lead from this calendar event?' +
-    '\n\nHomeowner: ' + (homeownerName || 'Not available') +
-    '\nAddress: ' + (streetAddress || 'Not available') +
-    '\nPhone: ' + (phone || 'Not available') +
-    '\nEmail: ' + (email || 'Not available') +
-    '\nSource: ' + (source || 'Not available')
-  );
-
-  if(!confirmed) return;
-
-  $('matchStatus').textContent = 'Creating lead…';
-
-  const payload = {
-    homeowner_name: homeownerName || null,
-    first_name: activeEvent.contact_first_name || null,
-    last_name: activeEvent.contact_last_name || null,
-    street_address: streetAddress || null,
-    city: property.city,
-    state: property.state,
-    zip: property.zip,
-    phone: phone,
-    email: email,
-    source: source,
-    source_reference: activeEvent.google_event_id || null,
-    lead_status: 'Active',
-    notes:
-      'Created from Google Calendar. ' +
-      'Appointment: ' + (activeEvent.summary || 'Calendar event') +
-      '. Date: ' + new Date(activeEvent.start_at).toLocaleString() +
-      (activeEvent.phone_secondary ? '. Secondary phone: ' + activeEvent.phone_secondary : '')
-  };
-
-  const {data:lead,error:leadError} = await db
-    .from('leads')
-    .insert(payload)
-    .select()
-    .single();
-
-  if(leadError){
-    $('matchStatus').textContent = 'Could not create lead: ' + leadError.message;
-    return;
-  }
-
-  leads.unshift(lead);
-
-  const patch = {
-    matched_lead_id: lead.id,
-    matched_lead_number: lead.lead_number || null,
-    match_confidence: 100,
-    match_reason: 'New Lead created from calendar event',
-    calendar_classification: isStructuredSalesAppointment(activeEvent) ? 'Sales Appointment' : 'Return Visit',
-    updated_at: new Date().toISOString()
-  };
-
-  const {data:eventRow,error:eventError} = await db
-    .from('calendar_events')
-    .update(patch)
-    .eq('id',activeEvent.id)
-    .select()
-    .single();
-
-  if(eventError){
-    $('matchStatus').textContent =
-      'Lead was created, but the calendar event could not be linked: ' + eventError.message;
-    return;
-  }
-
-  events = events.map(e => e.id === eventRow.id ? eventRow : e);
-  activeEvent = eventRow;
-  renderCalendar();
-  renderReview(eventRow);
-}
-
-
-function getCalendarSyncUrl(){
-  const configured = String(cfg.CALENDAR_SYNC_WEB_APP_URL || '').trim();
-  if(configured) return configured;
-
-  return String(localStorage.getItem('bauerCalendarSyncWebAppUrl') || '').trim();
-}
-
-function askForCalendarSyncUrl(){
-  const current = getCalendarSyncUrl();
-  const entered = prompt(
-    'Paste the Bauer Roofing Calendar Sync Web App URL from Google Apps Script.\\n\\nYou only need to do this once on this browser.',
-    current
-  );
-
-  if(!entered) return null;
-
-  const cleaned = String(entered).trim();
-  if(!/^https:\/\/script\.google\.com\//i.test(cleaned)){
-    alert('That does not look like a Google Apps Script Web App URL.');
-    return null;
-  }
-
-  localStorage.setItem('bauerCalendarSyncWebAppUrl', cleaned);
-  return cleaned;
-}
-
-function runCalendarSyncJsonp_(webAppUrl){
-  return new Promise((resolve,reject)=>{
-    const callbackName = 'bauerCalendarSyncCallback_' + Date.now() + '_' + Math.floor(Math.random()*100000);
-    const script = document.createElement('script');
-    const timeoutMs = 45000;
-
-    const cleanup = ()=>{
-      try{ delete window[callbackName]; }catch(e){ window[callbackName]=undefined; }
-      if(script.parentNode) script.parentNode.removeChild(script);
-    };
-
-    const timer = setTimeout(()=>{
-      cleanup();
-      reject(new Error('The Google Calendar sync did not respond within 45 seconds.'));
-    },timeoutMs);
-
-    window[callbackName] = payload=>{
-      clearTimeout(timer);
-      cleanup();
-      resolve(payload);
-    };
-
-    const separator = webAppUrl.includes('?') ? '&' : '?';
-    script.src = webAppUrl + separator +
-      'action=sync&callback=' + encodeURIComponent(callbackName) +
-      '&_=' + Date.now();
-
-    script.onerror = ()=>{
-      clearTimeout(timer);
-      cleanup();
-      reject(new Error('Mission Control could not reach the Google Calendar sync web app.'));
-    };
-
-    document.head.appendChild(script);
-  });
-}
-
-async function syncGoogleCalendarNow(){
-  let url = getCalendarSyncUrl();
-  if(!url) url = askForCalendarSyncUrl();
-  if(!url) return;
-
-  const button = $('syncCalendarBtn');
-  const status = $('syncStatus');
-
-  button.disabled = true;
-  button.textContent = 'Syncing…';
-  status.textContent = 'Reading Google Calendar…';
-
-  try{
-    const payload = await runCalendarSyncJsonp_(url);
-
-    if(!payload || !payload.ok){
-      throw new Error(payload?.error || 'Calendar sync failed.');
-    }
-
-    const result = payload.result || {};
-    status.textContent =
-      'Synced ' + (result.synced ?? 0) +
-      (result.duplicatesRemoved ? ' • ' + result.duplicatesRemoved + ' duplicate removed' : '');
-
-    await loadWeek();
-
-    setTimeout(()=>{
-      if(status.textContent.startsWith('Synced')) status.textContent = 'Up to date';
-    },5000);
-  }catch(err){
-    status.textContent = 'Sync failed';
-    alert(
-      'Google Calendar could not be synced.\\n\\n' +
-      String(err && err.message ? err.message : err) +
-      '\\n\\nIf the Apps Script Web App URL changed, clear it from this browser and try again.'
-    );
-  }finally{
-    button.disabled = false;
-    button.textContent = 'Sync Google Calendar';
-  }
-}
-
-
-async function init(){
-  if(!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY){
-    showMessage('Mission Control config.js could not be found.');
-    return;
-  }
-
-  db = supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
-
-  const {data:{session}} = await db.auth.getSession();
-
-  if(!session?.user){
-    showMessage('Please sign in to Mission Control first, then open Calendar again.');
-    return;
-  }
-
-  $('calendarApp').classList.remove('hidden');
-
-  const [leadResult,appointmentResult] = await Promise.all([
-    db.from('leads').select('*').order('created_at',{ascending:false}).limit(1000),
-    db.from('appointments').select('*').order('appointment_at',{ascending:false}).limit(1000)
-  ]);
-
-  if(leadResult.error){
-    showMessage('Calendar loaded, but Mission Control leads could not be read: '+leadResult.error.message);
-    return;
-  }
-  if(appointmentResult.error){
-    showMessage('Calendar loaded, but appointment history could not be read: '+appointmentResult.error.message);
-    return;
-  }
-
-  leads = leadResult.data || [];
-  appointments = appointmentResult.data || [];
-
-  await loadWeek();
-}
-
-async function loadWeek(){
-  $('periodTitle').textContent = monthRangeTitle();
-
-  const start = new Date(weekStart);
-  const end = addDays(weekStart,7);
-
-  const {data,error} = await db
-    .from('calendar_events')
-    .select('*')
-    .gte('start_at',start.toISOString())
-    .lt('start_at',end.toISOString())
-    .order('start_at',{ascending:true});
-
-  if(error){
-    showMessage('Calendar could not load: ' + error.message);
-    return;
-  }
-
-  $('authMessage').classList.add('hidden');
-  events = data || [];
-  renderCalendar();
-
-  requestAnimationFrame(()=>{
-    const shell = $('calendarShell');
-    const desired = Math.max(0,(8-START_HOUR)*HOUR_HEIGHT - 30);
-    shell.scrollTop = desired;
-  });
-}
-
-function renderCalendar(){
-  const grid = $('calendarGrid');
-  grid.innerHTML = '';
-
-  const corner = document.createElement('div');
-  corner.className = 'corner';
-  grid.appendChild(corner);
-
-  const todayKey = localDateKey(new Date());
-
-  for(let i=0;i<7;i++){
-    const day = addDays(weekStart,i);
-    const key = localDateKey(day);
-    const head = document.createElement('div');
-    head.className = 'day-head' + (key===todayKey ? ' today' : '');
-    head.innerHTML =
-      '<div class="day-name">'+esc(displayDate(day,{weekday:'short'}))+'</div>'+
-      '<div class="day-number">'+esc(displayDate(day,{day:'numeric'}))+'</div>';
-    grid.appendChild(head);
-  }
-
-  const timeCol = document.createElement('div');
-  timeCol.className='time-col';
-
-  for(let h=START_HOUR;h<END_HOUR;h++){
-    const slot=document.createElement('div');
-    slot.className='time-slot';
-    const sample=new Date(2026,0,1,h,0,0);
-    slot.innerHTML='<span>'+esc(new Intl.DateTimeFormat('en-US',{hour:'numeric'}).format(sample))+'</span>';
-    timeCol.appendChild(slot);
-  }
-  grid.appendChild(timeCol);
-
-  for(let dayIndex=0;dayIndex<7;dayIndex++){
-    const day=addDays(weekStart,dayIndex);
-    const key=localDateKey(day);
-    const col=document.createElement('div');
-    col.className='day-col' + (key===todayKey ? ' today' : '');
-    col.style.height=((END_HOUR-START_HOUR)*HOUR_HEIGHT)+'px';
-
-    const dayEvents=events.filter(row=>localDateKey(new Date(row.start_at))===key);
-
-    dayEvents.forEach(row=>{
-      const start=new Date(row.start_at);
-      const end=new Date(row.end_at);
-      const startMinutes=minuteOfDay(start);
-      const endMinutes=minuteOfDay(end);
-
-      const top=((startMinutes-START_HOUR*60)/60)*HOUR_HEIGHT;
-      const height=Math.max(28,((endMinutes-startMinutes)/60)*HOUR_HEIGHT);
-
-      if(top+height<0 || top>((END_HOUR-START_HOUR)*HOUR_HEIGHT)) return;
-
-      const el=document.createElement('div');
-      el.className='event '+eventClass(row)+(row.matched_lead_id ? ' matched' : '');
-      el.style.top=Math.max(0,top)+'px';
-      el.style.height=Math.min(height,((END_HOUR-START_HOUR)*HOUR_HEIGHT)-Math.max(0,top))+'px';
-
-      const contact=eventContact(row);
-      const marker = row.matched_lead_id
-        ? '<span class="matched-dot" title="Matched to a Lead"></span>'
-        : isSalesLeadMatchCandidate(row)
-          ? '<span class="lead-match-dot" title="Sales appointment needs Lead match"></span>'
-          : isReturnVisitCandidate(row)
-            ? '<span class="review-dot" title="Likely return visit needs review"></span>'
-            : '';
-
-      el.innerHTML=
-        '<div class="event-title">'+esc(row.summary || 'Calendar event')+'</div>'+
-        '<div class="event-time">'+esc(timeText(start))+' - '+esc(timeText(end))+'</div>'+
-        (contact ? '<div class="event-contact">'+esc(contact)+'</div>' : '')+
-        marker;
-
-      el.addEventListener('click',()=>openDetails(row));
-      col.appendChild(el);
-    });
-
-    if(key===todayKey){
-      const now=new Date();
-      const mins=minuteOfDay(now);
-      if(mins>=START_HOUR*60 && mins<=END_HOUR*60){
-        const line=document.createElement('div');
-        line.className='now-line';
-        line.style.top=(((mins-START_HOUR*60)/60)*HOUR_HEIGHT)+'px';
-        col.appendChild(line);
-      }
-    }
-
-    grid.appendChild(col);
-  }
-}
-
-function renderSuggestionCard(result,index){
-  const lead=result.lead;
-  const conf=confidenceLabel(result.score);
-  return `
-    <div class="suggestion ${index===0?'best':''}">
-      <div>
-        <div class="suggestion-name">
-          ${esc(leadName(lead))}
-          <span class="confidence ${esc(conf.cls)}">${esc(conf.label)}</span>
         </div>
-        <div class="suggestion-meta">
-          ${lead.lead_number ? 'Lead # '+esc(lead.lead_number)+' • ' : ''}
-          ${esc(leadAddress(lead) || 'No address entered')}
-          ${lead.lead_status ? ' • '+esc(lead.lead_status) : ''}
+
+
+        <div id="currentTask"></div>
+
+
+        <div class="grid">
+
+          <div>
+
+            <div class="card section-card section-communication">
+              <h2>Communication Due</h2>
+              <div class="meta" style="margin-bottom:12px">Customer calls, texts, emails, and follow-ups due today or overdue.</div>
+              <div id="commList"></div>
+            </div>
+
+            <div class="card section-card section-financial">
+              <h2>Financial / QuickBooks</h2>
+              <div class="meta" style="margin-bottom:12px">QuickBooks, payroll, taxes, bills, credit cards, deposits, and accounting work.</div>
+              <div id="financialList"></div>
+            </div>
+
+            <div class="card section-card section-attention">
+              <div class="toolbar">
+                <h2>Needs Your Attention</h2>
+                <div class="spacer"></div>
+                <button class="btn small primary" id="newTaskBtn">+ Task</button>
+              </div>
+              <div id="taskList"></div>
+            </div>
+
+          </div>
+
+          <div>
+
+            <div class="card blocked-card section-card section-blocked">
+              <h3>Blocked / Waiting</h3>
+              <div id="blockedList"></div>
+            </div>
+
+            <div class="card section-card section-jobs">
+              <h3>Jobs Starting This Week</h3>
+              <div id="weekJobs"></div>
+            </div>
+
+            <div class="card section-card section-notes">
+              <h3>Quick Notes</h3>
+              <div class="meta" style="margin-bottom:10px">A scratchpad for things worth remembering that are not tasks.</div>
+              <input id="quickNoteEditId" type="hidden">
+              <textarea id="quickNoteText" placeholder="Write something down…"></textarea>
+              <div class="toolbar" style="margin-top:8px">
+                <button class="btn primary small" id="saveQuickNoteBtn" type="button">Add Note</button>
+                <button class="btn small hidden" id="cancelQuickNoteEditBtn" type="button">Cancel Edit</button>
+              </div>
+              <div id="quickNotesList" style="margin-top:12px"></div>
+            </div>
+
+          </div>
+
         </div>
-        <div class="suggestion-meta">${esc(result.reasons.join(' • ') || 'Possible match')}</div>
-      </div>
-      <button
-        class="btn success small"
-        data-match-lead="${esc(lead.id)}"
-        data-match-score="${esc(result.score)}"
-        data-match-reason="${esc(result.reasons.join(' • '))}">
-        ${isStructuredSalesAppointment(activeEvent) ? 'Match Sales Appointment' : 'Match Return Visit'}
-      </button>
-    </div>
-  `;
-}
 
-function renderReview(event){
-  const returnVisitCandidate = isReturnVisitCandidate(event);
-  const salesMatchCandidate = isSalesLeadMatchCandidate(event);
-  const needsReview = returnVisitCandidate || salesMatchCandidate;
+      </section>
 
-  $('reviewBox').classList.toggle('hidden',!needsReview);
-  $('matchBanner').classList.add('hidden');
-  $('manualResults').innerHTML='';
-  $('matchStatus').textContent='';
-  $('leadSearch').value='';
 
-  if(event.matched_lead_id){
-    const lead=leads.find(l=>l.id===event.matched_lead_id);
-    const label=isStructuredSalesAppointment(event) ? 'Matched sales appointment:' : 'Matched return visit:';
-    $('matchBanner').innerHTML = lead
-      ? '<b>'+esc(label)+'</b> '+esc(leadName(lead))+
-        (lead.lead_number ? ' • Lead # '+esc(lead.lead_number) : '')+
-        (leadAddress(lead) ? '<br>'+esc(leadAddress(lead)) : '')
-      : '<b>Matched to Lead # '+esc(event.matched_lead_number || '')+'</b>';
-    $('matchBanner').classList.remove('hidden');
-    $('notSalesBtn').classList.add('hidden');
-    return;
-  }
+      <!-- PHONE MESSAGE -->
 
-  if(event.calendar_classification==='Not Sales Related'){
-    $('matchBanner').innerHTML='<b>Marked not related to a lead.</b>';
-    $('matchBanner').classList.remove('hidden');
-    $('notSalesBtn').classList.add('hidden');
-    return;
-  }
+      <section
+        id="view-phone"
+        class="hidden">
 
-  if(!needsReview){
-    $('notSalesBtn').classList.add('hidden');
-    $('reviewBox').classList.add('hidden');
-    return;
-  }
+        <div class="card">
 
-  if(salesMatchCandidate){
-    $('reviewTitle').textContent='Sales appointment — connect it to a Mission Control Lead';
-    $('reviewSub').textContent=
-      'This event has the normal Bauer sales appointment format. Mission Control checks existing Leads first. ' +
-      'If none is correct, you can create a new Lead from the calendar information with one click.';
-  }else{
-    $('reviewTitle').textContent='Likely return visit — match it to the existing Lead';
-    $('reviewSub').textContent=
-      'This event does not follow the normal Source-Type-Address sales appointment format, so Mission Control is treating it as a likely return visit. ' +
-      'Choose the existing Lead it belongs to, or create a new Lead only if this is actually a new opportunity.';
-  }
+          <h2 id="phoneFormTitle">
+            Phone Message
+          </h2>
+          <input id="pmEditId" type="hidden">
 
-  $('notSalesBtn').classList.remove('hidden');
-  $('createLeadBtn').textContent = salesMatchCandidate ? 'Add to Leads' : 'Create New Lead';
 
-  const suggestions=suggestedLeads(event);
-  $('suggestions').innerHTML=suggestions.length
-    ? suggestions.map(renderSuggestionCard).join('')
-    : salesMatchCandidate
-      ? '<div class="suggestion"><div><b>No matching Lead found.</b><div class="suggestion-meta">If this is a new opportunity, use Create New Lead below.</div></div></div>'
-      : '<div class="suggestion"><div><b>No strong automatic suggestion yet.</b><div class="suggestion-meta">Search the Leads list below.</div></div></div>';
+          <div class="form-grid">
 
-  $('createLeadBtn').classList.toggle('hidden',salesMatchCandidate && !hasEnoughInfoToCreateLead(event));
-}
+            <div>
+              <label>
+                Caller name
+              </label>
 
-function openDetails(row){
-  activeEvent=row;
-  const start=new Date(row.start_at);
-  const end=new Date(row.end_at);
+              <input id="pmName">
+            </div>
 
-  $('detailTitle').textContent=row.summary || 'Calendar event';
-  $('detailWhen').textContent=
-    displayDate(start,{weekday:'long',month:'long',day:'numeric',year:'numeric'})+
-    ' • '+timeText(start)+' - '+timeText(end);
 
-  const displayClassification = row.matched_lead_id
-    ? (isStructuredSalesAppointment(row) ? 'Sales Appointment — Matched' : row.calendar_classification)
-    : isStructuredSalesAppointment(row)
-      ? 'Sales Appointment — Needs Lead Match'
-      : row.calendar_classification;
+            <div>
+              <label>
+                Called for
+              </label>
 
-  const fields=[
-    ['Classification',displayClassification],
-    ['Lead source',row.source_label || row.source_code],
-    ['Appointment type',row.appointment_type || row.appointment_code],
-    ['Property',row.property_text],
-    ['Homeowner',eventContact(row)],
-    ['Primary phone',row.phone_primary],
-    ['Secondary phone',row.phone_secondary],
-    ['Email',row.email],
-    ['Description',row.description],
-    ['Google calendar',row.calendar_name]
-  ].filter(([,value])=>value);
+              <input id="pmFor">
+            </div>
 
-  $('detailGrid').innerHTML=fields.map(([label,value])=>
-    '<div class="detail-label">'+esc(label)+'</div><div>'+esc(value)+'</div>'
-  ).join('');
 
-  renderReview(row);
-  $('eventDialog').showModal();
-}
+            <div class="wide">
+              <label>
+                Street address
+              </label>
 
-async function matchEventToLead(leadId,score,reason){
-  if(!activeEvent) return;
+              <input id="pmStreet">
+            </div>
 
-  const lead=leads.find(l=>l.id===leadId);
-  if(!lead) return;
 
-  $('matchStatus').textContent='Saving match…';
+            <div>
+              <label>
+                Phone
+              </label>
 
-  const structured = isStructuredSalesAppointment(activeEvent);
+              <input id="pmPhone">
+            </div>
 
-  const patch={
-    matched_lead_id:lead.id,
-    matched_lead_number:lead.lead_number || null,
-    match_confidence:Number(score || 0),
-    match_reason:reason || 'Manually selected',
-    calendar_classification:structured ? 'Sales Appointment' : 'Return Visit',
-    updated_at:new Date().toISOString()
-  };
 
-  const {data,error}=await db
-    .from('calendar_events')
-    .update(patch)
-    .eq('id',activeEvent.id)
-    .select()
-    .single();
+            <div>
+              <label>
+                Email
+              </label>
 
-  if(error){
-    $('matchStatus').textContent='Could not save match: '+error.message;
-    return;
-  }
+              <input id="pmEmail">
+            </div>
 
-  events=events.map(e=>e.id===data.id ? data : e);
-  activeEvent=data;
-  renderCalendar();
-  renderReview(data);
-}
 
-async function markNotSalesRelated(){
-  if(!activeEvent) return;
-  if(!confirm('Mark this calendar event as not related to a lead?')) return;
+            <div>
+              <label>
+                Related Job or Lead # (optional)
+              </label>
 
-  const {data,error}=await db
-    .from('calendar_events')
-    .update({
-      matched_lead_id:null,
-      matched_lead_number:null,
-      match_confidence:null,
-      match_reason:'Marked not related to a lead',
-      calendar_classification:'Not Sales Related',
-      updated_at:new Date().toISOString()
-    })
-    .eq('id',activeEvent.id)
-    .select()
-    .single();
+              <input
+                id="pmRelatedNumber"
+                placeholder="Enter job # or lead #"
+              >
+            </div>
 
-  if(error){
-    $('matchStatus').textContent='Could not save: '+error.message;
-    return;
-  }
 
-  events=events.map(e=>e.id===data.id ? data : e);
-  activeEvent=data;
-  renderCalendar();
-  renderReview(data);
-}
+            <div class="wide">
+              <label>
+                Reason / message
+              </label>
 
-function searchLeads(){
-  const query=$('leadSearch').value.trim();
-  if(!query){
-    $('manualResults').innerHTML='';
-    return;
-  }
+              <textarea id="pmReason"></textarea>
+            </div>
 
-  const found=leads.filter(l=>!l.deleted_at && leadMatchesSearch(l,query)).slice(0,12);
 
-  $('manualResults').innerHTML=found.length
-    ? found.map(lead=>`
-      <div class="manual-result">
-        <div>
-          <b>${esc(leadName(lead))}</b>
-          <div class="suggestion-meta">
-            ${lead.lead_number ? 'Lead # '+esc(lead.lead_number)+' • ' : ''}
-            ${esc(leadAddress(lead) || 'No address entered')}
-            ${lead.phone ? ' • '+esc(lead.phone) : ''}
+            <div>
+              <label>
+                Follow-up needed?
+              </label>
+
+              <select id="pmFollow">
+                <option>No</option>
+                <option>Yes</option>
+              </select>
+            </div>
+
+
+            <div class="wide">
+              <label>
+                Follow-up notes
+              </label>
+
+              <textarea id="pmNotes"></textarea>
+            </div>
+
+          </div>
+
+
+          <div class="toolbar">
+            <button
+              class="btn primary"
+              id="savePhoneBtn">
+              Save Message
+            </button>
+            <button
+              class="btn hidden"
+              type="button"
+              id="cancelPhoneEditBtn">
+              Cancel Edit
+            </button>
+          </div>
+
+        </div>
+
+
+        <div class="card">
+
+          <h3>
+            Recent Messages
+          </h3>
+
+          <div id="phoneHistory"></div>
+
+        </div>
+
+      </section>
+
+
+      <!-- INCOMING -->
+
+      <section
+        id="view-incoming"
+        class="hidden">
+
+        <div class="card">
+
+          <h2 id="incomingFormTitle">
+            Capture Incoming Work
+          </h2>
+          <input id="incomingEditId" type="hidden">
+
+          <label>
+            What just came in?
+          </label>
+
+          <textarea id="incomingDesc"></textarea>
+
+
+          <label>
+            Source
+          </label>
+
+          <input
+            id="incomingSource"
+            placeholder="Phone, Roy, Dad, email…"
+          >
+
+
+          <div class="toolbar">
+            <button
+              class="btn primary"
+              id="saveIncomingBtn">
+              Capture
+            </button>
+            <button class="btn hidden" type="button" id="cancelIncomingEditBtn">Cancel Edit</button>
+          </div>
+
+        </div>
+
+
+        <div class="card">
+
+          <h3>
+            Recent Incoming
+          </h3>
+
+          <div id="incomingList"></div>
+
+        </div>
+
+      </section>
+
+
+
+      <!-- ANGI WORK QUEUE -->
+      <section id="view-angi" class="hidden">
+        <div class="kpi-row angi-kpis">
+          <div class="kpi tone-new"><div class="n" id="angiKpiNew">0</div><div class="l">New / untouched</div></div>
+          <div class="kpi tone-overdue"><div class="n" id="angiKpiOverdue">0</div><div class="l">Overdue</div></div>
+          <div class="kpi tone-today"><div class="n" id="angiKpiDue">0</div><div class="l">Due today</div></div>
+          <div class="kpi tone-admin"><div class="n" id="angiKpiMarketSharp">0</div><div class="l">Add to MarketSharp</div></div>
+          <div class="kpi tone-review"><div class="n" id="angiKpiReview">0</div><div class="l">Review / historical</div></div>
+          <div class="kpi tone-duplicate"><div class="n" id="angiKpiDuplicates">0</div><div class="l">Duplicates</div></div>
+        </div>
+
+        <div class="card angi-toolbar-card">
+          <div class="toolbar">
+            <h2>Angi Work Queue</h2>
+            <div class="spacer"></div>
+            <select id="angiFilter" style="max-width:190px">
+              <option value="all">Calls to work</option>
+              <option value="new">New / untouched</option>
+              <option value="overdue">Overdue</option>
+              <option value="today">Due today</option>
+              <option value="active">Follow up / later</option>
+              <option value="marketsharp">Add to MarketSharp</option>
+              <option value="review">Review historical</option>
+              <option value="duplicate">Duplicates</option>
+            </select>
+            <input id="angiSearch" placeholder="Search homeowner, phone, address…" style="max-width:300px">
+            <button class="btn primary small" id="angiWorkNextBtn" type="button">Work Next</button>
+          </div>
+          <div class="angi-legend" aria-label="Angi queue color guide">
+            <span class="legend-pill call-first">Call first</span><span class="legend-pill morning">Morning</span><span class="legend-pill midday">Midday</span><span class="legend-pill final-call">Final call</span><span class="legend-pill overdue">Overdue</span><span class="legend-pill later">Later</span><span class="legend-pill admin">Admin</span>
+          </div>
+          <p class="auth-note">The left rail is your work list. The bright blue band shows the prospect you are working now. Appointment-set prospects are removed from the call queue; Angi Ads appointments only remain in the MarketSharp handoff view until added.</p>
+        </div>
+
+        <div class="angi-workspace">
+          <div class="card angi-rail-card">
+            <h3>Queue</h3>
+            <div id="angiQueueList" class="angi-queue-list"></div>
+          </div>
+          <div class="card angi-detail-card">
+            <div id="angiDetail"><p class="empty">Select an Angi prospect.</p></div>
           </div>
         </div>
-        <button class="btn success small" data-manual-match="${esc(lead.id)}">${isStructuredSalesAppointment(activeEvent) ? 'Match Sales Appointment' : 'Match Return Visit'}</button>
-      </div>
-    `).join('')
-    : '<div class="status-line">No leads matched that search.</div>';
-}
 
-document.addEventListener('click',event=>{
-  const matchBtn=event.target.closest('[data-match-lead]');
-  if(matchBtn){
-    matchEventToLead(
-      matchBtn.dataset.matchLead,
-      matchBtn.dataset.matchScore,
-      matchBtn.dataset.matchReason
-    );
-    return;
-  }
+        <div class="card">
+          <h3>Import Existing Angi History</h3>
+          <p class="auth-note"><b>One-time migration.</b> This imports the existing tracker prospects, communication history, and appointments silently. Historical records are blocked from automatic first-contact text/email.</p>
+          <div class="toolbar">
+            <input id="angiHistoricalImportFile" type="file" accept=".json,application/json">
+            <button class="btn primary small" id="angiHistoricalImportBtn" type="button">Import Existing History</button>
+          </div>
+          <div id="angiHistoricalImportStatus" class="meta"></div>
+        </div>
 
-  const manualBtn=event.target.closest('[data-manual-match]');
-  if(manualBtn){
-    matchEventToLead(
-      manualBtn.dataset.manualMatch,
-      50,
-      isStructuredSalesAppointment(activeEvent)
-        ? 'Sales appointment manually matched from lead search'
-        : 'Return visit manually matched from lead search'
-    );
-  }
-});
+        <div class="card">
+          <h3>Import New Angi Export</h3>
+          <p class="auth-note">Use this for new Angi downloads going forward. Choose which Angi account the export came from, then select the downloaded .csv file. Existing Angi reference numbers are skipped instead of overwritten.</p>
+          <div class="toolbar">
+            <select id="angiImportAccount" style="max-width:260px">
+              <option value="">Choose Angi account…</option>
+              <option>Bauer Roofing - PPL</option>
+              <option>Bauer Roofing Inc - Angi Ads</option>
+            </select>
+            <input id="angiImportFile" type="file" accept=".csv,text/csv,text/plain">
+            <button class="btn primary small" id="angiImportBtn" type="button">Import New Prospects</button>
+          </div>
+          <div id="angiImportStatus" class="meta"></div>
+        </div>
+      </section>
 
-$('todayBtn').onclick=async()=>{
-  weekStart=startOfWeek(new Date());
-  await loadWeek();
-};
-$('prevBtn').onclick=async()=>{
-  weekStart=addDays(weekStart,-7);
-  await loadWeek();
-};
-$('nextBtn').onclick=async()=>{
-  weekStart=addDays(weekStart,7);
-  await loadWeek();
-};
-$('syncCalendarBtn').onclick=syncGoogleCalendarNow;
-$('refreshBtn').onclick=async()=>{
-  await loadWeek();
-};
-$('closeDialogBtn').onclick=()=>$('eventDialog').close();
-$('leadSearchBtn').onclick=searchLeads;
-$('leadSearch').addEventListener('keydown',e=>{if(e.key==='Enter') searchLeads();});
-$('notSalesBtn').onclick=markNotSalesRelated;
-$('createLeadBtn').onclick=createLeadFromCalendarEvent;
+      <!-- PROSPECTS / LEADS -->
 
-init();
-</script>
+      <section
+        id="view-leads"
+        class="hidden">
+
+        <div class="kpi-row">
+          <div class="kpi">
+            <div class="n" id="kpiProspects">0</div>
+            <div class="l">Active prospects</div>
+          </div>
+
+          <div class="kpi">
+            <div class="n" id="kpiProspectDue">0</div>
+            <div class="l">Prospect follow-ups due</div>
+          </div>
+
+          <div class="kpi">
+            <div class="n" id="kpiLeads">0</div>
+            <div class="l">Active leads</div>
+          </div>
+
+          <div class="kpi">
+            <div class="n" id="kpiAppointments">0</div>
+            <div class="l">Upcoming appointments</div>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div>
+            <div class="card">
+              <div class="toolbar">
+                <h2>Prospects</h2>
+                <div class="spacer"></div>
+                <button class="btn small primary" id="newProspectBtn">+ Prospect</button>
+              </div>
+
+              <p class="auth-note">
+                A prospect is an inquiry where you do not yet know for certain that they want an appointment.
+                Angi inquiries begin here unless they are already confirmed appointment-seeking leads.
+              </p>
+
+              <div id="prospectList"></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="card">
+              <div class="toolbar">
+                <h2>Leads</h2>
+                <div class="spacer"></div>
+                <button class="btn small primary" id="newLeadBtn">+ Lead</button>
+              </div>
+
+              <p class="auth-note">
+                A lead is someone you know wants an appointment. Leads can be entered manually or promoted from a prospect.
+              </p>
+
+              <div id="leadList"></div>
+            </div>
+
+            <div class="card">
+              <h3>Upcoming Appointments</h3>
+              <div id="appointmentList"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Archived Prospects / Leads</h3>
+          <p class="auth-note">Archived records stay available and can be restored. Delete is intended for test entries or true mistakes.</p>
+          <div id="archivedSalesList"></div>
+        </div>
+
+      </section>
+
+
+      <!-- JOBS -->
+
+      <section
+        id="view-jobs"
+        class="hidden">
+
+        <div class="card">
+
+          <div class="toolbar">
+
+            <h2>
+              Jobs / Production
+            </h2>
+
+            <div class="spacer"></div>
+
+            <button
+              class="btn small primary"
+              id="newJobBtn">
+              + Job
+            </button>
+
+          </div>
+
+
+          <p class="auth-note">
+            The production model is already connected to client communication.
+            Jobs can move from Sold → Pre-Production → Scheduled →
+            In Production → Complete → Closed without changing the task system.
+          </p>
+
+
+          <div id="jobsTable"></div>
+
+        </div>
+
+
+        <div class="card">
+
+          <h3>
+            Communication Responsibilities
+          </h3>
+
+          <div id="allComms"></div>
+
+        </div>
+
+        <div class="card">
+          <h3>Archived Jobs</h3>
+          <div id="archivedJobsList"></div>
+        </div>
+
+      </section>
+
+
+      <!-- PLAYBOOK -->
+
+      <section
+        id="view-playbook"
+        class="hidden">
+
+        <div class="card">
+
+          <h2>
+            Playbook / SOPs
+          </h2>
+
+          <select id="sopSelect"></select>
+
+          <div id="sopBody"></div>
+
+        </div>
+
+      </section>
+
+
+      <!-- SUGGESTIONS -->
+
+      <section
+        id="view-suggestions"
+        class="hidden">
+
+        <div class="card">
+
+          <div class="toolbar">
+
+            <h2>
+              Learning & Suggestions
+            </h2>
+
+            <div class="spacer"></div>
+
+            <button
+              class="btn small"
+              id="generateSuggestionsBtn">
+              Analyze Work Patterns
+            </button>
+
+          </div>
+
+
+          <p class="auth-note">
+            Suggestions never override your hard deadlines.
+            They are recommendations based on task history,
+            delays, and workload patterns.
+          </p>
+
+
+          <div id="suggestionList"></div>
+
+        </div>
+
+      </section>
+
+
+      <!-- NEW TASK -->
+
+      <dialog id="taskDialog">
+
+        <form
+          method="dialog"
+          class="card"
+          style="min-width:min(620px,90vw);margin:0">
+
+          <h2 id="taskDialogTitle">
+            New Task
+          </h2>
+          <input id="taskEditId" type="hidden">
+
+
+          <label>
+            Task
+          </label>
+
+          <input id="taskName">
+
+
+          <div class="form-grid">
+
+            <div>
+
+              <label>
+                Category
+              </label>
+
+              <input id="taskCategory">
+
+            </div>
+
+
+            <div>
+
+              <label>
+                Priority
+              </label>
+
+              <select id="taskPriority">
+                <option>Normal</option>
+                <option>High</option>
+                <option>Critical</option>
+              </select>
+
+            </div>
+
+
+            <div>
+
+              <label>
+                Due date
+              </label>
+
+              <input
+                id="taskDueDate"
+                type="date"
+              >
+
+            </div>
+
+
+            <div>
+
+              <label>
+                Due time
+              </label>
+
+              <input
+                id="taskDueTime"
+                type="time"
+              >
+
+            </div>
+
+
+            <div class="wide">
+
+              <label>
+                Related Job or Lead # (optional)
+              </label>
+
+              <input
+                id="taskRelatedNumber"
+                placeholder="Enter job # or lead #"
+              >
+
+            </div>
+
+
+            <div class="wide">
+
+              <label>
+                Description
+              </label>
+
+              <textarea
+                id="taskDescription"
+                placeholder="Add details about what needs to be done">
+              </textarea>
+
+            </div>
+
+
+            <div class="wide">
+
+              <label>
+                Next action
+              </label>
+
+              <input id="taskNext">
+
+            </div>
+
+
+            <div class="wide">
+
+              <label>
+                Notes
+              </label>
+
+              <textarea id="taskNotes"></textarea>
+
+            </div>
+
+          </div>
+
+
+          <div class="toolbar">
+
+            <button
+              class="btn primary"
+              type="button"
+              id="saveTaskBtn">
+              Save
+            </button>
+
+            <button
+              class="btn"
+              value="cancel">
+              Cancel
+            </button>
+
+          </div>
+
+        </form>
+
+      </dialog>
+
+
+      <!-- NEW PROSPECT -->
+
+      <dialog id="prospectDialog">
+        <form method="dialog" class="card" style="min-width:min(760px,92vw);margin:0">
+          <h2 id="prospectDialogTitle">New Prospect</h2>
+          <input id="prospectEditId" type="hidden">
+
+          <div class="form-grid">
+            <div>
+              <label>Source</label>
+              <select id="prospectSource"></select>
+            </div>
+
+            <div id="prospectAngiAccountWrap">
+              <label>Angi account</label>
+              <select id="prospectSourceAccount"></select>
+            </div>
+
+            <div id="prospectSourceRefWrap">
+              <label>Source / Angi reference #</label>
+              <input id="prospectSourceRef" placeholder="Optional source reference">
+            </div>
+
+            <div>
+              <label>Status</label>
+              <select id="prospectStatus"></select>
+            </div>
+
+            <div>
+              <label>First name</label>
+              <input id="prospectFirstName">
+            </div>
+
+            <div>
+              <label>Last name</label>
+              <input id="prospectLastName">
+            </div>
+
+            <div class="wide">
+              <label>Street address</label>
+              <input id="prospectStreet">
+            </div>
+
+            <div>
+              <label>City</label>
+              <input id="prospectCity">
+            </div>
+
+            <div>
+              <label>State</label>
+              <input id="prospectState" value="SC">
+            </div>
+
+            <div>
+              <label>ZIP</label>
+              <input id="prospectZip">
+            </div>
+
+            <div>
+              <label>Phone</label>
+              <input id="prospectPhone">
+            </div>
+
+            <div>
+              <label>Email</label>
+              <input id="prospectEmail" type="email">
+            </div>
+
+            <div>
+              <label>Work requested</label>
+              <select id="prospectWorkCategory">
+                <option>Roofing</option>
+                <option>Windows</option>
+                <option>Siding</option>
+                <option>Gutters</option>
+                <option>Multiple</option>
+                <option>Not Sure</option>
+                <option>Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Assigned to</label>
+              <select id="prospectAssignedTo"></select>
+            </div>
+
+            <div>
+              <label>Next follow-up</label>
+              <input id="prospectNextFollow" type="datetime-local">
+            </div>
+
+            <div>
+              <label>Next action</label>
+              <input id="prospectNextAction" placeholder="Call, text, wait for reply…">
+            </div>
+
+            <div class="wide">
+              <label>Notes</label>
+              <textarea id="prospectNotes"></textarea>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="saveProspectBtn">Save Prospect</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
+      </dialog>
+
+
+      <!-- NEW / PROMOTED LEAD -->
+
+      <dialog id="leadDialog">
+        <form method="dialog" class="card" style="min-width:min(780px,92vw);margin:0">
+          <h2 id="leadDialogTitle">New Lead</h2>
+          <input id="leadEditId" type="hidden">
+          <input id="leadProspectId" type="hidden">
+
+          <div class="form-grid">
+            <div>
+              <label>Bauer Lead #</label>
+              <input id="leadNumber" placeholder="Internal Bauer lead number">
+            </div>
+
+            <div>
+              <label>Source</label>
+              <select id="leadSource"></select>
+            </div>
+
+            <div id="leadAngiAccountWrap">
+              <label>Angi account</label>
+              <select id="leadSourceAccount"></select>
+            </div>
+
+            <div>
+              <label>Source / Angi reference #</label>
+              <input id="leadSourceRef">
+            </div>
+
+            <div>
+              <label>First name</label>
+              <input id="leadFirstName">
+            </div>
+
+            <div>
+              <label>Last name</label>
+              <input id="leadLastName">
+            </div>
+
+            <div class="wide">
+              <label>Street address</label>
+              <input id="leadStreet">
+            </div>
+
+            <div>
+              <label>City</label>
+              <input id="leadCity">
+            </div>
+
+            <div>
+              <label>State</label>
+              <input id="leadState" value="SC">
+            </div>
+
+            <div>
+              <label>ZIP</label>
+              <input id="leadZip">
+            </div>
+
+            <div>
+              <label>Phone</label>
+              <input id="leadPhone">
+            </div>
+
+            <div>
+              <label>Email</label>
+              <input id="leadEmail" type="email">
+            </div>
+
+            <div>
+              <label>Work requested</label>
+              <select id="leadWorkCategory">
+                <option>Roofing</option>
+                <option>Windows</option>
+                <option>Siding</option>
+                <option>Gutters</option>
+                <option>Multiple</option>
+                <option>Not Sure</option>
+                <option>Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Assigned to</label>
+              <select id="leadAssignedTo"></select>
+            </div>
+
+            <div>
+              <label>Lead status</label>
+              <select id="leadStatus">
+                <option>Appointment Wanted</option>
+                <option>Scheduling</option>
+                <option>Appointment Scheduled</option>
+                <option>Estimate Pending</option>
+                <option>Estimate Sent</option>
+                <option>Sold</option>
+                <option>Not Moving Forward</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Estimate status</label>
+              <select id="leadEstimateStatus"></select>
+            </div>
+
+            <div>
+              <label>Appointment date</label>
+              <input id="leadAppointmentDate" type="date">
+            </div>
+
+            <div>
+              <label>Appointment time</label>
+              <input id="leadAppointmentTime" type="time">
+            </div>
+
+            <div>
+              <label>MarketSharp status</label>
+              <select id="leadMarketSharpStatus"></select>
+            </div>
+
+            <div class="wide">
+              <label>Estimate / customer issue note</label>
+              <textarea id="leadEstimateNote" placeholder="For example: homeowner called because estimate was not received"></textarea>
+            </div>
+
+            <div class="wide">
+              <label>Notes</label>
+              <textarea id="leadNotes"></textarea>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="saveLeadBtn">Save Lead</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
+      </dialog>
+
+
+      <!-- EDIT APPOINTMENT -->
+      <dialog id="appointmentDialog">
+        <form method="dialog" class="card" style="min-width:min(620px,90vw);margin:0">
+          <h2>Edit Appointment</h2>
+          <input id="appointmentEditId" type="hidden">
+          <div class="form-grid">
+            <div>
+              <label>Date</label>
+              <input id="appointmentEditDate" type="date">
+            </div>
+            <div>
+              <label>Time</label>
+              <input id="appointmentEditTime" type="time">
+            </div>
+            <div>
+              <label>Status</label>
+              <select id="appointmentEditStatus">
+                <option>Scheduled</option>
+                <option>Confirmed</option>
+                <option>Completed</option>
+                <option>Cancelled</option>
+                <option>Rescheduled</option>
+              </select>
+            </div>
+            <div>
+              <label>Assigned to</label>
+              <input id="appointmentEditAssigned">
+            </div>
+            <div>
+              <label>MarketSharp status</label>
+              <select id="appointmentEditMarketSharp">
+                <option>Not Needed Yet</option>
+                <option>Needs Entry</option>
+                <option>Added</option>
+                <option>Already There</option>
+                <option>Automatic</option>
+              </select>
+            </div>
+            <div>
+              <label>Google Calendar status</label>
+              <select id="appointmentEditCalendar">
+                <option>Not Added</option>
+                <option>Added</option>
+                <option>Needs Update</option>
+                <option>Updated</option>
+              </select>
+            </div>
+            <div class="wide">
+              <label>Notes</label>
+              <textarea id="appointmentEditNotes"></textarea>
+            </div>
+          </div>
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="saveAppointmentEditBtn">Save Changes</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
+      </dialog>
+
+
+      <!-- NEW JOB -->
+
+      <dialog id="jobDialog">
+
+        <form
+          method="dialog"
+          class="card"
+          style="min-width:min(680px,90vw);margin:0">
+
+          <h2 id="jobDialogTitle">
+            New Job
+          </h2>
+          <input id="jobEditId" type="hidden">
+
+
+          <div class="form-grid">
+
+            <div>
+
+              <label>
+                Customer name
+              </label>
+
+              <input id="jobCustomer">
+
+            </div>
+
+
+            <div>
+
+              <label>
+                Lead number
+              </label>
+
+              <input id="jobLead">
+
+            </div>
+
+
+            <div>
+
+              <label>
+                Job number
+              </label>
+
+              <input id="jobNumber">
+
+            </div>
+
+
+            <div class="wide">
+
+              <label>
+                Property address
+              </label>
+
+              <input id="jobAddress">
+
+            </div>
+
+
+            <div>
+
+              <label>
+                Salesperson
+              </label>
+
+              <input id="jobSalesperson">
+
+            </div>
+
+
+            <div>
+
+              <label>
+                Stage
+              </label>
+
+              <select id="jobStage">
+                <option>Sold</option>
+                <option>Pre-Production</option>
+                <option>Scheduled</option>
+                <option>In Production</option>
+                <option>Complete</option>
+                <option>Final / Closed</option>
+              </select>
+
+            </div>
+
+
+            <div>
+
+              <label>
+                Target start date
+              </label>
+
+              <input
+                id="jobTarget"
+                type="date"
+              >
+
+            </div>
+
+
+            <div>
+
+              <label>
+                Confirmed start date
+              </label>
+
+              <input
+                id="jobConfirmed"
+                type="date"
+              >
+
+            </div>
+
+
+            <div class="wide">
+
+              <label>
+                Production notes
+              </label>
+
+              <textarea id="jobNotes"></textarea>
+
+            </div>
+
+          </div>
+
+
+          <div class="toolbar">
+
+            <button
+              class="btn primary"
+              type="button"
+              id="saveJobBtn">
+              Save
+            </button>
+
+            <button
+              class="btn"
+              value="cancel">
+              Cancel
+            </button>
+
+          </div>
+
+        </form>
+
+      </dialog>
+
+
+
+      <!-- ANGI CALLBACK -->
+      <dialog id="angiCallbackDialog">
+        <form method="dialog" class="card" style="min-width:min(520px,90vw);margin:0">
+          <h2>Schedule Angi Callback</h2>
+          <input id="angiCallbackProspectId" type="hidden">
+          <label>Callback date and time</label>
+          <input id="angiCallbackAt" type="datetime-local">
+          <label>Notes</label>
+          <textarea id="angiCallbackNotes" placeholder="Optional"></textarea>
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="angiCallbackSaveBtn">Save Callback</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
+      </dialog>
+
+      <!-- ANGI CLOSE -->
+      <dialog id="angiCloseDialog">
+        <form method="dialog" class="card" style="min-width:min(520px,90vw);margin:0">
+          <h2>Close Angi Prospect</h2>
+          <input id="angiCloseProspectId" type="hidden">
+          <label>Outcome</label>
+          <select id="angiCloseOutcome">
+            <option>Not Interested</option>
+            <option>Went With Another Company</option>
+            <option>No Longer Needs Service</option>
+            <option>Unable to Reach</option>
+            <option>Bad/Invalid Lead</option>
+            <option>Duplicate/Existing Customer</option>
+          </select>
+          <label>Notes</label>
+          <textarea id="angiCloseNotes" placeholder="Optional"></textarea>
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="angiCloseSaveBtn">Close Prospect</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
+      </dialog>
+
+      <!-- LOG COMMUNICATION -->
+      <dialog id="communicationDialog">
+        <form method="dialog" class="card" style="min-width:min(620px,90vw);margin:0">
+          <h2 id="commDialogTitle">Log Communication</h2>
+          <input id="commKind" type="hidden">
+          <input id="commContactId" type="hidden">
+          <div class="form-grid">
+            <div>
+              <label>Type</label>
+              <select id="commType">
+                <option>Call</option>
+                <option>Text</option>
+                <option>Email</option>
+                <option>In Person</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div>
+              <label>Direction</label>
+              <select id="commDirection">
+                <option>Outbound</option>
+                <option>Inbound</option>
+              </select>
+            </div>
+            <div class="wide">
+              <label>Result</label>
+              <input id="commResult" placeholder="Example: Left voicemail, Spoke with homeowner, Email sent">
+            </div>
+            <div class="wide">
+              <label>Notes</label>
+              <textarea id="commNotes" placeholder="What happened?"></textarea>
+            </div>
+            <div>
+              <label>Follow-up needed?</label>
+              <select id="commFollowNeeded">
+                <option>No</option>
+                <option>Yes</option>
+              </select>
+            </div>
+            <div>
+              <label>Follow-up date/time</label>
+              <input id="commFollowDue" type="datetime-local">
+            </div>
+          </div>
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="saveCommunicationBtn">Save Communication</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
+      </dialog>
+
+    </main>
+
+
+    <div class="footer">
+      Bauer Roofing Mission Control • live data in Supabase •
+      Google Sheets can remain your reporting/admin layer
+    </div>
+
+  </div>
+
+
+  <script src="app.js"></script>
+
 </body>
 </html>
