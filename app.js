@@ -2751,9 +2751,19 @@ function angiStatusKey(p) {
   return String(p?.current_status || '').trim().toLowerCase();
 }
 
+function angiSourceStatusKind(value) {
+  const s = String(value || '').trim().toLowerCase().replace(/\s+/g,' ');
+  if (s === 'selling') return 'selling';
+  if (s === 'initial') return 'initial';
+  if (s === 'connected') return 'connected';
+  if (s === 'contact & qualify' || s === 'contact and qualify' || s.includes('contact & qualify') || s.includes('contact and qualify')) return 'contact';
+  return s ? 'other' : '';
+}
+
 function angiIsAppointmentOrClosed(p) {
   const s = angiStatusKey(p);
   return !!p?.converted_to_lead_at
+    || angiSourceStatusKind(p?.source_status) === 'selling'
     || ['appointment set','appointment scheduled','sold','not interested','went with another company','went elsewhere','no longer needs service','unable to reach','bad / invalid lead','bad/invalid lead','closed'].includes(s)
     || !!p?.archive_flag;
 }
@@ -2774,6 +2784,11 @@ function isAngiCallableProspect(p) {
   const s = angiStatusKey(p);
   if (s === 'needs initial review') return false;
   if (p.duplicate_flag && !p.duplicate_resolution) return false;
+
+  // Match the working Bauer Roofing Angi app: when Angi provides a source
+  // workflow status, only Initial, Contact & Qualify, and Connected are callable.
+  const sourceKind = angiSourceStatusKind(p.source_status);
+  if (sourceKind && !['initial','contact','connected'].includes(sourceKind)) return false;
   return true;
 }
 
@@ -2796,8 +2811,11 @@ function angiQueueCategory(p) {
   if (!Number(p.attempts_count || 0) && angiStatusKey(p) === 'new') return 'new';
   if (p.next_follow_up_at) {
     const due = new Date(p.next_follow_up_at);
-    if (due < now) return 'overdue';
-    if (due.toLocaleDateString('en-CA',{timeZone:'America/New_York'}) === todayISO()) return 'today';
+    const dueToday = due.toLocaleDateString('en-CA',{timeZone:'America/New_York'}) === todayISO();
+    // Manual callbacks remain overdue because they are customer commitments.
+    // Automatic cadence checkpoints should normally have been rolled forward.
+    if (due < now && !(isAutomaticAngiCadence(p) && dueToday)) return 'overdue';
+    if (dueToday) return 'today';
   }
   return 'active';
 }
@@ -2846,28 +2864,104 @@ function angiTimeBand(p) {
 
 function angiNextBusinessDay(date, businessDays = 1) {
   const d = new Date(date);
-  let remaining = businessDays;
+  let remaining = Math.max(0, Math.round(businessDays));
   while (remaining > 0) {
     d.setDate(d.getDate() + 1);
     const day = d.getDay();
     if (day !== 0 && day !== 6) remaining--;
   }
-  d.setHours(9,0,0,0);
   return d;
 }
 
-function nextAngiFollowup(p) {
-  const attemptsAfter = Number(p.attempts_count || 0) + 1;
-  const now = new Date();
-  if (attemptsAfter === 1) {
-    const d = new Date(now.getTime() + 4 * 60 * 60 * 1000);
-    if (d.getHours() >= 17) return angiNextBusinessDay(now, 1);
-    return d;
+function angiAtClock(date, hour, minute = 0) {
+  const d = new Date(date);
+  d.setHours(hour, minute, 0, 0);
+  return d;
+}
+
+function angiNextOpenCallingBlock(now = new Date()) {
+  const d = new Date(now);
+  const day = d.getDay();
+  if (day === 0 || day === 6) {
+    return angiAtClock(angiNextBusinessDay(d, 1), 8, 0);
   }
-  if (attemptsAfter === 2) return angiNextBusinessDay(now, 1);
-  if (attemptsAfter === 3) return angiNextBusinessDay(now, 2);
-  if (attemptsAfter === 4) return angiNextBusinessDay(now, 2);
+  const morning = angiAtClock(d, 8, 0);
+  const midday = angiAtClock(d, 13, 0);
+  const closing = angiAtClock(d, 16, 30);
+  if (d < morning) return morning;
+  if (d < midday) return midday;
+  if (d < closing) return closing;
+  return angiAtClock(angiNextBusinessDay(d, 1), 8, 0);
+}
+
+function angiNextCheckpointAfterAttempt(now, attemptWithinDay, checkpointCount) {
+  const checkpoints = [[8,0],[13,0],[16,30]].slice(0, Math.min(checkpointCount,3));
+  let index = Math.max(0, attemptWithinDay);
+  if (index < checkpoints.length) {
+    for (let i=index; i<checkpoints.length; i++) {
+      const candidate = angiAtClock(now, checkpoints[i][0], checkpoints[i][1]);
+      if (candidate > now) return candidate;
+    }
+  }
+  const nextDay = angiNextBusinessDay(now,1);
+  const first = checkpoints[0] || [8,0];
+  return angiAtClock(nextDay, first[0], first[1]);
+}
+
+function nextAngiFollowup(p) {
+  // This matches the working Bauer Roofing Angi Lead App cadence:
+  // Day 1: 8:00 / 1:00 / 4:30, Day 2: same three checkpoints,
+  // then every other business day, every 3 business days, then weekly.
+  const attempt = Math.max(1, Number(p?.attempts_count || 0) + 1);
+  const now = new Date();
+  const day1 = 3, day2 = 3, everyOtherContacts = 3, everyThreeContacts = 2, weeklyContacts = 4;
+  const endDay1 = day1;
+  const endDay2 = endDay1 + day2;
+  const endEveryOther = endDay2 + everyOtherContacts;
+  const endEveryThree = endEveryOther + everyThreeContacts;
+  const endWeekly = endEveryThree + weeklyContacts;
+
+  if (attempt < endDay1) return angiNextCheckpointAfterAttempt(now, attempt, day1);
+  if (attempt === endDay1) return angiAtClock(angiNextBusinessDay(now,1),8,0);
+  if (attempt < endDay2) return angiNextCheckpointAfterAttempt(now, attempt-endDay1, day2);
+  if (attempt < endEveryOther) return angiAtClock(angiNextBusinessDay(now,2),8,0);
+  if (attempt === endEveryOther || attempt < endEveryThree) return angiAtClock(angiNextBusinessDay(now,3),8,0);
+  if (attempt === endEveryThree || attempt < endWeekly) return angiAtClock(angiNextBusinessDay(now,5),8,0);
   return null;
+}
+
+function isAutomaticAngiCadence(p) {
+  if (!p || angiStatusKey(p) !== 'attempting contact') return false;
+  if (p.manual_next_follow_up_at) return false;
+  return !!p.cadence_next_follow_up_at;
+}
+
+async function rollForwardMissedAngiCadence() {
+  // Missed automatic cadence checkpoints are windows, not promises. Roll them
+  // forward to the NEXT open call block. Manual callbacks are never moved.
+  const now = new Date();
+  const nextBlock = angiNextOpenCallingBlock(now);
+  const updates = [];
+  for (const p of state.prospects || []) {
+    if (!isAngiProspect(p) || angiIsAppointmentOrClosed(p) || !isAutomaticAngiCadence(p)) continue;
+    const due = new Date(p.cadence_next_follow_up_at || p.next_follow_up_at || '');
+    if (Number.isNaN(due.getTime()) || due >= now) continue;
+    const iso = nextBlock.toISOString();
+    p.cadence_next_follow_up_at = iso;
+    p.next_follow_up_at = iso;
+    p.next_action = 'Continue Angi cadence';
+    updates.push(db.from('prospects').update({
+      cadence_next_follow_up_at: iso,
+      next_follow_up_at: iso,
+      next_action: 'Continue Angi cadence',
+      updated_at: new Date().toISOString()
+    }).eq('id', p.id));
+  }
+  if (!updates.length) return 0;
+  const results = await Promise.all(updates);
+  const failure = results.find(r => r.error);
+  if (failure) throw failure.error;
+  return updates.length;
 }
 
 function angiQueueBadge(p) {
@@ -3087,8 +3181,19 @@ function angiHeaderIndex(headers) {
 
 async function readAngiExportRows(file) {
   const name=String(file?.name||'').toLowerCase();
-  if (name.endsWith('.xls') || name.endsWith('.xlsx')) {
-    if (typeof XLSX === 'undefined') throw new Error('The Excel reader did not load. Refresh Mission Control and try again.');
+  if (!name.endsWith('.xls') && !name.endsWith('.xlsx') && !name.endsWith('.csv')) {
+    throw new Error('Choose the .xls file downloaded from Angi.');
+  }
+
+  // Angi currently names its downloads .xls, but the actual file contents are
+  // UTF-8 CSV text. Read that format first so the importer matches the real exports.
+  const text = (await file.text()).replace(/^\uFEFF/,'').trim();
+  if (text && /(^|[\r\n])\s*"?Lead Number"?\s*,/i.test(text)) {
+    return parseCsvText(text);
+  }
+
+  // Fallback for a true Excel workbook if Angi changes its export format later.
+  if ((name.endsWith('.xls') || name.endsWith('.xlsx')) && typeof XLSX !== 'undefined') {
     const buffer=await file.arrayBuffer();
     const workbook=XLSX.read(buffer,{type:'array',cellDates:true});
     const sheetName=workbook.SheetNames[0];
@@ -3097,8 +3202,32 @@ async function readAngiExportRows(file) {
     const rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:'',raw:false,dateNF:'m/d/yyyy h:mm AM/PM'});
     return rows.filter(r => Array.isArray(r) && r.some(v => String(v).trim() !== ''));
   }
-  if (name.endsWith('.csv')) return parseCsvText(await file.text());
-  throw new Error('Choose the .xls file downloaded from Angi.');
+
+  throw new Error('I could not read this Angi export. Please download a fresh .xls file from Angi and try again.');
+}
+
+function detectAngiAccount(headers) {
+  const normalized = headers.map(normalizeAngiHeader);
+  return normalized.includes('lead fee') ? 'Bauer Roofing - PPL' : 'Bauer Roofing Inc - Angi Ads';
+}
+
+function angiImportWorkflow(leadStatus, account) {
+  const kind = angiSourceStatusKind(leadStatus);
+  if (kind === 'selling') return {
+    current_status:'Appointment Set', attempts_count:1, historical_attempts:'1', cadence_phase:'Paused',
+    next_action:null, marketsharp_status:account === 'Bauer Roofing - PPL' ? 'Automatic' : 'Needs Entry',
+    initial_contact_eligible:false, initial_contact_suppressed_reason:'Angi status Selling - appointment already set'
+  };
+  if (kind === 'contact' || kind === 'connected') return {
+    current_status:kind === 'connected' ? 'Connected' : 'Attempting Contact', attempts_count:1, historical_attempts:'1', cadence_phase:'Paused',
+    next_action:'Review prior Angi contact and follow up', marketsharp_status:account === 'Bauer Roofing - PPL' ? 'Automatic' : 'Not Needed Yet',
+    initial_contact_eligible:false, initial_contact_suppressed_reason:'Angi shows prior contact'
+  };
+  return {
+    current_status:'New', attempts_count:0, historical_attempts:'0', cadence_phase:'Day 1',
+    next_action:'Call now', marketsharp_status:account === 'Bauer Roofing - PPL' ? 'Automatic' : 'Not Needed Yet',
+    initial_contact_eligible:true, initial_contact_suppressed_reason:null
+  };
 }
 
 function angiWorkCategory(description) {
@@ -3122,51 +3251,120 @@ function normEmail(v){ return String(v||'').trim().toLowerCase(); }
 function normAddress(v){ return String(v||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
 
 async function importAngiExport() {
-  const account=$('angiImportAccount').value;
   const file=$('angiImportFile').files?.[0];
   const status=$('angiImportStatus');
-  if (!account) return msg('Choose which Angi account this export came from.','error');
-  if (!file) return msg('Choose the Angi export file.','error');
+  if (!file) return msg('Choose the Angi .xls export.','error');
   try {
-    status.textContent='Reading Angi Excel export…';
+    status.textContent='Reading Angi export…';
     const rows=await readAngiExportRows(file);
     if (rows.length < 2) throw new Error('The file does not contain lead rows.');
-    const headers=rows[0].map(h => String(h||'').trim());
+    const headers=rows[0].map(h => String(h||'').replace(/^\uFEFF/,'').trim());
     const idx=angiHeaderIndex(headers);
-    if (idx.leadNumber < 0 || idx.firstName < 0 || idx.lastName < 0) {
-      throw new Error('This does not look like an Angi lead export. I could not find Lead Number, Customer First Name, and Customer Last Name.');
-    }
-    const existingRefs=new Set(state.prospects.filter(p=>p.source==='Angi'&&p.source_account===account).map(p=>String(p.source_reference||'').trim()).filter(Boolean));
+    const required=[['Lead Number',idx.leadNumber],['Lead Date',idx.leadDate],['Lead Status',idx.leadStatus],['Lead Description',idx.description],['Lead Type',idx.leadType],['Customer First Name',idx.firstName],['Customer Last Name',idx.lastName],['Customer Address',idx.address],['City',idx.city],['State',idx.state],['Zip Code',idx.zip],['Phone',idx.phone],['Email',idx.email]];
+    const missing=required.filter(([,i])=>i<0).map(([name])=>name);
+    if (missing.length) throw new Error('This Angi export is missing expected columns: '+missing.join(', '));
+
+    const account=detectAngiAccount(headers);
+    if ($('angiImportAccount')) $('angiImportAccount').value=account;
+
+    // Lead Number is the permanent Angi external key. Match across all Angi
+    // prospects, not only within one account, so a later export cannot duplicate it.
+    const existingByRef=new Map();
+    state.prospects.filter(isAngiProspect).forEach(p=>{
+      const ref=String(p.source_reference||'').trim();
+      if(ref) existingByRef.set(ref,p);
+    });
     const phoneKeys=new Set(state.prospects.map(p=>normPhone(p.phone)).filter(Boolean));
     const emailKeys=new Set(state.prospects.map(p=>normEmail(p.email)).filter(Boolean));
     const addrKeys=new Set(state.prospects.map(p=>normAddress(p.street_address)).filter(Boolean));
-    const inserts=[]; let skipped=0;
+
+    const inserts=[];
+    const updates=[];
+    let existing=0, statusAdvanced=0, sellingRemovedFromQueue=0;
+
     for (const r of rows.slice(1)) {
       const ref=String(r[idx.leadNumber]||'').trim();
       if (!ref) continue;
-      if (existingRefs.has(ref)) { skipped++; continue; }
-      existingRefs.add(ref);
+      const leadStatus=String(r[idx.leadStatus]||'').trim();
+      const desc=String(r[idx.description]||'').trim();
+      const leadType=String(r[idx.leadType]||'').trim();
+      const feeRaw=idx.fee>=0?String(r[idx.fee]||'').replace(/[$,]/g,'').trim():'';
+      const workflow=angiImportWorkflow(leadStatus,account);
+      const existingProspect=existingByRef.get(ref);
+
+      if (existingProspect) {
+        existing++;
+        const patch={
+          source:'Angi', source_account:account, source_status:leadStatus,
+          source_description:desc || existingProspect.source_description,
+          source_lead_type:leadType || existingProspect.source_lead_type,
+          source_fee:feeRaw && !Number.isNaN(Number(feeRaw)) ? Number(feeRaw) : existingProspect.source_fee,
+          updated_at:new Date().toISOString()
+        };
+        const sourceKind=angiSourceStatusKind(leadStatus);
+        const current=angiStatusKey(existingProspect);
+        const closed=angiIsAppointmentOrClosed(existingProspect);
+
+        // Match the old importer: Angi may move a record FORWARD, but never
+        // erase Mission Control calls, notes, callbacks, or later workflow.
+        if (sourceKind === 'selling' && !closed) {
+          Object.assign(patch,{
+            current_status:'Appointment Set', cadence_phase:'Paused',
+            manual_next_follow_up_at:null, cadence_next_follow_up_at:null, next_follow_up_at:null,
+            next_action:null, marketsharp_status:account === 'Bauer Roofing - PPL' ? 'Automatic' : 'Needs Entry',
+            initial_contact_eligible:false,
+            initial_contact_suppressed_reason:'Angi status Selling - appointment already set'
+          });
+          statusAdvanced++;
+          sellingRemovedFromQueue++;
+        } else if ((sourceKind === 'contact' || sourceKind === 'connected') && !closed && (!current || current === 'new' || current === 'needs initial review') && Number(existingProspect.attempts_count||0)===0) {
+          Object.assign(patch,{
+            current_status:sourceKind === 'connected' ? 'Connected' : 'Attempting Contact',
+            attempts_count:Math.max(1,Number(existingProspect.attempts_count||0)),
+            historical_attempts:existingProspect.historical_attempts || '1',
+            cadence_phase:'Paused', next_action:'Review prior Angi contact and follow up',
+            initial_contact_eligible:false, initial_contact_suppressed_reason:'Angi shows prior contact'
+          });
+          statusAdvanced++;
+        }
+        updates.push({id:existingProspect.id,patch});
+        continue;
+      }
+
       const first=String(r[idx.firstName]||'').trim();
       const last=String(r[idx.lastName]||'').trim();
-      const phone=idx.phone>=0?String(r[idx.phone]||'').trim():'';
-      const email=idx.email>=0?String(r[idx.email]||'').trim():'';
-      const address=idx.address>=0?String(r[idx.address]||'').trim():'';
-      const desc=idx.description>=0?String(r[idx.description]||'').trim():'';
-      const feeRaw=idx.fee>=0?String(r[idx.fee]||'').replace(/[$,]/g,'').trim():'';
+      const phone=String(r[idx.phone]||'').trim();
+      const email=String(r[idx.email]||'').trim();
+      const address=String(r[idx.address]||'').trim();
       const duplicate=(normPhone(phone)&&phoneKeys.has(normPhone(phone)))||(normEmail(email)&&emailKeys.has(normEmail(email)))||(normAddress(address)&&addrKeys.has(normAddress(address)));
+
       inserts.push({
         source:'Angi',source_account:account,source_reference:ref,import_source:'Angi Export',
-        received_at:angiDateValue(idx.leadDate>=0?r[idx.leadDate]:'') ,
-        source_status:idx.leadStatus>=0?String(r[idx.leadStatus]||'').trim():null,
-        source_description:desc,source_lead_type:idx.leadType>=0?String(r[idx.leadType]||'').trim():null,
+        received_at:angiDateValue(r[idx.leadDate]), source_status:leadStatus,
+        source_description:desc,source_lead_type:leadType,
         source_fee:feeRaw && !Number.isNaN(Number(feeRaw)) ? Number(feeRaw) : null,
         first_name:first,last_name:last,customer_name:[first,last].filter(Boolean).join(' '),
-        street_address:address,city:idx.city>=0?String(r[idx.city]||'').trim():'',state:idx.state>=0?String(r[idx.state]||'').trim():'SC',zip:idx.zip>=0?String(r[idx.zip]||'').trim():'',
-        phone,email,work_category:angiWorkCategory(desc),current_status:'Needs Initial Review',assigned_to:'Eve',
-        next_follow_up_at:new Date().toISOString(),next_action:'Review and contact',duplicate_flag:!!duplicate,
+        street_address:address,city:String(r[idx.city]||'').trim(),state:String(r[idx.state]||'').trim()||'SC',zip:String(r[idx.zip]||'').trim(),
+        phone,email,work_category:angiWorkCategory(desc),assigned_to:'Eve',
+        prior_handling:workflow.attempts_count ? 'Unknown' : 'No Contact',
+        current_status:workflow.current_status,attempts_count:workflow.attempts_count,historical_attempts:workflow.historical_attempts,
+        cadence_phase:workflow.cadence_phase,manual_next_follow_up_at:null,cadence_next_follow_up_at:null,next_follow_up_at:null,
+        next_action:workflow.next_action,marketsharp_status:workflow.marketsharp_status,
+        initial_contact_eligible:workflow.initial_contact_eligible,
+        initial_contact_suppressed_reason:workflow.initial_contact_suppressed_reason,
+        duplicate_flag:!!duplicate,
         phone_key:normPhone(phone)||null,email_key:normEmail(email)||null,address_key:normAddress(address)||null
       });
-      if (normPhone(phone)) phoneKeys.add(normPhone(phone)); if (normEmail(email)) emailKeys.add(normEmail(email)); if (normAddress(address)) addrKeys.add(normAddress(address));
+      existingByRef.set(ref,{source_reference:ref});
+      if (normPhone(phone)) phoneKeys.add(normPhone(phone));
+      if (normEmail(email)) emailKeys.add(normEmail(email));
+      if (normAddress(address)) addrKeys.add(normAddress(address));
+    }
+
+    for (let i=0;i<updates.length;i+=50) {
+      const batch=updates.slice(i,i+50);
+      const results=await Promise.all(batch.map(u=>db.from('prospects').update(u.patch).eq('id',u.id)));
+      const failed=results.find(x=>x.error); if(failed) throw failed.error;
     }
     if (inserts.length) {
       for (let i=0;i<inserts.length;i+=100) {
@@ -3174,52 +3372,59 @@ async function importAngiExport() {
         if (r.error) throw r.error;
       }
     }
+
     await loadAll();
     $('angiImportFile').value='';
-    status.textContent=`Imported ${inserts.length} new prospect${inserts.length===1?'':'s'}; skipped ${skipped} already in Mission Control.`;
+    status.textContent=`${account} detected. Imported ${inserts.length} new prospect${inserts.length===1?'':'s'}; reviewed ${existing} existing Angi record${existing===1?'':'s'}; advanced ${statusAdvanced} workflow status${statusAdvanced===1?'':'es'}.`;
     renderAngiQueue();
-    msg('Angi import complete.','success');
+    msg(`Angi import complete. ${sellingRemovedFromQueue ? sellingRemovedFromQueue+' Selling record'+(sellingRemovedFromQueue===1?' was':'s were')+' removed from the call queue. ' : ''}Existing Mission Control history was preserved.`,'success');
   } catch(error) { status.textContent=''; msg('Could not import Angi export: '+(error.message||String(error)),'error'); }
 }
 
+function leadMatchesSearch(lead, query) {
+  if (!query) return true;
+  const q = String(query).trim().toLowerCase();
+  if (!q) return true;
+  const haystack = [
+    leadName(lead),
+    lead.first_name,
+    lead.last_name,
+    lead.street_address,
+    lead.city,
+    lead.state,
+    lead.zip,
+    lead.phone,
+    lead.email,
+    lead.lead_number,
+    lead.source,
+    lead.source_reference
+  ].filter(Boolean).join(' ').toLowerCase();
+  return haystack.includes(q);
+}
+
 function renderProspectsLeads() {
-  if (!$('prospectList')) return;
+  if (!$('leadList')) return;
   const now = new Date();
-  const activeProspects = state.prospects.filter(visibleProspect);
-  const followupsDue = activeProspects.filter(p => p.next_follow_up_at && new Date(p.next_follow_up_at) <= now);
   const activeLeads = state.leads.filter(l => visibleLead(l) && !['Sold','Not Moving Forward'].includes(l.lead_status));
   const upcomingAppointments = state.appointments
     .filter(a => activeRow(a) && a.appointment_at && new Date(a.appointment_at) >= now && !['Cancelled','Completed'].includes(a.appointment_status))
     .sort((a,b) => new Date(a.appointment_at) - new Date(b.appointment_at));
 
-  $('kpiProspects').textContent = activeProspects.length;
-  $('kpiProspectDue').textContent = followupsDue.length;
   $('kpiLeads').textContent = activeLeads.length;
   $('kpiAppointments').textContent = upcomingAppointments.length;
 
-  $('prospectList').innerHTML = activeProspects.map(p => `
-    <div class="task" data-prospect-id="${esc(p.id)}">
-      <div class="task-title"><b>${esc(prospectName(p))}</b><span class="badge">${esc(p.current_status || 'New')}</span></div>
-      <div class="meta">${esc(p.source || '')}${p.source_account ? ' • ' + esc(p.source_account) : ''}${p.source_reference ? ' • Ref ' + esc(p.source_reference) : ''}${p.phone ? ' • ' + esc(p.phone) : ''}</div>
-      ${p.street_address ? `<div>${esc(p.street_address)}${p.city ? ', ' + esc(p.city) : ''}</div>` : ''}
-      <div class="meta">${p.next_action ? 'Next: ' + esc(p.next_action) : ''}${p.next_follow_up_at ? ' • Follow-up ' + esc(formatWhen(p.next_follow_up_at)) : ''}</div>
-      ${p.call_usable === false ? '<div class="notice" style="margin-top:10px"><b>Phone marked disconnected / not working.</b> Use Text or Email if available.</div>' : ''}
-    ${contactActionHtml({phone:p.phone,email:p.email,kind:'prospect',id:p.id,name:prospectName(p),callUsable:p.call_usable !== false})}
-      <details><summary>Communication History</summary>${communicationHistoryHtml('prospect',p.id)}</details>
-      <div class="actions">
-        <button class="btn small primary" data-prospect-action="promote">Promote to Lead</button>
-        <button class="btn small" data-edit-prospect="${esc(p.id)}">View / Edit</button>
-        <button class="btn small" data-record-action="archive" data-record-table="prospects" data-record-id="${esc(p.id)}">Archive</button>
-        <button class="btn small" data-record-action="delete" data-record-table="prospects" data-record-id="${esc(p.id)}">Delete</button>
-      </div>
-    </div>`).join('') || empty('No active prospects yet.');
+  const query = $('leadSearch') ? $('leadSearch').value : '';
+  const matchingLeads = activeLeads
+    .filter(l => leadMatchesSearch(l, query))
+    .slice()
+    .sort((a,b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
 
-  $('leadList').innerHTML = state.leads.filter(visibleLead).slice().sort((a,b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).map(l => `
+  $('leadList').innerHTML = matchingLeads.map(l => `
     <div class="task">
       <div class="task-title"><b>${esc(leadName(l))}</b><span class="badge">${esc(l.lead_status || 'Appointment Wanted')}</span></div>
       <div class="meta">${l.lead_number ? 'Lead # ' + esc(l.lead_number) : 'Lead # not entered'}${l.source ? ' • ' + esc(l.source) : ''}${l.assigned_to ? ' • ' + esc(l.assigned_to) : ''}</div>
       ${l.street_address ? `<div>${esc(l.street_address)}${l.city ? ', ' + esc(l.city) : ''}</div>` : ''}
-      <div class="meta">Estimate: ${esc(l.estimate_status || 'Not Known')}${l.phone ? ' • ' + esc(l.phone) : ''}</div>
+      <div class="meta">Estimate: ${esc(l.estimate_status || 'Not Known')}${l.phone ? ' • ' + esc(l.phone) : ''}${l.email ? ' • ' + esc(l.email) : ''}</div>
       ${contactActionHtml({phone:l.phone,email:l.email,kind:'lead',id:l.id,name:leadName(l)})}
       <details><summary>Communication History</summary>${communicationHistoryHtml('lead',l.id)}</details>
       <div class="actions">
@@ -3227,19 +3432,15 @@ function renderProspectsLeads() {
         <button class="btn small" data-record-action="archive" data-record-table="leads" data-record-id="${esc(l.id)}">Archive</button>
         <button class="btn small" data-record-action="delete" data-record-table="leads" data-record-id="${esc(l.id)}">Delete</button>
       </div>
-    </div>`).join('') || empty('No leads yet.');
+    </div>`).join('') || empty(query ? 'No leads match that search.' : 'No leads yet.');
 
   $('appointmentList').innerHTML = upcomingAppointments.slice(0,20).map(a => {
     const lead = state.leads.find(l => l.id === a.lead_id);
     return `<div class="task"><b>${esc(lead ? leadName(lead) : 'Lead')}</b><div class="meta">${esc(formatWhen(a.appointment_at))} • ${esc(a.appointment_status || 'Scheduled')}${a.assigned_to ? ' • ' + esc(a.assigned_to) : ''} • MarketSharp: ${esc(a.marketsharp_status || 'Not Needed Yet')}</div><div class="actions"><button class="btn small" data-edit-appointment="${esc(a.id)}">Edit</button><button class="btn small" data-record-action="delete" data-record-table="appointments" data-record-id="${esc(a.id)}">Delete</button></div></div>`;
   }).join('') || empty('No upcoming appointments entered yet.');
 
-  const archivedProspects = state.prospects.filter(p => !p.deleted_at && (p.archived_at || p.archive_flag));
   const archivedLeads = state.leads.filter(l => !l.deleted_at && l.archived_at);
-  $('archivedSalesList').innerHTML = [
-    ...archivedProspects.map(p => `<div class="task"><b>Prospect: ${esc(prospectName(p))}</b><div class="meta">${esc(p.source || '')}</div><div class="actions"><button class="btn small" data-record-action="restore" data-record-table="prospects" data-record-id="${esc(p.id)}">Restore</button><button class="btn small" data-record-action="delete" data-record-table="prospects" data-record-id="${esc(p.id)}">Delete</button></div></div>`),
-    ...archivedLeads.map(l => `<div class="task"><b>Lead: ${esc(leadName(l))}</b><div class="meta">${l.lead_number ? 'Lead # ' + esc(l.lead_number) : ''}</div><div class="actions"><button class="btn small" data-record-action="restore" data-record-table="leads" data-record-id="${esc(l.id)}">Restore</button><button class="btn small" data-record-action="delete" data-record-table="leads" data-record-id="${esc(l.id)}">Delete</button></div></div>`)
-  ].join('') || empty('No archived prospects or leads.');
+  $('archivedSalesList').innerHTML = archivedLeads.map(l => `<div class="task"><b>${esc(leadName(l))}</b><div class="meta">${l.lead_number ? 'Lead # ' + esc(l.lead_number) : ''}${l.street_address ? ' • ' + esc(l.street_address) : ''}</div><div class="actions"><button class="btn small" data-record-action="restore" data-record-table="leads" data-record-id="${esc(l.id)}">Restore</button><button class="btn small" data-record-action="delete" data-record-table="leads" data-record-id="${esc(l.id)}">Delete</button></div></div>`).join('') || empty('No archived leads.');
 }
 
 function renderJobs() {
@@ -3390,6 +3591,7 @@ async function loadAll(){
   const calls=[['tasks','created_at',false],['jobs','updated_at',false],['communications','due_date',true],['incoming','captured_at',false],['phone_messages','created_at',false],['prospects','created_at',false],['leads','created_at',false],['appointments','appointment_at',true],['sales_communications','occurred_at',false],['job_communications','occurred_at',false],['lookup_options','sort_order',true],['sops','title',true],['suggestions','created_at',false],['quick_notes','updated_at',false]];
   const results=await Promise.all(calls.map(([table,order,ascending])=>db.from(table).select('*').order(order,{ascending}).limit(500)));
   for(let i=0;i<results.length;i++){ if(results[i].error)throw results[i].error; let stateName=calls[i][0]==='phone_messages'?'phone':calls[i][0]; if(stateName==='lookup_options')stateName='lookups'; state[stateName]=results[i].data||[]; }
+  try { await rollForwardMissedAngiCadence(); } catch (error) { console.warn('Could not roll forward missed Angi cadence windows:', error); }
   setupLeadProspectSelects(); renderDashboard(); renderProspectsLeads(); renderAngiQueue();
 }
 
@@ -3418,8 +3620,9 @@ $('cancelIncomingEditBtn').onclick=clearIncomingForm;
 $('saveAppointmentEditBtn').onclick=saveAppointmentEdit;
 $('saveCommunicationBtn').onclick=saveCommunication;
 $('newTaskBtn').onclick=()=>{clearTaskForm();$('taskDialog').showModal();};
-$('newProspectBtn').onclick=()=>openProspectDialog();
+if ($('newProspectBtn')) $('newProspectBtn').onclick=()=>openProspectDialog();
 $('newLeadBtn').onclick=()=>{clearLeadForm();openLeadDialog();};
+if ($('leadSearch')) $('leadSearch').oninput=()=>renderProspectsLeads();
 $('newJobBtn').onclick=()=>{clearJobForm();$('jobDialog').showModal();};
 
 
