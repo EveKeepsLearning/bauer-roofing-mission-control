@@ -3055,6 +3055,52 @@ function parseCsvText(text) {
   return rows.filter(r => r.some(v => String(v).trim() !== ''));
 }
 
+function normalizeAngiHeader(value) {
+  return String(value ?? '').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim().toLowerCase();
+}
+
+function angiHeaderIndex(headers) {
+  const normalized = headers.map(normalizeAngiHeader);
+  const aliases = {
+    leadNumber: ['lead number','lead #','lead id','lead number / id'],
+    firstName: ['customer first name','first name','customer firstname'],
+    lastName: ['customer last name','last name','customer lastname'],
+    phone: ['phone','phone number','customer phone','customer phone number'],
+    email: ['email','email address','customer email','customer email address'],
+    address: ['customer address','address','street address','property address'],
+    city: ['city','customer city'],
+    state: ['state','customer state'],
+    zip: ['zip code','zip','postal code','customer zip'],
+    description: ['lead description','project description','description','service request'],
+    fee: ['lead fee','fee','lead cost'],
+    leadDate: ['lead date','date','received date','date received'],
+    leadStatus: ['lead status','status'],
+    leadType: ['lead type','type']
+  };
+  const out={};
+  for (const [key,names] of Object.entries(aliases)) {
+    const i=normalized.findIndex(h => names.includes(h));
+    out[key]=i;
+  }
+  return out;
+}
+
+async function readAngiExportRows(file) {
+  const name=String(file?.name||'').toLowerCase();
+  if (name.endsWith('.xls') || name.endsWith('.xlsx')) {
+    if (typeof XLSX === 'undefined') throw new Error('The Excel reader did not load. Refresh Mission Control and try again.');
+    const buffer=await file.arrayBuffer();
+    const workbook=XLSX.read(buffer,{type:'array',cellDates:true});
+    const sheetName=workbook.SheetNames[0];
+    if (!sheetName) throw new Error('The Angi workbook does not contain a worksheet.');
+    const sheet=workbook.Sheets[sheetName];
+    const rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:'',raw:false,dateNF:'m/d/yyyy h:mm AM/PM'});
+    return rows.filter(r => Array.isArray(r) && r.some(v => String(v).trim() !== ''));
+  }
+  if (name.endsWith('.csv')) return parseCsvText(await file.text());
+  throw new Error('Choose the .xls file downloaded from Angi.');
+}
+
 function angiWorkCategory(description) {
   const s=String(description||'').toLowerCase();
   if (s.includes('window')) return 'Windows';
@@ -3082,39 +3128,40 @@ async function importAngiExport() {
   if (!account) return msg('Choose which Angi account this export came from.','error');
   if (!file) return msg('Choose the Angi export file.','error');
   try {
-    status.textContent='Reading export…';
-    const rows=parseCsvText(await file.text());
+    status.textContent='Reading Angi Excel export…';
+    const rows=await readAngiExportRows(file);
     if (rows.length < 2) throw new Error('The file does not contain lead rows.');
     const headers=rows[0].map(h => String(h||'').trim());
-    const idx=Object.fromEntries(headers.map((h,i)=>[h,i]));
-    const required=['Lead Number','Customer First Name','Customer Last Name'];
-    required.forEach(h=>{if(idx[h]===undefined)throw new Error(`Angi export is missing ${h}.`);});
+    const idx=angiHeaderIndex(headers);
+    if (idx.leadNumber < 0 || idx.firstName < 0 || idx.lastName < 0) {
+      throw new Error('This does not look like an Angi lead export. I could not find Lead Number, Customer First Name, and Customer Last Name.');
+    }
     const existingRefs=new Set(state.prospects.filter(p=>p.source==='Angi'&&p.source_account===account).map(p=>String(p.source_reference||'').trim()).filter(Boolean));
     const phoneKeys=new Set(state.prospects.map(p=>normPhone(p.phone)).filter(Boolean));
     const emailKeys=new Set(state.prospects.map(p=>normEmail(p.email)).filter(Boolean));
     const addrKeys=new Set(state.prospects.map(p=>normAddress(p.street_address)).filter(Boolean));
     const inserts=[]; let skipped=0;
     for (const r of rows.slice(1)) {
-      const ref=String(r[idx['Lead Number']]||'').trim();
+      const ref=String(r[idx.leadNumber]||'').trim();
       if (!ref) continue;
       if (existingRefs.has(ref)) { skipped++; continue; }
       existingRefs.add(ref);
-      const first=String(r[idx['Customer First Name']]||'').trim();
-      const last=String(r[idx['Customer Last Name']]||'').trim();
-      const phone=idx['Phone']!==undefined?String(r[idx['Phone']]||'').trim():'';
-      const email=idx['Email']!==undefined?String(r[idx['Email']]||'').trim():'';
-      const address=idx['Customer Address']!==undefined?String(r[idx['Customer Address']]||'').trim():'';
-      const desc=idx['Lead Description']!==undefined?String(r[idx['Lead Description']]||'').trim():'';
-      const feeRaw=idx['Lead Fee']!==undefined?String(r[idx['Lead Fee']]||'').replace(/[$,]/g,'').trim():'';
+      const first=String(r[idx.firstName]||'').trim();
+      const last=String(r[idx.lastName]||'').trim();
+      const phone=idx.phone>=0?String(r[idx.phone]||'').trim():'';
+      const email=idx.email>=0?String(r[idx.email]||'').trim():'';
+      const address=idx.address>=0?String(r[idx.address]||'').trim():'';
+      const desc=idx.description>=0?String(r[idx.description]||'').trim():'';
+      const feeRaw=idx.fee>=0?String(r[idx.fee]||'').replace(/[$,]/g,'').trim():'';
       const duplicate=(normPhone(phone)&&phoneKeys.has(normPhone(phone)))||(normEmail(email)&&emailKeys.has(normEmail(email)))||(normAddress(address)&&addrKeys.has(normAddress(address)));
       inserts.push({
         source:'Angi',source_account:account,source_reference:ref,import_source:'Angi Export',
-        received_at:angiDateValue(idx['Lead Date']!==undefined?r[idx['Lead Date']]:'') ,
-        source_status:idx['Lead Status']!==undefined?String(r[idx['Lead Status']]||'').trim():null,
-        source_description:desc,source_lead_type:idx['Lead Type']!==undefined?String(r[idx['Lead Type']]||'').trim():null,
+        received_at:angiDateValue(idx.leadDate>=0?r[idx.leadDate]:'') ,
+        source_status:idx.leadStatus>=0?String(r[idx.leadStatus]||'').trim():null,
+        source_description:desc,source_lead_type:idx.leadType>=0?String(r[idx.leadType]||'').trim():null,
         source_fee:feeRaw && !Number.isNaN(Number(feeRaw)) ? Number(feeRaw) : null,
         first_name:first,last_name:last,customer_name:[first,last].filter(Boolean).join(' '),
-        street_address:address,city:idx['City']!==undefined?String(r[idx['City']]||'').trim():'',state:idx['State']!==undefined?String(r[idx['State']]||'').trim():'SC',zip:idx['Zip Code']!==undefined?String(r[idx['Zip Code']]||'').trim():'',
+        street_address:address,city:idx.city>=0?String(r[idx.city]||'').trim():'',state:idx.state>=0?String(r[idx.state]||'').trim():'SC',zip:idx.zip>=0?String(r[idx.zip]||'').trim():'',
         phone,email,work_category:angiWorkCategory(desc),current_status:'Needs Initial Review',assigned_to:'Eve',
         next_follow_up_at:new Date().toISOString(),next_action:'Review and contact',duplicate_flag:!!duplicate,
         phone_key:normPhone(phone)||null,email_key:normEmail(email)||null,address_key:normAddress(address)||null
