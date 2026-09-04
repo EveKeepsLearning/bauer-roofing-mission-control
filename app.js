@@ -850,6 +850,38 @@ async function importAngiHistoricalPackage() {
         prospectMap.set(key, existing);
         prospectsAdded++;
       } else {
+        // The earlier migration created these prospect rows, but some operational
+        // Angi fields were not reconciled. Refresh only tracker-derived fields so
+        // the work queue can correctly recognize active calls while preserving
+        // Mission Control notes and other user-entered history.
+        const sync = {
+          source: raw.source || existing.source || 'Angi',
+          source_account: raw.source_account || existing.source_account || null,
+          source_reference: raw.source_reference || existing.source_reference || null,
+          received_at: raw.received_at || existing.received_at || null,
+          first_name: raw.first_name || existing.first_name || null,
+          last_name: raw.last_name || existing.last_name || null,
+          customer_name: raw.customer_name || existing.customer_name || null,
+          phone: raw.phone || existing.phone || null,
+          email: raw.email || existing.email || null,
+          street_address: raw.street_address || existing.street_address || null,
+          city: raw.city || existing.city || null,
+          state: raw.state || existing.state || null,
+          zip: raw.zip || existing.zip || null,
+          work_category: raw.work_category || existing.work_category || null,
+          current_status: raw.current_status || existing.current_status || 'New',
+          attempts_count: raw.attempts_count ?? existing.attempts_count ?? 0,
+          next_follow_up_at: raw.next_follow_up_at || null,
+          next_action: raw.next_action || existing.next_action || null,
+          last_result: raw.last_result || existing.last_result || null,
+          duplicate_flag: raw.duplicate_flag ?? existing.duplicate_flag ?? false,
+          duplicate_resolution: raw.duplicate_resolution || existing.duplicate_resolution || null,
+          archive_flag: raw.archive_flag ?? existing.archive_flag ?? false
+        };
+        const ur = await db.from('prospects').update(sync).eq('id', existing.id).select().single();
+        if (ur.error) throw ur.error;
+        existing = ur.data;
+        prospectMap.set(key, existing);
         prospectsExisting++;
       }
       const safe = await db.rpc('angi_mark_historical_import',{p_prospect_id:existing.id});
@@ -2702,7 +2734,14 @@ function angiIsAppointmentOrClosed(p) {
 }
 
 function isAngiProspect(p) {
-  return activeRow(p) && p.source === 'Angi';
+  if (!activeRow(p)) return false;
+  const source = String(p.source || '').trim().toLowerCase();
+  const account = String(p.source_account || '').trim().toLowerCase();
+  const imported = String(p.import_source || '').trim().toLowerCase();
+  return source === 'angi'
+    || source.includes('angi')
+    || account.includes('angi')
+    || imported.includes('angi');
 }
 
 function isAngiCallableProspect(p) {
