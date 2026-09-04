@@ -19,7 +19,8 @@ let state = {
   lookups: [],
   sops: [],
   suggestions: [],
-  quick_notes: []
+  quick_notes: [],
+  roy_updates: []
 };
 
 let selectedLeadId = '';
@@ -2669,6 +2670,7 @@ function renderDashboard() {
   const comms = communicationDueItems();
   $('commList').innerHTML = comms.map(communicationDueCard).join('') || empty('No customer communication due today.');
   if ($('financialList')) $('financialList').innerHTML = financialTasks().map(taskCard).join('') || empty('No financial or QuickBooks tasks due.');
+  renderRoyUpdates();
   renderQuickNotes();
   const td = todayISO();
   const isOpen = t => activeRow(t) && !['Completed','Cancelled','Skipped'].includes(t.status);
@@ -2677,6 +2679,22 @@ function renderDashboard() {
   $('kpiComms').textContent = comms.length;
   $('kpiWeekJobs').textContent = jw.length;
   renderIncoming(); renderPhone(); renderJobs();
+}
+
+function renderRoyUpdates(){
+  const target=$('royUpdateList');
+  if(!target) return;
+  const rows=(state.roy_updates||[]).slice(0,20);
+  target.innerHTML=rows.map(row=>{
+    const when=row.submitted_at ? formatWhen(row.submitted_at) : '';
+    const label=row.item_type==='estimate' ? 'Past estimate' : 'Appointment';
+    return `<div class="task">
+      <b>${esc(row.homeowner_name || 'Lead')}</b>
+      <div>${esc(row.outcome || '')}</div>
+      <div class="meta">${esc(label)}${row.lead_number ? ' • Lead # '+esc(row.lead_number) : ''}${row.street_address ? ' • '+esc(row.street_address) : ''}${when ? ' • '+esc(when) : ''}</div>
+      ${row.note ? `<div class="lead-detail-note"><span>ROY'S NOTE</span>${esc(row.note)}</div>` : ''}
+    </div>`;
+  }).join('') || empty('No Roy updates have been submitted yet.');
 }
 
 function renderIncoming() {
@@ -3780,6 +3798,13 @@ async function loadAll(){
   const calls=[['tasks','created_at',false],['jobs','updated_at',false],['communications','due_date',true],['incoming','captured_at',false],['phone_messages','created_at',false],['prospects','created_at',false],['leads','created_at',false],['appointments','appointment_at',true],['sales_communications','occurred_at',false],['job_communications','occurred_at',false],['lookup_options','sort_order',true],['sops','title',true],['suggestions','created_at',false],['quick_notes','updated_at',false]];
   const results=await Promise.all(calls.map(([table,order,ascending])=>db.from(table).select('*').order(order,{ascending}).limit(500)));
   for(let i=0;i<results.length;i++){ if(results[i].error)throw results[i].error; let stateName=calls[i][0]==='phone_messages'?'phone':calls[i][0]; if(stateName==='lookup_options')stateName='lookups'; state[stateName]=results[i].data||[]; }
+  const royResult=await db.rpc('get_recent_roy_updates',{p_days:7});
+  if(royResult.error){
+    state.roy_updates=[];
+    console.warn('Roy update history is not available yet:',royResult.error.message);
+  }else{
+    state.roy_updates=royResult.data||[];
+  }
   try { await rollForwardMissedAngiCadence(); } catch (error) { console.warn('Could not roll forward missed Angi cadence windows:', error); }
   setupLeadProspectSelects(); renderDashboard(); renderProspectsLeads(); renderAngiQueue();
 }
