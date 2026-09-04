@@ -22,6 +22,9 @@
       --reroof:#039be5;
       --other:#039be5;
       --warning:#f9ab00;
+      --success:#188038;
+      --success-bg:#e6f4ea;
+      --danger:#d93025;
       --hour-height:64px;
       --header-height:70px;
       --time-width:72px;
@@ -29,7 +32,7 @@
 
     *{box-sizing:border-box}
     html,body{margin:0;min-height:100%;font-family:Arial,Helvetica,sans-serif;color:var(--text);background:var(--bg)}
-    button{font:inherit}
+    button,input{font:inherit}
     .hidden{display:none!important}
 
     .topbar{
@@ -43,11 +46,13 @@
     .spacer{flex:1}
     .btn{
       border:1px solid var(--line);background:#fff;color:#3c4043;
-      border-radius:20px;padding:9px 15px;cursor:pointer;
+      border-radius:20px;padding:9px 15px;cursor:pointer;text-decoration:none;
     }
     .btn:hover{background:#f1f3f4}
     .btn.icon{padding:8px 12px;font-size:18px;line-height:1}
     .btn.primary{background:#1a73e8;color:white;border-color:#1a73e8}
+    .btn.success{background:var(--success);color:white;border-color:var(--success)}
+    .btn.small{padding:6px 10px;border-radius:16px;font-size:12px}
     .period-title{font-size:22px;font-weight:400;min-width:180px}
 
     .legend{
@@ -60,6 +65,7 @@
     .dot.repair{background:var(--repair)}
     .dot.reroof{background:var(--reroof)}
     .review-dot{width:9px;height:9px;background:var(--warning);border-radius:50%;display:inline-block}
+    .matched-dot{width:10px;height:10px;background:var(--success);border-radius:50%;display:inline-block}
 
     .message{
       margin:14px 18px;padding:12px 14px;border-radius:8px;
@@ -133,10 +139,11 @@
     .event.repair{background:var(--repair)}
     .event.reroof{background:var(--reroof)}
     .event.other{background:var(--other)}
+    .event.matched{outline:2px solid rgba(24,128,56,.55);outline-offset:-2px}
     .event-title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .event-time{opacity:.95;margin-top:2px}
     .event-contact{opacity:.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .event .review-dot{position:absolute;right:5px;top:5px;border:1px solid rgba(255,255,255,.8)}
+    .event .review-dot,.event .matched-dot{position:absolute;right:5px;top:5px;border:1px solid rgba(255,255,255,.8)}
 
     .now-line{
       position:absolute;height:2px;background:#ea4335;left:0;right:0;z-index:10;pointer-events:none;
@@ -147,8 +154,8 @@
     }
 
     dialog{
-      border:0;border-radius:12px;padding:0;max-width:min(560px,92vw);
-      width:560px;box-shadow:0 18px 50px rgba(0,0,0,.22);
+      border:0;border-radius:12px;padding:0;max-width:min(720px,94vw);
+      width:720px;box-shadow:0 18px 50px rgba(0,0,0,.22);
     }
     dialog::backdrop{background:rgba(32,33,36,.35)}
     .dialog-card{padding:22px}
@@ -156,16 +163,53 @@
     .dialog-sub{color:var(--muted);margin-bottom:18px}
     .detail-grid{display:grid;grid-template-columns:145px 1fr;gap:9px 14px;font-size:14px}
     .detail-label{color:var(--muted)}
-    .dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:22px}
+    .dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:22px;flex-wrap:wrap}
 
-    .empty-state{
-      padding:50px;text-align:center;color:var(--muted);background:#fff;
+    .review-box{
+      margin-top:20px;padding:16px;border:1px solid #f6d36b;
+      background:#fffaf0;border-radius:10px;
     }
+    .review-title{font-size:16px;font-weight:700;margin-bottom:4px}
+    .review-sub{font-size:13px;color:var(--muted);margin-bottom:12px}
+    .suggestions{display:grid;gap:9px}
+    .suggestion{
+      background:white;border:1px solid var(--line);border-radius:9px;
+      padding:11px 12px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;
+    }
+    .suggestion.best{border-color:#8ab4f8;box-shadow:0 0 0 1px #d2e3fc inset}
+    .suggestion-name{font-weight:700}
+    .suggestion-meta{font-size:12px;color:var(--muted);margin-top:3px}
+    .confidence{
+      display:inline-block;font-size:11px;border-radius:10px;padding:2px 7px;margin-left:6px;
+      background:#f1f3f4;color:#3c4043;
+    }
+    .confidence.high{background:var(--success-bg);color:#137333}
+    .confidence.possible{background:#fef7e0;color:#b06000}
+
+    .match-banner{
+      margin-top:18px;padding:13px 14px;border:1px solid #a8dab5;background:var(--success-bg);
+      border-radius:9px;color:#0d652d;
+    }
+    .match-banner b{color:#0d652d}
+
+    .search-row{display:flex;gap:8px;margin-top:13px}
+    .search-row input{
+      flex:1;border:1px solid var(--line);border-radius:8px;padding:9px 10px;
+    }
+    .manual-results{display:grid;gap:7px;margin-top:9px;max-height:230px;overflow:auto}
+    .manual-result{
+      background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px 10px;
+      display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;
+    }
+    .status-line{font-size:12px;color:var(--muted);margin-top:8px}
 
     @media(max-width:700px){
       .brand{font-size:17px}
       .period-title{font-size:18px;min-width:auto}
       .calendar-shell{height:calc(100vh - 150px)}
+      .detail-grid{grid-template-columns:1fr}
+      .detail-label{font-weight:700;margin-top:6px}
+      .suggestion,.manual-result{grid-template-columns:1fr}
     }
   </style>
 </head>
@@ -178,7 +222,7 @@
       <div class="brand">Bauer Roofing Mission Control</div>
 
       <div class="top-actions">
-        <a class="btn" href="index.html" style="text-decoration:none">Mission Control</a>
+        <a class="btn" href="index.html">Mission Control</a>
         <button class="btn" id="todayBtn">Today</button>
         <button class="btn icon" id="prevBtn" aria-label="Previous week">‹</button>
         <button class="btn icon" id="nextBtn" aria-label="Next week">›</button>
@@ -194,8 +238,9 @@
     <div class="legend">
       <span class="legend-item"><span class="dot repair"></span> Repair appointment</span>
       <span class="legend-item"><span class="dot reroof"></span> Reroof / measure / presentation</span>
-      <span class="legend-item"><span class="review-dot"></span> Needs review</span>
-      <span class="legend-item">Read-only from Google Calendar</span>
+      <span class="legend-item"><span class="review-dot"></span> Return visit needs review</span>
+      <span class="legend-item"><span class="matched-dot"></span> Matched to a lead</span>
+      <span class="legend-item">Google Calendar remains the schedule</span>
     </div>
 
     <div class="calendar-shell" id="calendarShell">
@@ -210,7 +255,27 @@
 
       <div class="detail-grid" id="detailGrid"></div>
 
+      <div id="matchBanner" class="match-banner hidden"></div>
+
+      <div id="reviewBox" class="review-box hidden">
+        <div class="review-title">Likely return visit — match it to the existing lead</div>
+        <div class="review-sub">
+          Mission Control is suggesting leads based on the calendar text, homeowner information,
+          property address, and recent appointment history. Nothing is linked until you approve it.
+        </div>
+
+        <div id="suggestions" class="suggestions"></div>
+
+        <div class="search-row">
+          <input id="leadSearch" placeholder="Search another lead by name, address, phone, email, or lead #">
+          <button class="btn small" id="leadSearchBtn">Search</button>
+        </div>
+        <div id="manualResults" class="manual-results"></div>
+        <div id="matchStatus" class="status-line"></div>
+      </div>
+
       <div class="dialog-actions">
+        <button class="btn small" id="notSalesBtn">Not related to a lead</button>
         <button class="btn" id="closeDialogBtn">Close</button>
       </div>
     </div>
@@ -228,6 +293,9 @@ const HOUR_HEIGHT = 64;
 let db = null;
 let weekStart = startOfWeek(new Date());
 let events = [];
+let leads = [];
+let appointments = [];
+let activeEvent = null;
 
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({
@@ -266,9 +334,7 @@ function monthRangeTitle(){
   const sameMonth = weekStart.getMonth() === end.getMonth();
   const sameYear = weekStart.getFullYear() === end.getFullYear();
 
-  if(sameMonth){
-    return displayDate(weekStart,{month:'long',year:'numeric'});
-  }
+  if(sameMonth) return displayDate(weekStart,{month:'long',year:'numeric'});
   if(sameYear){
     return displayDate(weekStart,{month:'short'}) + ' - ' +
       displayDate(end,{month:'short',year:'numeric'});
@@ -287,6 +353,14 @@ function eventContact(row){
   return [row.contact_last_name,row.contact_first_name].filter(Boolean).join(', ');
 }
 
+function leadName(lead){
+  return lead.homeowner_name || [lead.first_name,lead.last_name].filter(Boolean).join(' ') || 'Unnamed lead';
+}
+
+function leadAddress(lead){
+  return [lead.street_address,lead.city,lead.state,lead.zip].filter(Boolean).join(', ');
+}
+
 function minuteOfDay(date){
   const parts = new Intl.DateTimeFormat('en-US',{
     timeZone:TZ,hour12:false,hour:'2-digit',minute:'2-digit'
@@ -299,6 +373,170 @@ function minuteOfDay(date){
 function showMessage(text){
   $('authMessage').textContent = text;
   $('authMessage').classList.remove('hidden');
+}
+
+function normalizeText(value){
+  return String(value || '')
+    .toLowerCase()
+    .replace(/&/g,' and ')
+    .replace(/[^a-z0-9]+/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+function normalizePhone(value){
+  let digits = String(value || '').replace(/\D/g,'');
+  if(digits.length===11 && digits.startsWith('1')) digits=digits.slice(1);
+  return digits.length===10 ? digits : digits;
+}
+
+function tokens(value){
+  const stop = new Set([
+    'st','street','rd','road','dr','drive','ct','court','ln','lane','ave','avenue',
+    'blvd','way','cir','circle','trl','trail','sc','south','carolina','the','and',
+    'house','home','job','repair','roof','roofing','visit'
+  ]);
+  return normalizeText(value).split(' ').filter(x=>x && x.length>1 && !stop.has(x));
+}
+
+function overlapCount(a,b){
+  const as = new Set(tokens(a));
+  const bs = new Set(tokens(b));
+  let count = 0;
+  as.forEach(t=>{ if(bs.has(t)) count++; });
+  return count;
+}
+
+function confidenceLabel(score){
+  if(score>=75) return {label:'High confidence',cls:'high'};
+  if(score>=40) return {label:'Possible',cls:'possible'};
+  return {label:'Weak',cls:''};
+}
+
+function recentAppointmentBonus(leadId,eventDate){
+  const matching = appointments.filter(a=>a.lead_id===leadId && a.appointment_at);
+  if(!matching.length) return {score:0,reason:null};
+
+  const target = eventDate.getTime();
+  let nearest = Infinity;
+  matching.forEach(a=>{
+    const diff = Math.abs(new Date(a.appointment_at).getTime()-target);
+    if(diff<nearest) nearest=diff;
+  });
+
+  const days = nearest/(24*60*60*1000);
+  if(days<=14) return {score:20,reason:'another appointment for this lead was within 2 weeks'};
+  if(days<=45) return {score:12,reason:'another appointment for this lead was within 45 days'};
+  if(days<=90) return {score:6,reason:'another appointment for this lead was within 90 days'};
+  return {score:0,reason:null};
+}
+
+function scoreLeadForEvent(event,lead){
+  let score = 0;
+  const reasons = [];
+
+  const eventText = [
+    event.summary,event.location_raw,event.description,event.property_text,
+    event.contact_first_name,event.contact_last_name,event.phone_primary,
+    event.phone_secondary,event.email
+  ].filter(Boolean).join(' ');
+
+  const eventNorm = normalizeText(eventText);
+  const eventPhones = [event.phone_primary,event.phone_secondary].filter(Boolean).map(normalizePhone);
+  const leadPhone = normalizePhone(lead.phone);
+  const eventEmail = String(event.email || '').trim().toLowerCase();
+  const leadEmail = String(lead.email || '').trim().toLowerCase();
+
+  if(leadPhone && eventPhones.includes(leadPhone)){
+    score += 100;
+    reasons.push('phone matches');
+  }
+
+  if(eventEmail && leadEmail && eventEmail===leadEmail){
+    score += 100;
+    reasons.push('email matches');
+  }
+
+  const street = normalizeText(lead.street_address);
+  if(street && eventNorm.includes(street)){
+    score += 90;
+    reasons.push('property address appears in the calendar event');
+  }else if(street){
+    const overlap = overlapCount(eventText,lead.street_address);
+    if(overlap>=3){
+      score += 65;
+      reasons.push('strong property-address match');
+    }else if(overlap===2){
+      score += 45;
+      reasons.push('property words match');
+    }else if(overlap===1){
+      score += 18;
+      reasons.push('one property word matches');
+    }
+
+    const streetNumber = String(lead.street_address || '').match(/\b\d+\b/)?.[0];
+    if(streetNumber && normalizeText(eventText).split(' ').includes(streetNumber)){
+      score += 25;
+      reasons.push('street number matches');
+    }
+  }
+
+  const last = normalizeText(lead.last_name);
+  const first = normalizeText(lead.first_name);
+  if(last && eventNorm.split(' ').includes(last)){
+    score += 50;
+    reasons.push('last name matches');
+  }
+  if(first && eventNorm.split(' ').includes(first)){
+    score += 20;
+    reasons.push('first name matches');
+  }
+
+  const homeowner = normalizeText(leadName(lead));
+  if(homeowner && eventNorm.includes(homeowner)){
+    score += 55;
+    reasons.push('homeowner name matches');
+  }
+
+  const city = normalizeText(lead.city);
+  if(city && eventNorm.split(' ').includes(city)){
+    score += 8;
+    reasons.push('city matches');
+  }
+
+  const recent = recentAppointmentBonus(lead.id,new Date(event.start_at));
+  score += recent.score;
+  if(recent.reason) reasons.push(recent.reason);
+
+  if(lead.lead_status && !['Sold','Not Moving Forward'].includes(lead.lead_status)){
+    score += 5;
+  }
+
+  return {lead,score,reasons};
+}
+
+function suggestedLeads(event){
+  return leads
+    .filter(l=>!l.deleted_at)
+    .map(l=>scoreLeadForEvent(event,l))
+    .filter(x=>x.score>=15)
+    .sort((a,b)=>b.score-a.score)
+    .slice(0,3);
+}
+
+function leadMatchesSearch(lead,query){
+  const q = normalizeText(query);
+  if(!q) return false;
+
+  const haystack = normalizeText([
+    leadName(lead),lead.first_name,lead.last_name,lead.street_address,lead.city,
+    lead.state,lead.zip,lead.phone,lead.email,lead.lead_number,lead.source,lead.source_reference
+  ].filter(Boolean).join(' '));
+
+  const qPhone = normalizePhone(query);
+  if(qPhone && qPhone.length>=7 && normalizePhone(lead.phone).includes(qPhone)) return true;
+
+  return q.split(' ').every(part=>haystack.includes(part));
 }
 
 async function init(){
@@ -317,6 +555,24 @@ async function init(){
   }
 
   $('calendarApp').classList.remove('hidden');
+
+  const [leadResult,appointmentResult] = await Promise.all([
+    db.from('leads').select('*').order('created_at',{ascending:false}).limit(1000),
+    db.from('appointments').select('*').order('appointment_at',{ascending:false}).limit(1000)
+  ]);
+
+  if(leadResult.error){
+    showMessage('Calendar loaded, but Mission Control leads could not be read: '+leadResult.error.message);
+    return;
+  }
+  if(appointmentResult.error){
+    showMessage('Calendar loaded, but appointment history could not be read: '+appointmentResult.error.message);
+    return;
+  }
+
+  leads = leadResult.data || [];
+  appointments = appointmentResult.data || [];
+
   await loadWeek();
 }
 
@@ -403,16 +659,22 @@ function renderCalendar(){
       if(top+height<0 || top>((END_HOUR-START_HOUR)*HOUR_HEIGHT)) return;
 
       const el=document.createElement('div');
-      el.className='event '+eventClass(row);
+      el.className='event '+eventClass(row)+(row.matched_lead_id ? ' matched' : '');
       el.style.top=Math.max(0,top)+'px';
       el.style.height=Math.min(height,((END_HOUR-START_HOUR)*HOUR_HEIGHT)-Math.max(0,top))+'px';
 
       const contact=eventContact(row);
+      const marker = row.matched_lead_id
+        ? '<span class="matched-dot" title="Matched to a lead"></span>'
+        : row.calendar_classification==='Needs Review'
+          ? '<span class="review-dot" title="Return visit needs review"></span>'
+          : '';
+
       el.innerHTML=
         '<div class="event-title">'+esc(row.summary || 'Calendar event')+'</div>'+
         '<div class="event-time">'+esc(timeText(start))+' - '+esc(timeText(end))+'</div>'+
         (contact ? '<div class="event-contact">'+esc(contact)+'</div>' : '')+
-        (row.calendar_classification==='Needs Review' ? '<span class="review-dot" title="Needs review"></span>' : '');
+        marker;
 
       el.addEventListener('click',()=>openDetails(row));
       col.appendChild(el);
@@ -433,7 +695,75 @@ function renderCalendar(){
   }
 }
 
+function renderSuggestionCard(result,index){
+  const lead=result.lead;
+  const conf=confidenceLabel(result.score);
+  return `
+    <div class="suggestion ${index===0?'best':''}">
+      <div>
+        <div class="suggestion-name">
+          ${esc(leadName(lead))}
+          <span class="confidence ${esc(conf.cls)}">${esc(conf.label)}</span>
+        </div>
+        <div class="suggestion-meta">
+          ${lead.lead_number ? 'Lead # '+esc(lead.lead_number)+' • ' : ''}
+          ${esc(leadAddress(lead) || 'No address entered')}
+          ${lead.lead_status ? ' • '+esc(lead.lead_status) : ''}
+        </div>
+        <div class="suggestion-meta">${esc(result.reasons.join(' • ') || 'Possible match')}</div>
+      </div>
+      <button
+        class="btn success small"
+        data-match-lead="${esc(lead.id)}"
+        data-match-score="${esc(result.score)}"
+        data-match-reason="${esc(result.reasons.join(' • '))}">
+        Match Return Visit
+      </button>
+    </div>
+  `;
+}
+
+function renderReview(event){
+  $('reviewBox').classList.toggle('hidden',Boolean(event.matched_lead_id) || event.calendar_classification==='Not Sales Related');
+  $('matchBanner').classList.add('hidden');
+  $('manualResults').innerHTML='';
+  $('matchStatus').textContent='';
+  $('leadSearch').value='';
+
+  if(event.matched_lead_id){
+    const lead=leads.find(l=>l.id===event.matched_lead_id);
+    $('matchBanner').innerHTML = lead
+      ? '<b>Matched return visit:</b> '+esc(leadName(lead))+
+        (lead.lead_number ? ' • Lead # '+esc(lead.lead_number) : '')+
+        (leadAddress(lead) ? '<br>'+esc(leadAddress(lead)) : '')
+      : '<b>Matched to Lead # '+esc(event.matched_lead_number || '')+'</b>';
+    $('matchBanner').classList.remove('hidden');
+    $('notSalesBtn').classList.add('hidden');
+    return;
+  }
+
+  if(event.calendar_classification==='Not Sales Related'){
+    $('matchBanner').innerHTML='<b>Marked not related to a lead.</b>';
+    $('matchBanner').classList.remove('hidden');
+    $('notSalesBtn').classList.add('hidden');
+    return;
+  }
+
+  $('notSalesBtn').classList.remove('hidden');
+
+  if(event.calendar_classification!=='Needs Review'){
+    $('reviewBox').classList.add('hidden');
+    return;
+  }
+
+  const suggestions=suggestedLeads(event);
+  $('suggestions').innerHTML=suggestions.length
+    ? suggestions.map(renderSuggestionCard).join('')
+    : '<div class="suggestion"><div><b>No strong automatic suggestion yet.</b><div class="suggestion-meta">Search the Leads list below.</div></div></div>';
+}
+
 function openDetails(row){
+  activeEvent=row;
   const start=new Date(row.start_at);
   const end=new Date(row.end_at);
 
@@ -459,8 +789,116 @@ function openDetails(row){
     '<div class="detail-label">'+esc(label)+'</div><div>'+esc(value)+'</div>'
   ).join('');
 
+  renderReview(row);
   $('eventDialog').showModal();
 }
+
+async function matchEventToLead(leadId,score,reason){
+  if(!activeEvent) return;
+
+  const lead=leads.find(l=>l.id===leadId);
+  if(!lead) return;
+
+  $('matchStatus').textContent='Saving match…';
+
+  const patch={
+    matched_lead_id:lead.id,
+    matched_lead_number:lead.lead_number || null,
+    match_confidence:Number(score || 0),
+    match_reason:reason || 'Manually selected',
+    calendar_classification:'Return Visit',
+    updated_at:new Date().toISOString()
+  };
+
+  const {data,error}=await db
+    .from('calendar_events')
+    .update(patch)
+    .eq('id',activeEvent.id)
+    .select()
+    .single();
+
+  if(error){
+    $('matchStatus').textContent='Could not save match: '+error.message;
+    return;
+  }
+
+  events=events.map(e=>e.id===data.id ? data : e);
+  activeEvent=data;
+  renderCalendar();
+  renderReview(data);
+}
+
+async function markNotSalesRelated(){
+  if(!activeEvent) return;
+  if(!confirm('Mark this calendar event as not related to a lead?')) return;
+
+  const {data,error}=await db
+    .from('calendar_events')
+    .update({
+      matched_lead_id:null,
+      matched_lead_number:null,
+      match_confidence:null,
+      match_reason:'Marked not related to a lead',
+      calendar_classification:'Not Sales Related',
+      updated_at:new Date().toISOString()
+    })
+    .eq('id',activeEvent.id)
+    .select()
+    .single();
+
+  if(error){
+    $('matchStatus').textContent='Could not save: '+error.message;
+    return;
+  }
+
+  events=events.map(e=>e.id===data.id ? data : e);
+  activeEvent=data;
+  renderCalendar();
+  renderReview(data);
+}
+
+function searchLeads(){
+  const query=$('leadSearch').value.trim();
+  if(!query){
+    $('manualResults').innerHTML='';
+    return;
+  }
+
+  const found=leads.filter(l=>!l.deleted_at && leadMatchesSearch(l,query)).slice(0,12);
+
+  $('manualResults').innerHTML=found.length
+    ? found.map(lead=>`
+      <div class="manual-result">
+        <div>
+          <b>${esc(leadName(lead))}</b>
+          <div class="suggestion-meta">
+            ${lead.lead_number ? 'Lead # '+esc(lead.lead_number)+' • ' : ''}
+            ${esc(leadAddress(lead) || 'No address entered')}
+            ${lead.phone ? ' • '+esc(lead.phone) : ''}
+          </div>
+        </div>
+        <button class="btn success small" data-manual-match="${esc(lead.id)}">Match Return Visit</button>
+      </div>
+    `).join('')
+    : '<div class="status-line">No leads matched that search.</div>';
+}
+
+document.addEventListener('click',event=>{
+  const matchBtn=event.target.closest('[data-match-lead]');
+  if(matchBtn){
+    matchEventToLead(
+      matchBtn.dataset.matchLead,
+      matchBtn.dataset.matchScore,
+      matchBtn.dataset.matchReason
+    );
+    return;
+  }
+
+  const manualBtn=event.target.closest('[data-manual-match]');
+  if(manualBtn){
+    matchEventToLead(manualBtn.dataset.manualMatch,50,'Manually selected from lead search');
+  }
+});
 
 $('todayBtn').onclick=async()=>{
   weekStart=startOfWeek(new Date());
@@ -474,8 +912,13 @@ $('nextBtn').onclick=async()=>{
   weekStart=addDays(weekStart,7);
   await loadWeek();
 };
-$('refreshBtn').onclick=loadWeek;
+$('refreshBtn').onclick=async()=>{
+  await init();
+};
 $('closeDialogBtn').onclick=()=>$('eventDialog').close();
+$('leadSearchBtn').onclick=searchLeads;
+$('leadSearch').addEventListener('keydown',e=>{if(e.key==='Enter') searchLeads();});
+$('notSalesBtn').onclick=markNotSalesRelated;
 
 init();
 </script>
