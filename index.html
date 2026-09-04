@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="styles.css">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="config.js"></script>
 </head>
 
@@ -119,7 +120,7 @@
         </button>
 
         <button data-view="leads">
-          Prospects / Leads
+          Leads
         </button>
 
         <button data-view="jobs">
@@ -515,37 +516,22 @@
 
         <div class="card">
           <h3>Import New Angi Export</h3>
-          <p class="auth-note">Use this for new Angi downloads going forward. Choose which Angi account the export came from, then select the downloaded .csv file. Existing Angi reference numbers are skipped instead of overwritten.</p>
+          <p class="auth-note">Use the .xls file exactly as Angi downloads it. Mission Control automatically detects PPL versus Angi Ads from the export columns, keeps the Angi Lead Number as the permanent source reference, and preserves work already recorded in Mission Control.</p>
           <div class="toolbar">
-            <select id="angiImportAccount" style="max-width:260px">
-              <option value="">Choose Angi account…</option>
-              <option>Bauer Roofing - PPL</option>
-              <option>Bauer Roofing Inc - Angi Ads</option>
-            </select>
-            <input id="angiImportFile" type="file" accept=".csv,text/csv,text/plain">
-            <button class="btn primary small" id="angiImportBtn" type="button">Import New Prospects</button>
+            <input id="angiImportFile" type="file" accept=".xls,.xlsx,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv">
+            <button class="btn primary small" id="angiImportBtn" type="button">Import Angi .xls</button>
           </div>
           <div id="angiImportStatus" class="meta"></div>
         </div>
       </section>
 
-      <!-- PROSPECTS / LEADS -->
+      <!-- LEADS -->
 
       <section
         id="view-leads"
         class="hidden">
 
         <div class="kpi-row">
-          <div class="kpi">
-            <div class="n" id="kpiProspects">0</div>
-            <div class="l">Active prospects</div>
-          </div>
-
-          <div class="kpi">
-            <div class="n" id="kpiProspectDue">0</div>
-            <div class="l">Prospect follow-ups due</div>
-          </div>
-
           <div class="kpi">
             <div class="n" id="kpiLeads">0</div>
             <div class="l">Active leads</div>
@@ -557,49 +543,40 @@
           </div>
         </div>
 
-        <div class="grid">
-          <div>
-            <div class="card">
-              <div class="toolbar">
-                <h2>Prospects</h2>
-                <div class="spacer"></div>
-                <button class="btn small primary" id="newProspectBtn">+ Prospect</button>
-              </div>
-
-              <p class="auth-note">
-                A prospect is an inquiry where you do not yet know for certain that they want an appointment.
-                Angi inquiries begin here unless they are already confirmed appointment-seeking leads.
-              </p>
-
-              <div id="prospectList"></div>
+        <div class="card leads-toolbar-card">
+          <div class="toolbar">
+            <div>
+              <h2>Leads</h2>
+              <p class="auth-note">Confirmed opportunities. Select a lead on the left to work it in the main panel.</p>
             </div>
+            <div class="spacer"></div>
+            <button class="btn small primary" id="newLeadBtn">+ Lead</button>
           </div>
 
-          <div>
-            <div class="card">
-              <div class="toolbar">
-                <h2>Leads</h2>
-                <div class="spacer"></div>
-                <button class="btn small primary" id="newLeadBtn">+ Lead</button>
-              </div>
+          <div class="toolbar">
+            <input id="leadSearch" type="search" placeholder="Search name, address, phone, email, lead #, or source..." style="flex:1;min-width:240px">
+          </div>
+        </div>
 
-              <p class="auth-note">
-                A lead is someone you know wants an appointment. Leads can be entered manually or promoted from a prospect.
-              </p>
+        <div class="leads-workspace">
+          <div class="card leads-rail-card">
+            <h3>Lead List</h3>
+            <div id="leadList" class="leads-queue-list"></div>
+          </div>
 
-              <div id="leadList"></div>
-            </div>
-
-            <div class="card">
-              <h3>Upcoming Appointments</h3>
-              <div id="appointmentList"></div>
-            </div>
+          <div id="leadDetail" class="card leads-detail-card">
+            <div class="empty">Select a lead.</div>
           </div>
         </div>
 
         <div class="card">
-          <h3>Archived Prospects / Leads</h3>
-          <p class="auth-note">Archived records stay available and can be restored. Delete is intended for test entries or true mistakes.</p>
+          <h3>Upcoming Appointments</h3>
+          <div id="appointmentList"></div>
+        </div>
+
+        <div class="card">
+          <h3>Archived Leads</h3>
+          <p class="auth-note">Archived leads stay available and can be restored. Angi prospect history remains in the Angi workflow rather than appearing here.</p>
           <div id="archivedSalesList"></div>
         </div>
 
