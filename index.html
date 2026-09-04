@@ -114,6 +114,10 @@
           Incoming
         </button>
 
+        <button data-view="angi">
+          Angi Queue
+        </button>
+
         <button data-view="leads">
           Prospects / Leads
         </button>
@@ -465,6 +469,63 @@
 
       </section>
 
+
+
+      <!-- ANGI WORK QUEUE -->
+      <section id="view-angi" class="hidden">
+        <div class="kpi-row">
+          <div class="kpi"><div class="n" id="angiKpiNew">0</div><div class="l">New / untouched</div></div>
+          <div class="kpi"><div class="n" id="angiKpiOverdue">0</div><div class="l">Overdue</div></div>
+          <div class="kpi"><div class="n" id="angiKpiDue">0</div><div class="l">Due today</div></div>
+          <div class="kpi"><div class="n" id="angiKpiMarketSharp">0</div><div class="l">Add to MarketSharp</div></div>
+        </div>
+
+        <div class="card">
+          <div class="toolbar">
+            <h2>Angi Work Queue</h2>
+            <div class="spacer"></div>
+            <select id="angiFilter" style="max-width:190px">
+              <option value="all">All active</option>
+              <option value="new">New / untouched</option>
+              <option value="overdue">Overdue</option>
+              <option value="today">Due today</option>
+              <option value="marketsharp">Add to MarketSharp</option>
+            </select>
+            <input id="angiSearch" placeholder="Search homeowner, phone, address…" style="max-width:300px">
+            <button class="btn primary small" id="angiWorkNextBtn" type="button">Work Next</button>
+          </div>
+          <p class="auth-note">Work the highest-priority Angi prospect, record the result, and Mission Control will keep the follow-up queue moving. Appointment-set Angi Ads leads remain visible until MarketSharp is marked added.</p>
+        </div>
+
+        <div class="grid">
+          <div>
+            <div class="card">
+              <h3>Queue</h3>
+              <div id="angiQueueList"></div>
+            </div>
+          </div>
+          <div>
+            <div class="card">
+              <div id="angiDetail"><p class="empty">Select an Angi prospect.</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Import New Angi Export</h3>
+          <p class="auth-note">Use this for new Angi downloads going forward. Choose which Angi account the export came from, then select the downloaded .xls or .csv file. Existing Angi reference numbers are skipped instead of overwritten.</p>
+          <div class="toolbar">
+            <select id="angiImportAccount" style="max-width:260px">
+              <option value="">Choose Angi account…</option>
+              <option>Bauer Roofing - PPL</option>
+              <option>Bauer Roofing Inc - Angi Ads</option>
+            </select>
+            <input id="angiImportFile" type="file" accept=".xls,.csv,text/csv,text/plain">
+            <button class="btn primary small" id="angiImportBtn" type="button">Import New Prospects</button>
+          </div>
+          <div id="angiImportStatus" class="meta"></div>
+        </div>
+      </section>
 
       <!-- PROSPECTS / LEADS -->
 
@@ -1271,6 +1332,46 @@
 
       </dialog>
 
+
+
+      <!-- ANGI CALLBACK -->
+      <dialog id="angiCallbackDialog">
+        <form method="dialog" class="card" style="min-width:min(520px,90vw);margin:0">
+          <h2>Schedule Angi Callback</h2>
+          <input id="angiCallbackProspectId" type="hidden">
+          <label>Callback date and time</label>
+          <input id="angiCallbackAt" type="datetime-local">
+          <label>Notes</label>
+          <textarea id="angiCallbackNotes" placeholder="Optional"></textarea>
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="angiCallbackSaveBtn">Save Callback</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
+      </dialog>
+
+      <!-- ANGI CLOSE -->
+      <dialog id="angiCloseDialog">
+        <form method="dialog" class="card" style="min-width:min(520px,90vw);margin:0">
+          <h2>Close Angi Prospect</h2>
+          <input id="angiCloseProspectId" type="hidden">
+          <label>Outcome</label>
+          <select id="angiCloseOutcome">
+            <option>Not Interested</option>
+            <option>Went With Another Company</option>
+            <option>No Longer Needs Service</option>
+            <option>Unable to Reach</option>
+            <option>Bad/Invalid Lead</option>
+            <option>Duplicate/Existing Customer</option>
+          </select>
+          <label>Notes</label>
+          <textarea id="angiCloseNotes" placeholder="Optional"></textarea>
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="angiCloseSaveBtn">Close Prospect</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
+      </dialog>
 
       <!-- LOG COMMUNICATION -->
       <dialog id="communicationDialog">
