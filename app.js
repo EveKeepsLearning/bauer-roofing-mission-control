@@ -827,7 +827,7 @@ async function importAngiHistoricalPackage() {
   const status = $('angiHistoricalImportStatus');
   if (!file) return msg('Choose the historical Angi migration JSON file.','error');
   try {
-    status.textContent = 'Reading historical tracker package…';
+    status.textContent = 'Reading reconciled Angi history package…';
     const pkg = JSON.parse(await file.text());
     if (pkg.package_type !== 'bauer_angi_historical_migration_v1') throw new Error('This is not the Bauer Angi historical migration package.');
     if (!pkg.safety?.historical_import || pkg.safety?.send_initial_text || pkg.safety?.send_initial_email) throw new Error('Historical-import safety check failed.');
@@ -843,7 +843,7 @@ async function importAngiHistoricalPackage() {
       let existing = prospectMap.get(key);
       if (!existing) {
         const row = {...raw};
-        delete row._archive_flag_raw; delete row._appointment_at; delete row._historical_attempts;
+        delete row._archive_flag_raw; delete row._appointment_at; delete row._historical_attempts; delete row._historical_review_only;
         const r = await db.from('prospects').insert(row).select().single();
         if (r.error) throw r.error;
         existing = r.data;
@@ -911,7 +911,7 @@ async function importAngiHistoricalPackage() {
     $('angiHistoricalImportFile').value = '';
     status.textContent = `Historical migration complete: ${prospectsAdded} prospects added (${prospectsExisting} already present), ${communicationsAdded} communications added (${communicationsSkipped} already present), ${leadsCreated} leads created, ${appointmentsAdded} appointments added (${appointmentsSkipped} already present). No automatic first-contact texts or emails were sent.`;
     renderAngiQueue();
-    msg('Existing Angi history imported safely. You can work the queue now.','success');
+    msg('Angi history reconciled safely. Appointment-set and closed records stay out of the call queue.','success');
   } catch(error) {
     status.textContent = '';
     msg('Could not import existing Angi history: ' + (error.message || String(error)),'error');
@@ -2690,8 +2690,27 @@ function communicationHistoryHtml(kind, id) {
 // ============================================================
 let selectedAngiProspectId = '';
 
+function angiStatusKey(p) {
+  return String(p?.current_status || '').trim().toLowerCase();
+}
+
+function angiIsAppointmentOrClosed(p) {
+  const s = angiStatusKey(p);
+  return !!p?.converted_to_lead_at
+    || ['appointment set','appointment scheduled','sold','not interested','went with another company','went elsewhere','no longer needs service','unable to reach','bad / invalid lead','bad/invalid lead','closed'].includes(s)
+    || !!p?.archive_flag;
+}
+
 function isAngiProspect(p) {
-  return visibleProspect(p) && p.source === 'Angi';
+  return activeRow(p) && p.source === 'Angi';
+}
+
+function isAngiCallableProspect(p) {
+  if (!isAngiProspect(p) || angiIsAppointmentOrClosed(p)) return false;
+  const s = angiStatusKey(p);
+  if (s === 'needs initial review') return false;
+  if (p.duplicate_flag && !p.duplicate_resolution) return false;
+  return true;
 }
 
 function angiMarketSharpItems() {
@@ -2705,8 +2724,12 @@ function angiMarketSharpItems() {
 }
 
 function angiQueueCategory(p) {
+  if (!isAngiProspect(p)) return 'excluded';
+  if (angiIsAppointmentOrClosed(p)) return 'excluded';
+  if (p.duplicate_flag && !p.duplicate_resolution) return 'duplicate';
+  if (angiStatusKey(p) === 'needs initial review') return 'review';
   const now = new Date();
-  if (!p.attempts_count && ['New','Needs Initial Review'].includes(p.current_status || 'New')) return 'new';
+  if (!Number(p.attempts_count || 0) && angiStatusKey(p) === 'new') return 'new';
   if (p.next_follow_up_at) {
     const due = new Date(p.next_follow_up_at);
     if (due < now) return 'overdue';
@@ -2717,15 +2740,44 @@ function angiQueueCategory(p) {
 
 function angiPriority(p) {
   const cat = angiQueueCategory(p);
-  return cat === 'overdue' ? 0 : cat === 'new' ? 1 : cat === 'today' ? 2 : 3;
+  return cat === 'new' ? 0 : cat === 'overdue' ? 1 : cat === 'today' ? 2 : cat === 'active' ? 3 : 9;
 }
 
 function activeAngiProspects() {
-  return state.prospects.filter(isAngiProspect).sort((a,b) => {
+  return state.prospects.filter(isAngiCallableProspect).sort((a,b) => {
     const pr = angiPriority(a) - angiPriority(b);
     if (pr) return pr;
-    return String(a.next_follow_up_at || a.received_at || '9999').localeCompare(String(b.next_follow_up_at || b.received_at || '9999'));
+    const aKey = a.next_follow_up_at || a.received_at || '9999';
+    const bKey = b.next_follow_up_at || b.received_at || '9999';
+    if (angiQueueCategory(a) === 'new') return String(bKey).localeCompare(String(aKey));
+    return String(aKey).localeCompare(String(bKey));
   });
+}
+
+function angiReviewProspects() {
+  return state.prospects.filter(p => isAngiProspect(p) && !angiIsAppointmentOrClosed(p) && angiQueueCategory(p) === 'review')
+    .sort((a,b) => String(b.received_at || '').localeCompare(String(a.received_at || '')));
+}
+
+function angiDuplicateProspects() {
+  return state.prospects.filter(p => isAngiProspect(p) && !angiIsAppointmentOrClosed(p) && angiQueueCategory(p) === 'duplicate')
+    .sort((a,b) => String(b.received_at || '').localeCompare(String(a.received_at || '')));
+}
+
+function angiTimeBand(p) {
+  const cat = angiQueueCategory(p);
+  if (cat === 'new') return {label:'CALL FIRST', cls:'call-first'};
+  if (cat === 'overdue') return {label:'OVERDUE', cls:'overdue'};
+  if (cat === 'review') return {label:'REVIEW', cls:'admin'};
+  if (cat === 'duplicate') return {label:'DUPLICATE', cls:'duplicate'};
+  if (cat === 'active' && !p.next_follow_up_at) return {label:'FOLLOW UP', cls:'later'};
+  if (!p.next_follow_up_at) return {label:'LATER', cls:'later'};
+  const d = new Date(p.next_follow_up_at);
+  if (cat === 'active') return {label:'LATER', cls:'later'};
+  const h = d.getHours() + d.getMinutes()/60;
+  if (h < 11) return {label:'MORNING', cls:'morning'};
+  if (h < 15) return {label:'MIDDAY', cls:'midday'};
+  return {label:'FINAL CALL', cls:'final-call'};
 }
 
 function angiNextBusinessDay(date, businessDays = 1) {
@@ -2756,79 +2808,132 @@ function nextAngiFollowup(p) {
 
 function angiQueueBadge(p) {
   const cat = angiQueueCategory(p);
+  if (cat === 'new') return 'NEW';
   if (cat === 'overdue') return 'OVERDUE';
-  if (cat === 'new') return 'NEW - CALL NOW';
   if (cat === 'today') return 'DUE TODAY';
-  return p.current_status || 'Active';
+  if (cat === 'review') return 'REVIEW';
+  if (cat === 'duplicate') return 'DUPLICATE';
+  return 'FOLLOW UP';
+}
+
+function angiQueueRowHtml(p) {
+  const band = angiTimeBand(p);
+  const selected = p.id === selectedAngiProspectId ? ' selected' : '';
+  const due = p.next_follow_up_at ? `<div class="angi-row-due">${esc(formatWhen(p.next_follow_up_at))}</div>` : '';
+  return `<button type="button" class="angi-queue-row tone-${esc(band.cls)}${selected}" data-angi-select="${esc(p.id)}">
+    <div class="angi-row-top"><b>${esc(prospectName(p))}</b><span class="angi-time-pill ${esc(band.cls)}">${esc(band.label)}</span></div>
+    <div class="meta">Lead: ${esc(formatDate(p.received_at) || '—')}</div>
+    <div class="meta">${esc(p.work_category || p.source_description || 'Angi inquiry')} • ${esc(p.source_account || '')}</div>
+    <div class="angi-row-next">${esc(p.next_action || (angiQueueCategory(p)==='new' ? 'Call now' : 'Follow up'))}</div>
+    ${due}
+  </button>`;
 }
 
 function renderAngiQueue() {
   if (!$('angiQueueList')) return;
-  const all = activeAngiProspects();
+  const calls = activeAngiProspects();
+  const reviews = angiReviewProspects();
+  const duplicates = angiDuplicateProspects();
   const handoffs = angiMarketSharpItems();
   const filter = $('angiFilter')?.value || 'all';
   const search = String($('angiSearch')?.value || '').trim().toLowerCase();
 
-  $('angiKpiNew').textContent = all.filter(p => angiQueueCategory(p) === 'new').length;
-  $('angiKpiOverdue').textContent = all.filter(p => angiQueueCategory(p) === 'overdue').length;
-  $('angiKpiDue').textContent = all.filter(p => angiQueueCategory(p) === 'today').length;
+  $('angiKpiNew').textContent = calls.filter(p => angiQueueCategory(p) === 'new').length;
+  $('angiKpiOverdue').textContent = calls.filter(p => angiQueueCategory(p) === 'overdue').length;
+  $('angiKpiDue').textContent = calls.filter(p => angiQueueCategory(p) === 'today').length;
   $('angiKpiMarketSharp').textContent = handoffs.length;
+  if ($('angiKpiReview')) $('angiKpiReview').textContent = reviews.length;
+  if ($('angiKpiDuplicates')) $('angiKpiDuplicates').textContent = duplicates.length;
 
   if (filter === 'marketsharp') {
     $('angiQueueList').innerHTML = handoffs.map(({lead,appointment}) => `
-      <div class="task">
-        <div class="task-title"><b>${esc(leadName(lead))}</b><span class="badge">ADD TO MARKETSHARP</span></div>
+      <div class="angi-queue-row tone-admin">
+        <div class="angi-row-top"><b>${esc(leadName(lead))}</b><span class="angi-time-pill admin">ADMIN</span></div>
         <div class="meta">${esc(lead.source_account || '')}${lead.source_reference ? ' • Angi ' + esc(lead.source_reference) : ''}</div>
-        <div class="meta">Appointment ${esc(formatWhen(appointment.appointment_at))}</div>
+        <div class="angi-row-next">Appointment ${esc(formatWhen(appointment.appointment_at))}</div>
         <div class="actions"><button class="btn primary small" data-angi-marketsharp="${esc(appointment.id)}">✓ Added to MarketSharp</button><button class="btn small" data-edit-lead="${esc(lead.id)}">View Lead</button></div>
       </div>`).join('') || empty('No Angi Ads appointments are waiting for MarketSharp.');
-    $('angiDetail').innerHTML = '<p class="empty">Choose another filter to work prospects.</p>';
+    $('angiDetail').innerHTML = '<p class="empty">MarketSharp handoffs are administrative items, not call-queue prospects.</p>';
     return;
   }
 
-  let rows = all.filter(p => filter === 'all' || angiQueueCategory(p) === filter);
-  if (search) rows = rows.filter(p => [prospectName(p),p.phone,p.email,p.street_address,p.city,p.source_reference,p.source_description].join(' ').toLowerCase().includes(search));
+  let rows = filter === 'review' ? reviews : filter === 'duplicate' ? duplicates : calls.filter(p => filter === 'all' || angiQueueCategory(p) === filter);
+  if (search) rows = rows.filter(p => [prospectName(p),p.phone,p.email,p.street_address,p.city,p.source_reference].some(v => String(v||'').toLowerCase().includes(search)));
 
-  $('angiQueueList').innerHTML = rows.map(p => `
-    <button type="button" class="task" style="display:block;width:100%;text-align:left" data-angi-select="${esc(p.id)}">
-      <div class="task-title"><b>${esc(prospectName(p))}</b><span class="badge">${esc(angiQueueBadge(p))}</span></div>
-      <div class="meta">${esc(p.work_category || p.source_description || 'Angi inquiry')}${p.source_reference ? ' • Angi ' + esc(p.source_reference) : ''}</div>
-      <div class="meta">${p.next_follow_up_at ? 'Next ' + esc(formatWhen(p.next_follow_up_at)) : esc(p.next_action || '')}</div>
-    </button>`).join('') || empty('Nothing in this Angi view.');
-
+  $('angiQueueList').innerHTML = rows.map(angiQueueRowHtml).join('') || empty('Nothing in this Angi view.');
   if (!rows.some(p => p.id === selectedAngiProspectId)) selectedAngiProspectId = rows[0]?.id || '';
   renderAngiDetail();
+}
+
+function telHref(phone) {
+  return 'tel:' + String(phone || '').replace(/[^0-9+]/g,'');
 }
 
 function renderAngiDetail() {
   if (!$('angiDetail')) return;
   const p = state.prospects.find(x => x.id === selectedAngiProspectId && isAngiProspect(x));
   if (!p) { $('angiDetail').innerHTML = '<p class="empty">Select an Angi prospect.</p>'; return; }
-  const duplicate = p.duplicate_flag ? '<div class="notice error">Possible duplicate — review before contacting.</div>' : '';
+  const band = angiTimeBand(p);
+  const canCall = !!p.phone && p.call_usable !== false;
+  const callButton = canCall ? `<a class="angi-call-main" href="${esc(telHref(p.phone))}">☎ CALL ${esc((p.first_name || prospectName(p)).toUpperCase())}</a>` : '';
   $('angiDetail').innerHTML = `
-    <div class="task-title"><h2 style="margin:0">${esc(prospectName(p))}</h2><span class="badge">${esc(angiQueueBadge(p))}</span></div>
-    <div class="meta">${esc(p.work_category || p.source_description || 'Angi inquiry')} • ${esc(p.source_account || '')}${p.source_reference ? ' • Angi ' + esc(p.source_reference) : ''}</div>
-    ${duplicate}
-    <div style="margin-top:12px"><b>Property</b><br>${esc(p.street_address || '—')}${p.city ? '<br>' + esc([p.city,p.state,p.zip].filter(Boolean).join(', ').replace(', '+p.zip,' '+p.zip)) : ''}</div>
-    <div style="margin-top:12px"><b>Phone:</b> ${esc(p.phone || '—')}<br><b>Email:</b> ${esc(p.email || '—')}</div>
-    ${p.call_usable === false ? '<div class="notice" style="margin-top:10px"><b>Phone marked disconnected / not working.</b> Use Text or Email if available.</div>' : ''}
-    ${contactActionHtml({phone:p.phone,email:p.email,kind:'prospect',id:p.id,name:prospectName(p),callUsable:p.call_usable !== false})}
-    <hr>
-    <div class="meta"><b>Status:</b> ${esc(p.current_status || 'New')} • <b>Attempts:</b> ${esc(p.attempts_count || 0)}${p.last_result ? ' • <b>Last:</b> ' + esc(p.last_result) : ''}</div>
-    <div class="meta">${p.next_action ? '<b>Next:</b> ' + esc(p.next_action) : ''}${p.next_follow_up_at ? ' • <b>Follow-up:</b> ' + esc(formatWhen(p.next_follow_up_at)) : ''}</div>
-    <h3>Record Call Result</h3>
-    <div class="actions">
-      <button class="btn small" data-angi-outcome="No Answer" data-angi-id="${esc(p.id)}">No Answer</button>
-      <button class="btn small" data-angi-outcome="Left Voicemail" data-angi-id="${esc(p.id)}">Left Voicemail</button>
-      <button class="btn small" data-angi-outcome="Spoke With Customer" data-angi-id="${esc(p.id)}">Spoke With Customer</button>
-      <button class="btn small" data-angi-outcome="Phone Disconnected / Not Working" data-angi-id="${esc(p.id)}">Phone Disconnected / Not Working</button>
-      <button class="btn small" data-angi-callback="${esc(p.id)}">Call Back Later</button>
-      <button class="btn primary small" data-angi-appointment="${esc(p.id)}">Appointment Set</button>
-      <button class="btn small" data-angi-close="${esc(p.id)}">Close Prospect…</button>
+    <div class="angi-detail-head">
+      <span class="angi-time-pill ${esc(band.cls)}">${esc(band.label)}</span>
+      <h2>${esc(prospectName(p))}</h2>
+      <div class="meta">Lead Date: ${esc(formatDate(p.received_at) || '—')}</div>
+      <div class="meta">${esc(p.work_category || p.source_description || 'Angi inquiry')} • ${esc(p.source_account || '')}${p.source_reference ? ' • Lead ' + esc(p.source_reference) : ''}</div>
     </div>
-    ${p.notes ? `<div style="margin-top:12px"><b>Notes</b><br>${esc(p.notes).replace(/\n/g,'<br>')}</div>` : ''}
-    <details style="margin-top:12px"><summary>Communication History</summary>${communicationHistoryHtml('prospect',p.id)}</details>
-    <div class="actions" style="margin-top:12px"><button class="btn small" data-edit-prospect="${esc(p.id)}">View / Edit Full Prospect</button></div>`;
+    ${callButton}
+    ${p.call_usable === false ? '<div class="notice warning"><b>Phone disconnected / not working.</b> Keep this prospect active and use Text or Email if available.</div>' : ''}
+    <div class="angi-result-label">RECORD CALL RESULT</div>
+    <div class="angi-result-actions">
+      <button class="btn outcome" data-angi-outcome="No Answer" data-angi-id="${esc(p.id)}">No Answer</button>
+      <button class="btn outcome" data-angi-outcome="Left Voicemail" data-angi-id="${esc(p.id)}">Left Voicemail</button>
+      <button class="btn outcome success" data-angi-outcome="Spoke With Customer" data-angi-id="${esc(p.id)}">Spoke With Customer</button>
+      <button class="btn outcome warning" data-angi-outcome="Phone Disconnected / Not Working" data-angi-id="${esc(p.id)}">Phone Disconnected / Not Working</button>
+    </div>
+    <div class="angi-notes-block">
+      <label>Lead Notes</label>
+      <textarea id="angiWorkingNotes" placeholder="Notes about this prospect…">${esc(p.notes || '')}</textarea>
+      <div class="actions"><button class="btn primary small" data-angi-save-notes="${esc(p.id)}">Save Notes</button><button class="btn small" data-angi-save-notes-next="${esc(p.id)}">Save Notes & Next</button></div>
+    </div>
+    <div class="angi-contact-grid">
+      <div class="info-tile"><span>PHONE</span><b>${esc(p.phone || '—')}</b></div>
+      <div class="info-tile"><span>EMAIL</span><b>${esc(p.email || '—')}</b></div>
+      <div class="info-tile wide"><span>PROPERTY</span><b>${esc(p.street_address || '—')}${p.city ? '<br>' + esc([p.city,p.state,p.zip].filter(Boolean).join(', ').replace(', '+p.zip,' '+p.zip)) : ''}</b></div>
+      <div class="info-tile wide"><span>PROJECT</span><b>${esc(p.source_description || p.work_category || '—')}</b></div>
+    </div>
+    <div class="followup-grid">
+      <div class="info-tile"><span>STATUS</span><b>${esc(p.current_status || 'New')}</b></div>
+      <div class="info-tile"><span>CALL ATTEMPTS</span><b>${esc(String(p.attempts_count || 0))}</b></div>
+      <div class="info-tile"><span>CADENCE PHASE</span><b>${esc(p.cadence_phase || '—')}</b></div>
+      <div class="info-tile"><span>NEXT ACTION</span><b>${esc(p.next_action || '—')}</b></div>
+      <div class="info-tile"><span>LAST RESULT</span><b>${esc(p.last_result || '—')}</b></div>
+      <div class="info-tile"><span>NEXT FOLLOW-UP</span><b>${esc(p.next_follow_up_at ? formatWhen(p.next_follow_up_at) : '—')}</b></div>
+    </div>
+    <h3 class="more-actions-title">More Actions</h3>
+    <div class="actions">
+      ${contactActionHtml({phone:p.phone,email:p.email,kind:'prospect',id:p.id,name:prospectName(p),callUsable:p.call_usable !== false})}
+      <button class="btn small" data-angi-callback="${esc(p.id)}">Call Back Later</button>
+      <button class="btn primary small" data-angi-appointment="${esc(p.id)}">Set Appointment</button>
+      <button class="btn small" data-angi-close="${esc(p.id)}">Close Prospect…</button>
+      <button class="btn small" data-edit-prospect="${esc(p.id)}">View / Edit Full Prospect</button>
+    </div>
+    <details class="comm-history-details"><summary>Communication History</summary>${communicationHistoryHtml('prospect',p.id)}</details>`;
+}
+
+async function saveAngiWorkingNotes(id, advance=false) {
+  try {
+    const notes = String($('angiWorkingNotes')?.value || '').trim();
+    await updateRecord('prospects', id, {notes}, 'Angi notes edit undone.');
+    await loadAll();
+    if (advance) {
+      const next = activeAngiProspects().find(p => p.id !== id);
+      selectedAngiProspectId = next?.id || id;
+    }
+    renderAngiQueue();
+    msg(advance ? 'Notes saved. Moved to the next prospect.' : 'Notes saved.', 'success');
+  } catch(error) { msg('Could not save Angi notes: ' + (error.message || String(error)), 'error'); }
 }
 
 async function recordAngiOutcome(id, outcome, nextFollowUp = null, notes = '', autoAdvance = true) {
@@ -3221,6 +3326,8 @@ $('angiCloseSaveBtn').onclick=async()=>{ const id=$('angiCloseProspectId').value
 document.body.addEventListener('click', async event=>{
   const select=event.target.closest('[data-angi-select]'); if(select){selectedAngiProspectId=select.dataset.angiSelect;renderAngiDetail();return;}
   const outcome=event.target.closest('[data-angi-outcome]'); if(outcome){const p=state.prospects.find(x=>x.id===outcome.dataset.angiId);const result=outcome.dataset.angiOutcome;const follow=['No Answer','Left Voicemail'].includes(result)?nextAngiFollowup(p):null;const autoAdvance=result !== 'Phone Disconnected / Not Working';await recordAngiOutcome(outcome.dataset.angiId,result,follow?follow.toISOString():null,'',autoAdvance);return;}
+  const saveNotes=event.target.closest('[data-angi-save-notes]'); if(saveNotes){await saveAngiWorkingNotes(saveNotes.dataset.angiSaveNotes,false);return;}
+  const saveNotesNext=event.target.closest('[data-angi-save-notes-next]'); if(saveNotesNext){await saveAngiWorkingNotes(saveNotesNext.dataset.angiSaveNotesNext,true);return;}
   const callback=event.target.closest('[data-angi-callback]'); if(callback){$('angiCallbackProspectId').value=callback.dataset.angiCallback;$('angiCallbackAt').value='';$('angiCallbackNotes').value='';$('angiCallbackDialog').showModal();return;}
   const appointment=event.target.closest('[data-angi-appointment]'); if(appointment){openAngiAppointment(appointment.dataset.angiAppointment);return;}
   const close=event.target.closest('[data-angi-close]'); if(close){$('angiCloseProspectId').value=close.dataset.angiClose;$('angiCloseNotes').value='';$('angiCloseDialog').showModal();return;}
