@@ -3252,15 +3252,52 @@ function normEmail(v){ return String(v||'').trim().toLowerCase(); }
 function normAddress(v){ return String(v||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
 
 
+function normalizedAngiRef(v) {
+  return String(v || '').trim().replace(/\.0+$/, '');
+}
+
 function prospectHasMissionControlHistory(p) {
   if (!p) return false;
   const id = p.id;
+
+  // Communication rows are the reliable evidence that a contact attempt was
+  // actually recorded. Do not treat imported summary counters such as
+  // attempts_count or last_result as user activity; the one-time historical
+  // migration populated some of those fields even for untouched current leads.
   const logged = (state.sales_communications || []).some(c => c.prospect_id === id);
-  const attempts = Number(p.attempts_count || 0) > 0;
-  const result = String(p.last_result || '').trim() !== '';
   const manualCallback = !!p.manual_next_follow_up_at;
-  const converted = !!p.converted_to_lead_at;
-  return logged || attempts || result || manualCallback || converted;
+
+  // A real conversion/appointment is also authoritative. Historical tracker
+  // lead/appointment rows count too because they represent work that really
+  // happened and must never be reset by a later Angi Initial status.
+  const converted = !!p.converted_to_lead_at ||
+    (state.leads || []).some(l => l.prospect_id === id && !l.deleted_at) ||
+    (state.appointments || []).some(a => a.prospect_id === id && !a.deleted_at);
+
+  return logged || manualCallback || converted;
+}
+
+function prospectHasGenuineDuplicate(p, phone, email, address, sourceRef) {
+  const phoneKey = normPhone(phone);
+  const emailKey = normEmail(email);
+  const addressKey = normAddress(address);
+  const refKey = normalizedAngiRef(sourceRef);
+
+  return (state.prospects || []).some(other => {
+    if (!other || other.id === p.id || other.deleted_at) return false;
+
+    // Multiple rows created by an older migration for the SAME Angi lead are
+    // not a genuine duplicate and should not keep a current untouched lead out
+    // of the calling queue.
+    const otherRef = normalizedAngiRef(other.source_reference);
+    if (refKey && otherRef && refKey === otherRef) return false;
+
+    return Boolean(
+      (phoneKey && normPhone(other.phone) === phoneKey) ||
+      (emailKey && normEmail(other.email) === emailKey) ||
+      (addressKey && normAddress(other.street_address) === addressKey)
+    );
+  });
 }
 
 async function importAngiExport() {
@@ -3284,7 +3321,7 @@ async function importAngiExport() {
     // prospects, not only within one account, so a later export cannot duplicate it.
     const existingByRef=new Map();
     state.prospects.filter(isAngiProspect).forEach(p=>{
-      const ref=String(p.source_reference||'').trim();
+      const ref=normalizedAngiRef(p.source_reference);
       if(ref) existingByRef.set(ref,p);
     });
     const phoneKeys=new Set(state.prospects.map(p=>normPhone(p.phone)).filter(Boolean));
@@ -3296,7 +3333,7 @@ async function importAngiExport() {
     let existing=0, statusAdvanced=0, sellingRemovedFromQueue=0, reactivatedCurrentInitial=0;
 
     for (const r of rows.slice(1)) {
-      const ref=String(r[idx.leadNumber]||'').trim();
+      const ref=normalizedAngiRef(r[idx.leadNumber]);
       if (!ref) continue;
       const leadStatus=String(r[idx.leadStatus]||'').trim();
       const desc=String(r[idx.description]||'').trim();
@@ -3344,22 +3381,33 @@ async function importAngiExport() {
         // store into the live Angi Queue without creating a duplicate row.
         if (
           sourceKind === 'initial' &&
-          existingProspect.historical_import === true &&
           !existingProspect.deleted_at &&
           !prospectHasMissionControlHistory(existingProspect)
         ) {
+          const genuineDuplicate = prospectHasGenuineDuplicate(
+            existingProspect,
+            phone || existingProspect.phone,
+            email || existingProspect.email,
+            address || existingProspect.street_address,
+            ref
+          );
+
           Object.assign(patch, {
             historical_import:false,
             current_status:'New',
             attempts_count:0,
             historical_attempts:'0',
+            last_attempt_at:null,
+            last_result:null,
             cadence_phase:'Day 1',
+            cadence_started_at:null,
             manual_next_follow_up_at:null,
             cadence_next_follow_up_at:null,
             next_follow_up_at:null,
             next_action:'Call now',
             archive_flag:false,
             archived_at:null,
+            duplicate_flag:genuineDuplicate,
             initial_contact_eligible:true,
             initial_contact_suppressed_reason:null
           });
