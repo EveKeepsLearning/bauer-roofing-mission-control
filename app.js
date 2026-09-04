@@ -3251,6 +3251,18 @@ function normPhone(v){ let d=String(v||'').replace(/\D/g,''); if(d.length===11&&
 function normEmail(v){ return String(v||'').trim().toLowerCase(); }
 function normAddress(v){ return String(v||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
 
+
+function prospectHasMissionControlHistory(p) {
+  if (!p) return false;
+  const id = p.id;
+  const logged = (state.sales_communications || []).some(c => c.prospect_id === id);
+  const attempts = Number(p.attempts_count || 0) > 0;
+  const result = String(p.last_result || '').trim() !== '';
+  const manualCallback = !!p.manual_next_follow_up_at;
+  const converted = !!p.converted_to_lead_at;
+  return logged || attempts || result || manualCallback || converted;
+}
+
 async function importAngiExport() {
   const file=$('angiImportFile').files?.[0];
   const status=$('angiImportStatus');
@@ -3281,7 +3293,7 @@ async function importAngiExport() {
 
     const inserts=[];
     const updates=[];
-    let existing=0, statusAdvanced=0, sellingRemovedFromQueue=0;
+    let existing=0, statusAdvanced=0, sellingRemovedFromQueue=0, reactivatedCurrentInitial=0;
 
     for (const r of rows.slice(1)) {
       const ref=String(r[idx.leadNumber]||'').trim();
@@ -3295,16 +3307,64 @@ async function importAngiExport() {
 
       if (existingProspect) {
         existing++;
+        const first=String(r[idx.firstName]||'').trim();
+        const last=String(r[idx.lastName]||'').trim();
+        const phone=String(r[idx.phone]||'').trim();
+        const email=String(r[idx.email]||'').trim();
+        const address=String(r[idx.address]||'').trim();
         const patch={
           source:'Angi', source_account:account, source_status:leadStatus,
+          received_at:angiDateValue(r[idx.leadDate]) || existingProspect.received_at,
           source_description:desc || existingProspect.source_description,
           source_lead_type:leadType || existingProspect.source_lead_type,
           source_fee:feeRaw && !Number.isNaN(Number(feeRaw)) ? Number(feeRaw) : existingProspect.source_fee,
+          first_name:first || existingProspect.first_name,
+          last_name:last || existingProspect.last_name,
+          customer_name:[first,last].filter(Boolean).join(' ') || existingProspect.customer_name,
+          street_address:address || existingProspect.street_address,
+          city:String(r[idx.city]||'').trim() || existingProspect.city,
+          state:String(r[idx.state]||'').trim() || existingProspect.state || 'SC',
+          zip:String(r[idx.zip]||'').trim() || existingProspect.zip,
+          phone:phone || existingProspect.phone,
+          email:email || existingProspect.email,
+          work_category:angiWorkCategory(desc) || existingProspect.work_category,
+          phone_key:normPhone(phone || existingProspect.phone)||null,
+          email_key:normEmail(email || existingProspect.email)||null,
+          address_key:normAddress(address || existingProspect.street_address)||null,
           updated_at:new Date().toISOString()
         };
         const sourceKind=angiSourceStatusKind(leadStatus);
         const current=angiStatusKey(existingProspect);
         const closed=angiIsAppointmentOrClosed(existingProspect);
+
+        // If a CURRENT export says Initial, and this row only exists because of
+        // the one-time historical migration, treat it as a real current untouched
+        // prospect when Mission Control has no actual contact history for it.
+        // This is what lets newly-arrived Angi people move from the historical
+        // store into the live Angi Queue without creating a duplicate row.
+        if (
+          sourceKind === 'initial' &&
+          existingProspect.historical_import === true &&
+          !existingProspect.deleted_at &&
+          !prospectHasMissionControlHistory(existingProspect)
+        ) {
+          Object.assign(patch, {
+            historical_import:false,
+            current_status:'New',
+            attempts_count:0,
+            historical_attempts:'0',
+            cadence_phase:'Day 1',
+            manual_next_follow_up_at:null,
+            cadence_next_follow_up_at:null,
+            next_follow_up_at:null,
+            next_action:'Call now',
+            archive_flag:false,
+            archived_at:null,
+            initial_contact_eligible:true,
+            initial_contact_suppressed_reason:null
+          });
+          reactivatedCurrentInitial++;
+        }
 
         // Match the old importer: Angi may move a record FORWARD, but never
         // erase Mission Control calls, notes, callbacks, or later workflow.
@@ -3376,7 +3436,7 @@ async function importAngiExport() {
 
     await loadAll();
     $('angiImportFile').value='';
-    status.textContent=`${account} detected. Imported ${inserts.length} new prospect${inserts.length===1?'':'s'}; reviewed ${existing} existing Angi record${existing===1?'':'s'}; advanced ${statusAdvanced} workflow status${statusAdvanced===1?'':'es'}.`;
+    status.textContent=`${account} detected. Imported ${inserts.length} new prospect${inserts.length===1?'':'s'}; reviewed ${existing} existing Angi record${existing===1?'':'s'}; moved ${reactivatedCurrentInitial} current untouched prospect${reactivatedCurrentInitial===1?'':'s'} into the Angi Queue; advanced ${statusAdvanced} workflow status${statusAdvanced===1?'':'es'}.`;
     renderAngiQueue();
     msg(`Angi import complete. ${sellingRemovedFromQueue ? sellingRemovedFromQueue+' Selling record'+(sellingRemovedFromQueue===1?' was':'s were')+' removed from the call queue. ' : ''}Existing Mission Control history was preserved.`,'success');
   } catch(error) { status.textContent=''; msg('Could not import Angi export: '+(error.message||String(error)),'error'); }
