@@ -18,7 +18,8 @@ let state = {
   job_communications: [],
   lookups: [],
   sops: [],
-  suggestions: []
+  suggestions: [],
+  quick_notes: []
 };
 
 const $ = id => document.getElementById(id);
@@ -331,6 +332,84 @@ function taskCard(t) {
   `;
 }
 
+
+
+function isFinancialTask(t) {
+  if (!t || !activeRow(t) || isCommunicationTask(t)) return false;
+  const allText = [t.task, t.description, t.category, t.next_action].filter(Boolean).join(' ').toLowerCase();
+  return /\b(quickbooks|payroll|withholding|tax(?:es)?|credit card|bill(?:s)?|invoice|deposit|bank|expense|reconcil|accounting|bookkeep|payment processing)\b/.test(allText);
+}
+
+function openUnblockedTask(t) {
+  return activeRow(t)
+    && !['Completed','Cancelled','Skipped','Blocked','Waiting','In Progress'].includes(t.status);
+}
+
+function financialTasks() {
+  return state.tasks.filter(t => openUnblockedTask(t) && isFinancialTask(t)).sort((a,b) => {
+    const ad = `${a.due_date || '9999'} ${a.due_time || '23:59:59'}`;
+    const bd = `${b.due_date || '9999'} ${b.due_time || '23:59:59'}`;
+    if (ad !== bd) return ad.localeCompare(bd);
+    return priorityRank(b.base_priority) - priorityRank(a.base_priority);
+  });
+}
+
+function renderQuickNotes() {
+  if (!$('quickNotesList')) return;
+  const rows = (state.quick_notes || []).filter(n => !n.deleted_at).sort((a,b) => String(b.updated_at || b.created_at || '').localeCompare(String(a.updated_at || a.created_at || '')));
+  $('quickNotesList').innerHTML = rows.map(n => `
+    <div class="task" data-quick-note-id="${esc(n.id)}">
+      <div>${esc(n.note).replace(/\n/g,'<br>')}</div>
+      <div class="meta">${esc(new Date(n.updated_at || n.created_at).toLocaleString())}</div>
+      <div class="actions">
+        <button class="btn small" data-edit-quick-note="${esc(n.id)}">Edit</button>
+        <button class="btn small" data-note-to-task="${esc(n.id)}">Convert to Task</button>
+        <button class="btn small" data-delete-quick-note="${esc(n.id)}">Delete</button>
+      </div>
+    </div>`).join('') || empty('No notes yet.');
+}
+
+function clearQuickNoteForm() {
+  if (!$('quickNoteEditId')) return;
+  $('quickNoteEditId').value = '';
+  $('quickNoteText').value = '';
+  $('saveQuickNoteBtn').textContent = 'Add Note';
+  $('cancelQuickNoteEditBtn').classList.add('hidden');
+}
+
+async function saveQuickNote() {
+  try {
+    const id = $('quickNoteEditId').value;
+    const note = $('quickNoteText').value.trim();
+    if (!note) return msg('Write a note first.','error');
+    const result = id
+      ? await db.from('quick_notes').update({note}).eq('id',id)
+      : await db.from('quick_notes').insert({note});
+    if (result.error) throw result.error;
+    clearQuickNoteForm();
+    await loadAll();
+    msg(id ? 'Note updated.' : 'Note saved.','success');
+  } catch(error) { msg('Could not save note: ' + (error.message || String(error)),'error'); }
+}
+
+async function deleteQuickNote(id) {
+  if (!confirm('Delete this note?')) return;
+  try {
+    const r = await db.from('quick_notes').update({deleted_at:new Date().toISOString()}).eq('id',id);
+    if (r.error) throw r.error;
+    await loadAll();
+    msg('Note deleted.','success');
+  } catch(error) { msg('Could not delete note: ' + (error.message || String(error)),'error'); }
+}
+
+function convertQuickNoteToTask(id) {
+  const n = (state.quick_notes || []).find(x => x.id === id);
+  if (!n) return;
+  clearTaskForm();
+  $('taskName').value = n.note.split(/\n/)[0].slice(0,140);
+  $('taskDescription').value = n.note;
+  $('taskDialog').showModal();
+}
 
 function actionableTasks() {
   const finished = new Set([
@@ -737,6 +816,107 @@ function leadName(l) {
   return l.homeowner_name || [l.first_name, l.last_name].filter(Boolean).join(' ') || 'Unnamed lead';
 }
 
+
+
+function angiImportKey(sourceAccount, sourceReference) {
+  return `${String(sourceAccount || '').trim().toLowerCase()}|${String(sourceReference || '').trim()}`;
+}
+
+async function importAngiHistoricalPackage() {
+  const file = $('angiHistoricalImportFile')?.files?.[0];
+  const status = $('angiHistoricalImportStatus');
+  if (!file) return msg('Choose the historical Angi migration JSON file.','error');
+  try {
+    status.textContent = 'Reading historical tracker package…';
+    const pkg = JSON.parse(await file.text());
+    if (pkg.package_type !== 'bauer_angi_historical_migration_v1') throw new Error('This is not the Bauer Angi historical migration package.');
+    if (!pkg.safety?.historical_import || pkg.safety?.send_initial_text || pkg.safety?.send_initial_email) throw new Error('Historical-import safety check failed.');
+
+    const prospectMap = new Map();
+    for (const p of state.prospects.filter(x => x.source === 'Angi' && x.source_reference)) {
+      prospectMap.set(angiImportKey(p.source_account,p.source_reference), p);
+    }
+
+    let prospectsAdded = 0, prospectsExisting = 0;
+    for (const raw of pkg.prospects || []) {
+      const key = angiImportKey(raw.source_account,raw.source_reference);
+      let existing = prospectMap.get(key);
+      if (!existing) {
+        const row = {...raw};
+        delete row._archive_flag_raw; delete row._appointment_at; delete row._historical_attempts;
+        const r = await db.from('prospects').insert(row).select().single();
+        if (r.error) throw r.error;
+        existing = r.data;
+        prospectMap.set(key, existing);
+        prospectsAdded++;
+      } else {
+        prospectsExisting++;
+      }
+      const safe = await db.rpc('angi_mark_historical_import',{p_prospect_id:existing.id});
+      if (safe.error) throw safe.error;
+    }
+
+    let communicationsAdded = 0, communicationsSkipped = 0;
+    for (const c of pkg.communications || []) {
+      const p = prospectMap.get(angiImportKey(c.source_account,c.source_reference));
+      if (!p) continue;
+      if (c.external_log_id) {
+        const found = await db.from('sales_communications').select('id').eq('external_log_id',c.external_log_id).limit(1);
+        if (found.error) throw found.error;
+        if (found.data?.length) { communicationsSkipped++; continue; }
+      }
+      const row = {...c, prospect_id:p.id};
+      delete row.source_reference; delete row.source_account;
+      const r = await db.from('sales_communications').insert(row);
+      if (r.error) throw r.error;
+      communicationsAdded++;
+    }
+
+    let appointmentsAdded = 0, appointmentsSkipped = 0, leadsCreated = 0;
+    const leadByProspect = new Map(state.leads.filter(l => l.prospect_id).map(l => [l.prospect_id,l]));
+    for (const a of pkg.appointments || []) {
+      const p = prospectMap.get(angiImportKey(a.source_account,a.source_reference));
+      if (!p) continue;
+      const found = await db.from('appointments').select('id').eq('external_import_key',a.external_import_key).limit(1);
+      if (found.error) throw found.error;
+      if (found.data?.length) { appointmentsSkipped++; continue; }
+
+      let lead = leadByProspect.get(p.id);
+      if (!lead) {
+        const lr = await db.from('leads').insert({
+          prospect_id:p.id, source:'Angi', source_account:a.source_account, source_reference:a.source_reference,
+          import_source:'Angi Historical Tracker', homeowner_name:a.customer_name || p.customer_name,
+          first_name:p.first_name, last_name:p.last_name, street_address:a.street_address || p.street_address,
+          city:a.city || p.city, state:a.state || p.state, zip:a.zip || p.zip, phone:a.phone || p.phone,
+          email:a.email || p.email, work_category:a.work_category || p.work_category,
+          lead_status:a.appointment_at ? 'Appointment Scheduled' : 'Appointment Wanted', assigned_to:a.assigned_to || p.assigned_to,
+          qualified_at:a.created_at || a.appointment_at || p.received_at || new Date().toISOString(), notes:a.notes || null
+        }).select().single();
+        if (lr.error) throw lr.error;
+        lead = lr.data; leadByProspect.set(p.id,lead); leadsCreated++;
+      }
+      const ar = await db.from('appointments').insert({
+        lead_id:lead.id, prospect_id:p.id, appointment_at:a.appointment_at, appointment_status:a.appointment_status || 'Scheduled',
+        assigned_to:a.assigned_to, notes:a.notes, marketsharp_status:a.marketsharp_status || 'Not Needed Yet',
+        marketsharp_action:a.marketsharp_action, import_source:'Angi Historical Tracker', external_import_key:a.external_import_key,
+        created_at:a.created_at || undefined, updated_at:a.updated_at || undefined
+      });
+      if (ar.error) throw ar.error;
+      const pr = await db.from('prospects').update({converted_to_lead_at:a.created_at || a.appointment_at || new Date().toISOString()}).eq('id',p.id);
+      if (pr.error) throw pr.error;
+      appointmentsAdded++;
+    }
+
+    await loadAll();
+    $('angiHistoricalImportFile').value = '';
+    status.textContent = `Historical migration complete: ${prospectsAdded} prospects added (${prospectsExisting} already present), ${communicationsAdded} communications added (${communicationsSkipped} already present), ${leadsCreated} leads created, ${appointmentsAdded} appointments added (${appointmentsSkipped} already present). No automatic first-contact texts or emails were sent.`;
+    renderAngiQueue();
+    msg('Existing Angi history imported safely. You can work the queue now.','success');
+  } catch(error) {
+    status.textContent = '';
+    msg('Could not import existing Angi history: ' + (error.message || String(error)),'error');
+  }
+}
 
 function renderProspectsLeads() {
   if (!$('prospectList')) return;
@@ -2351,13 +2531,22 @@ function taskCard(t) {
 function isCommunicationTask(t) {
   if (!t || !activeRow(t)) return false;
 
-  // A scheduled customer communication should live in Communication Due,
-  // not compete with internal/admin work in Needs Your Attention.
   const linkedToCustomer = !!(t.prospect_id || t.lead_id || t.job_id || t.lead_number || t.job_number || t.related_number);
-  if (!linkedToCustomer) return false;
+  const taskText = String(t.task || '').trim().toLowerCase();
+  const allText = [t.task, t.description, t.next_action].filter(Boolean).join(' ').toLowerCase();
 
-  const text = [t.task, t.description, t.next_action].filter(Boolean).join(' ').toLowerCase();
-  return /\b(call|callback|text|email|contact|follow[- ]?up|communicat|customer update|payment reminder|deposit reminder|warranty|final paperwork)\b/.test(text);
+  // Any communication attached to a prospect, lead, or job belongs here.
+  if (linkedToCustomer && /\b(call|callback|text|email|contact|follow[- ]?up|communicat|customer update|payment reminder|deposit reminder|warranty|final paperwork)\b/.test(allText)) {
+    return true;
+  }
+
+  // Some communication tasks intentionally represent a group of people rather than
+  // one linked record (for example, "Call Angi prospects due for follow-up").
+  // Treat direct outbound-contact tasks as Communication Due even without a link.
+  // This deliberately does NOT classify internal tasks such as
+  // "Review email and capture actionable follow-up" as customer communication.
+  return /^(call|callback|text|email|contact|follow[- ]?up|send|reply to|respond to|message)\b/.test(taskText)
+    || /^call angi prospects\b/.test(taskText);
 }
 
 function communicationTaskDue(t) {
@@ -2393,7 +2582,7 @@ function communicationDueCard(entry) {
 function actionableTasks() {
   const finished = new Set(['Completed','Cancelled','Skipped']);
   return state.tasks
-    .filter(t => activeRow(t) && !finished.has(t.status) && t.status !== 'In Progress' && !['Blocked','Waiting'].includes(t.status) && !communicationTaskDue(t))
+    .filter(t => activeRow(t) && !finished.has(t.status) && t.status !== 'In Progress' && !['Blocked','Waiting'].includes(t.status) && !communicationTaskDue(t) && !isFinancialTask(t))
     .sort((a,b) => {
       const p = priorityRank(b.base_priority) - priorityRank(a.base_priority);
       if (p) return p;
@@ -2419,6 +2608,8 @@ function renderDashboard() {
   $('weekJobs').innerHTML = jw.map(j => `<div class="task"><b>${esc(j.customer_name || 'Unnamed customer')}</b><div class="meta">${esc(j.property_address || '')} • ${esc(j.stage)} • Start ${esc(j.confirmed_start_date || j.target_start_date || 'Not set')}</div></div>`).join('') || empty('No jobs entered for this week yet.');
   const comms = communicationDueItems();
   $('commList').innerHTML = comms.map(communicationDueCard).join('') || empty('No customer communication due today.');
+  if ($('financialList')) $('financialList').innerHTML = financialTasks().map(taskCard).join('') || empty('No financial or QuickBooks tasks due.');
+  renderQuickNotes();
   const td = todayISO();
   const isOpen = t => activeRow(t) && !['Completed','Cancelled','Skipped'].includes(t.status);
   $('kpiCritical').textContent = state.tasks.filter(t => isOpen(t) && (t.base_priority === 'Critical' || (t.due_date && t.due_date < td))).length;
@@ -2980,7 +3171,7 @@ async function taskAction(id,action){
 }
 
 async function loadAll(){
-  const calls=[['tasks','created_at',false],['jobs','updated_at',false],['communications','due_date',true],['incoming','captured_at',false],['phone_messages','created_at',false],['prospects','created_at',false],['leads','created_at',false],['appointments','appointment_at',true],['sales_communications','occurred_at',false],['job_communications','occurred_at',false],['lookup_options','sort_order',true],['sops','title',true],['suggestions','created_at',false]];
+  const calls=[['tasks','created_at',false],['jobs','updated_at',false],['communications','due_date',true],['incoming','captured_at',false],['phone_messages','created_at',false],['prospects','created_at',false],['leads','created_at',false],['appointments','appointment_at',true],['sales_communications','occurred_at',false],['job_communications','occurred_at',false],['lookup_options','sort_order',true],['sops','title',true],['suggestions','created_at',false],['quick_notes','updated_at',false]];
   const results=await Promise.all(calls.map(([table,order,ascending])=>db.from(table).select('*').order(order,{ascending}).limit(500)));
   for(let i=0;i<results.length;i++){ if(results[i].error)throw results[i].error; let stateName=calls[i][0]==='phone_messages'?'phone':calls[i][0]; if(stateName==='lookup_options')stateName='lookups'; state[stateName]=results[i].data||[]; }
   setupLeadProspectSelects(); renderDashboard(); renderProspectsLeads(); renderAngiQueue();
@@ -2989,6 +3180,9 @@ async function loadAll(){
 // Additional click handling for editing and record safety actions.
 document.body.addEventListener('click', async event => {
   try {
+    const editNote=event.target.closest('[data-edit-quick-note]'); if(editNote){const n=(state.quick_notes||[]).find(x=>x.id===editNote.dataset.editQuickNote);if(n){$('quickNoteEditId').value=n.id;$('quickNoteText').value=n.note||'';$('saveQuickNoteBtn').textContent='Save Changes';$('cancelQuickNoteEditBtn').classList.remove('hidden');$('quickNoteText').focus();}return;}
+    const deleteNote=event.target.closest('[data-delete-quick-note]'); if(deleteNote){await deleteQuickNote(deleteNote.dataset.deleteQuickNote);return;}
+    const noteToTask=event.target.closest('[data-note-to-task]'); if(noteToTask){convertQuickNoteToTask(noteToTask.dataset.noteToTask);return;}
     const editTask=event.target.closest('[data-edit-task]'); if(editTask){openTaskEdit(editTask.dataset.editTask);return;}
     const editPhone=event.target.closest('[data-edit-phone]'); if(editPhone){openPhoneEdit(editPhone.dataset.editPhone);return;}
     const editIncoming=event.target.closest('[data-edit-incoming]'); if(editIncoming){openIncomingEdit(editIncoming.dataset.editIncoming);return;}
@@ -3018,6 +3212,9 @@ $('angiFilter').onchange=()=>{ selectedAngiProspectId=''; renderAngiQueue(); };
 $('angiSearch').oninput=()=>renderAngiQueue();
 $('angiWorkNextBtn').onclick=()=>{ const p=activeAngiProspects()[0]; if(p){selectedAngiProspectId=p.id;renderAngiQueue();} else msg('Nothing in the active Angi prospect queue.','success'); };
 $('angiImportBtn').onclick=importAngiExport;
+$('angiHistoricalImportBtn').onclick=importAngiHistoricalPackage;
+$('saveQuickNoteBtn').onclick=saveQuickNote;
+$('cancelQuickNoteEditBtn').onclick=clearQuickNoteForm;
 $('angiCallbackSaveBtn').onclick=async()=>{ const id=$('angiCallbackProspectId').value; const dt=$('angiCallbackAt').value; if(!dt)return msg('Choose a callback date and time.','error'); $('angiCallbackDialog').close(); await recordAngiOutcome(id,'Call Back Later',new Date(dt).toISOString(),$('angiCallbackNotes').value.trim()); };
 $('angiCloseSaveBtn').onclick=async()=>{ const id=$('angiCloseProspectId').value; const outcome=$('angiCloseOutcome').value; $('angiCloseDialog').close(); await recordAngiOutcome(id,outcome,null,$('angiCloseNotes').value.trim()); };
 
