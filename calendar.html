@@ -253,6 +253,7 @@
       <div class="sync-status" id="syncStatus"></div>
       <button class="btn primary" id="syncCalendarBtn">Sync Google Calendar</button>
       <button class="btn" id="backfillAppointmentsBtn">Backfill Missing Appointments</button>
+      <button class="btn" id="createRoyLinkBtn">Create Roy Daily Check-Off</button>
       <button class="btn" id="changeSyncUrlBtn">Change Sync URL</button>
       <button class="btn" id="refreshBtn">Refresh View</button>
     </div>
@@ -951,6 +952,52 @@ function changeCalendarSyncUrl(){
 }
 
 
+async function createRoyUpdateLink(){
+  const button = $('createRoyLinkBtn');
+  button.disabled = true;
+  button.textContent = 'Creating…';
+
+  try{
+    const today = new Intl.DateTimeFormat('en-CA',{
+      timeZone:TZ,
+      year:'numeric',
+      month:'2-digit',
+      day:'2-digit'
+    }).format(new Date());
+
+    const {data,error} = await db.rpc('create_roy_update_session',{
+      p_update_date:today
+    });
+
+    if(error) throw error;
+
+    const token = Array.isArray(data) ? data[0]?.token : data?.token || data;
+    if(!token) throw new Error('Mission Control did not receive a daily check-off token.');
+
+    const url = new URL('roy-update.html',window.location.href);
+    url.searchParams.set('token',token);
+
+    try{
+      await navigator.clipboard.writeText(url.toString());
+      alert(
+        "Roy's daily check-off link has been copied.\n\n" +
+        'Paste it into a text message to Roy after his appointments.'
+      );
+    }catch(copyError){
+      prompt('Copy this link and text it to Roy:',url.toString());
+    }
+  }catch(error){
+    alert(
+      "Roy's daily check-off link could not be created.\n\n" +
+      String(error && error.message ? error.message : error)
+    );
+  }finally{
+    button.disabled = false;
+    button.textContent = 'Create Roy Daily Check-Off';
+  }
+}
+
+
 async function backfillMissingMissionControlAppointments(){
   const button = $('backfillAppointmentsBtn');
   button.disabled = true;
@@ -1594,6 +1641,7 @@ $('nextBtn').onclick=async()=>{
 };
 $('syncCalendarBtn').onclick=syncGoogleCalendarNow;
 $('backfillAppointmentsBtn').onclick=backfillMissingMissionControlAppointments;
+$('createRoyLinkBtn').onclick=createRoyUpdateLink;
 $('changeSyncUrlBtn').onclick=changeCalendarSyncUrl;
 $('refreshBtn').onclick=async()=>{
   await loadWeek();
