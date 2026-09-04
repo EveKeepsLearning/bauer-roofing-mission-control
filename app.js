@@ -2348,13 +2348,58 @@ function taskCard(t) {
     </div>`;
 }
 
+function isCommunicationTask(t) {
+  if (!t || !activeRow(t)) return false;
+
+  // A scheduled customer communication should live in Communication Due,
+  // not compete with internal/admin work in Needs Your Attention.
+  const linkedToCustomer = !!(t.prospect_id || t.lead_id || t.job_id || t.lead_number || t.job_number || t.related_number);
+  if (!linkedToCustomer) return false;
+
+  const text = [t.task, t.description, t.next_action].filter(Boolean).join(' ').toLowerCase();
+  return /\b(call|callback|text|email|contact|follow[- ]?up|communicat|customer update|payment reminder|deposit reminder|warranty|final paperwork)\b/.test(text);
+}
+
+function communicationTaskDue(t) {
+  const finished = new Set(['Completed','Cancelled','Skipped']);
+  if (!isCommunicationTask(t) || finished.has(t.status) || ['Blocked','Waiting'].includes(t.status)) return false;
+  if (!t.due_date) return false;
+  return t.due_date <= todayISO();
+}
+
+function communicationDueItems() {
+  const td = todayISO();
+  const taskItems = state.tasks
+    .filter(communicationTaskDue)
+    .map(t => ({ kind:'task', dueDate:t.due_date || '', dueTime:t.due_time || '', item:t }));
+
+  const responsibilityItems = state.communications
+    .filter(c => activeRow(c) && c.status !== 'Completed' && c.due_date && c.due_date <= td)
+    .map(c => ({ kind:'communication', dueDate:c.due_date || '', dueTime:c.due_time || '', item:c }));
+
+  return [...taskItems, ...responsibilityItems].sort((a,b) => {
+    const ad = `${a.dueDate || '9999'} ${a.dueTime || '23:59:59'}`;
+    const bd = `${b.dueDate || '9999'} ${b.dueTime || '23:59:59'}`;
+    return ad.localeCompare(bd);
+  });
+}
+
+function communicationDueCard(entry) {
+  if (entry.kind === 'task') return taskCard(entry.item);
+  const c = entry.item;
+  return `<div class="task"><b>${esc(c.purpose || c.type || 'Customer communication')}</b><div class="meta ${c.due_date && c.due_date < todayISO() ? 'comm-overdue' : ''}">${esc(c.type || 'Communication')} • ${esc(c.status || 'Due')} • Due ${esc([c.due_date,c.due_time].filter(Boolean).join(' '))}${c.job_id ? ' • Job ' + esc(c.job_id) : ''}</div></div>`;
+}
+
 function actionableTasks() {
   const finished = new Set(['Completed','Cancelled','Skipped']);
   return state.tasks
-    .filter(t => activeRow(t) && !finished.has(t.status) && t.status !== 'In Progress' && !['Blocked','Waiting'].includes(t.status))
+    .filter(t => activeRow(t) && !finished.has(t.status) && t.status !== 'In Progress' && !['Blocked','Waiting'].includes(t.status) && !communicationTaskDue(t))
     .sort((a,b) => {
       const p = priorityRank(b.base_priority) - priorityRank(a.base_priority);
-      return p || String(a.due_date || '9999').localeCompare(String(b.due_date || '9999'));
+      if (p) return p;
+      const ad = `${a.due_date || '9999'} ${a.due_time || '23:59:59'}`;
+      const bd = `${b.due_date || '9999'} ${b.due_time || '23:59:59'}`;
+      return ad.localeCompare(bd);
     });
 }
 
@@ -2372,8 +2417,8 @@ function renderDashboard() {
   $('blockedList').innerHTML = blocked.map(taskCard).join('') || empty('None.');
   const jw = jobsThisWeek().filter(activeRow);
   $('weekJobs').innerHTML = jw.map(j => `<div class="task"><b>${esc(j.customer_name || 'Unnamed customer')}</b><div class="meta">${esc(j.property_address || '')} • ${esc(j.stage)} • Start ${esc(j.confirmed_start_date || j.target_start_date || 'Not set')}</div></div>`).join('') || empty('No jobs entered for this week yet.');
-  const comms = commDueSoon();
-  $('commList').innerHTML = comms.map(c => `<div class="task"><b>${esc(c.purpose)}</b><div class="meta">Job ${esc(c.job_id || '')} • ${esc(c.status)} • Due ${esc([c.due_date,c.due_time].filter(Boolean).join(' '))}</div></div>`).join('') || empty('No communication due in the next two days.');
+  const comms = communicationDueItems();
+  $('commList').innerHTML = comms.map(communicationDueCard).join('') || empty('No customer communication due today.');
   const td = todayISO();
   const isOpen = t => activeRow(t) && !['Completed','Cancelled','Skipped'].includes(t.status);
   $('kpiCritical').textContent = state.tasks.filter(t => isOpen(t) && (t.base_priority === 'Critical' || (t.due_date && t.due_date < td))).length;
