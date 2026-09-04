@@ -252,6 +252,7 @@
 
       <div class="sync-status" id="syncStatus"></div>
       <button class="btn primary" id="syncCalendarBtn">Sync Google Calendar</button>
+      <button class="btn" id="backfillAppointmentsBtn">Backfill Missing Appointments</button>
       <button class="btn" id="changeSyncUrlBtn">Change Sync URL</button>
       <button class="btn" id="refreshBtn">Refresh View</button>
     </div>
@@ -949,6 +950,101 @@ function changeCalendarSyncUrl(){
   $('syncStatus').textContent = 'Sync URL updated';
 }
 
+
+async function backfillMissingMissionControlAppointments(){
+  const button = $('backfillAppointmentsBtn');
+  button.disabled = true;
+  button.textContent = 'Backfilling…';
+
+  try{
+    // Pull all calendar events currently matched to Leads.
+    const {data:matchedEvents,error:eventError} = await db
+      .from('calendar_events')
+      .select('*')
+      .not('matched_lead_id','is',null)
+      .order('start_at',{ascending:true});
+
+    if(eventError) throw eventError;
+
+    const salesEvents = (matchedEvents || []).filter(isStructuredSalesAppointment);
+
+    if(!salesEvents.length){
+      alert('No matched sales appointments were found to backfill.');
+      return;
+    }
+
+    // Make sure we have a complete Lead lookup for those matched IDs.
+    const leadIds = [...new Set(salesEvents.map(e=>e.matched_lead_id).filter(Boolean))];
+
+    const {data:matchedLeads,error:leadError} = await db
+      .from('leads')
+      .select('*')
+      .in('id',leadIds);
+
+    if(leadError) throw leadError;
+
+    const leadMap = {};
+    (matchedLeads || []).forEach(lead=>{
+      leadMap[lead.id] = lead;
+    });
+
+    let createdOrUpdated = 0;
+    let skipped = 0;
+    const failures = [];
+
+    for(const row of salesEvents){
+      const lead = leadMap[row.matched_lead_id];
+
+      if(!lead){
+        skipped++;
+        continue;
+      }
+
+      try{
+        await ensureMissionControlAppointment(row,lead);
+        createdOrUpdated++;
+      }catch(err){
+        failures.push(
+          (row.summary || row.google_event_id || 'Calendar event') +
+          ': ' + (err.message || String(err))
+        );
+      }
+    }
+
+    // Reload appointments so Mission Control reflects the backfill immediately in this page.
+    const refreshed = await db
+      .from('appointments')
+      .select('*')
+      .order('appointment_at',{ascending:false})
+      .limit(2000);
+
+    if(!refreshed.error){
+      appointments = refreshed.data || [];
+    }
+
+    let message =
+      'Backfill complete.\n\n' +
+      'Matched sales appointments processed: ' + salesEvents.length + '\n' +
+      'Appointments created or updated: ' + createdOrUpdated;
+
+    if(skipped) message += '\nSkipped because the Lead could not be found: ' + skipped;
+    if(failures.length){
+      message += '\n\nSome appointments could not be saved:\n' + failures.slice(0,8).join('\n');
+      if(failures.length > 8) message += '\n…and ' + (failures.length - 8) + ' more.';
+    }
+
+    alert(message);
+  }catch(err){
+    alert(
+      'The appointment backfill could not finish.\n\n' +
+      String(err && err.message ? err.message : err)
+    );
+  }finally{
+    button.disabled = false;
+    button.textContent = 'Backfill Missing Appointments';
+  }
+}
+
 async function syncGoogleCalendarNow(){
   let url = getCalendarSyncUrl();
   if(!url) url = askForCalendarSyncUrl();
@@ -1497,6 +1593,7 @@ $('nextBtn').onclick=async()=>{
   await loadWeek();
 };
 $('syncCalendarBtn').onclick=syncGoogleCalendarNow;
+$('backfillAppointmentsBtn').onclick=backfillMissingMissionControlAppointments;
 $('changeSyncUrlBtn').onclick=changeCalendarSyncUrl;
 $('refreshBtn').onclick=async()=>{
   await loadWeek();
