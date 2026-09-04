@@ -11,6 +11,26 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="config.js"></script>
+
+  <style>
+    .nav a.nav-calendar-link{
+      appearance:none;
+      border:0;
+      background:transparent;
+      color:inherit;
+      font:inherit;
+      cursor:pointer;
+      padding:10px 14px;
+      border-radius:10px;
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+    }
+    .nav a.nav-calendar-link:hover{
+      background:rgba(0,0,0,.05);
+    }
+  </style>
+
 </head>
 
 <body>
@@ -122,6 +142,12 @@
         <button data-view="leads">
           Leads
         </button>
+
+        <a
+          href="calendar.html"
+          class="nav-calendar-link">
+          Calendar
+        </a>
 
         <button data-view="jobs">
           Jobs
