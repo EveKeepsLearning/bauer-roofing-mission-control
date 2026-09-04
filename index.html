@@ -543,22 +543,30 @@
           </div>
         </div>
 
-        <div class="card">
+        <div class="card leads-toolbar-card">
           <div class="toolbar">
-            <h2>Leads</h2>
+            <div>
+              <h2>Leads</h2>
+              <p class="auth-note">Confirmed opportunities. Select a lead on the left to work it in the main panel.</p>
+            </div>
             <div class="spacer"></div>
             <button class="btn small primary" id="newLeadBtn">+ Lead</button>
           </div>
 
-          <p class="auth-note">
-            Leads are confirmed opportunities. Angi prospects stay in the Angi Queue until they are promoted to a lead.
-          </p>
-
           <div class="toolbar">
-            <input id="leadSearch" type="search" placeholder="Search leads by name, address, phone, or email..." style="flex:1;min-width:240px">
+            <input id="leadSearch" type="search" placeholder="Search name, address, phone, email, lead #, or source..." style="flex:1;min-width:240px">
+          </div>
+        </div>
+
+        <div class="leads-workspace">
+          <div class="card leads-rail-card">
+            <h3>Lead List</h3>
+            <div id="leadList" class="leads-queue-list"></div>
           </div>
 
-          <div id="leadList"></div>
+          <div id="leadDetail" class="card leads-detail-card">
+            <div class="empty">Select a lead.</div>
+          </div>
         </div>
 
         <div class="card">
