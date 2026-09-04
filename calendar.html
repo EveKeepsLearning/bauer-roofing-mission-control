@@ -859,6 +859,140 @@ async function saveLeadFromCalendarDialog(){
   saveBtn.textContent = 'Add Lead';
 }
 
+function getCalendarSyncUrl(){
+  const configured = String(cfg.CALENDAR_SYNC_WEB_APP_URL || '').trim();
+  if(configured) return configured;
+
+  return String(localStorage.getItem('bauerCalendarSyncWebAppUrl') || '').trim();
+}
+
+function askForCalendarSyncUrl(){
+  const current = getCalendarSyncUrl();
+  const entered = prompt(
+    'Paste the Bauer Roofing Calendar Sync Web App URL from Google Apps Script.\n\nYou only need to do this once on this browser.',
+    current
+  );
+
+  if(!entered) return null;
+
+  const cleaned = String(entered).trim();
+  if(!/^https:\/\/script\.google\.com\//i.test(cleaned)){
+    alert('That does not look like a Google Apps Script Web App URL.');
+    return null;
+  }
+
+  localStorage.setItem('bauerCalendarSyncWebAppUrl', cleaned);
+  return cleaned;
+}
+
+function runCalendarSyncJsonp_(webAppUrl){
+  return new Promise((resolve,reject)=>{
+    const callbackName = 'bauerCalendarSyncCallback_' + Date.now() + '_' + Math.floor(Math.random()*100000);
+    const script = document.createElement('script');
+    const timeoutMs = 45000;
+
+    const cleanup = ()=>{
+      try{ delete window[callbackName]; }catch(e){ window[callbackName]=undefined; }
+      if(script.parentNode) script.parentNode.removeChild(script);
+    };
+
+    const timer = setTimeout(()=>{
+      cleanup();
+      reject(new Error('The Google Calendar sync did not respond within 45 seconds.'));
+    },timeoutMs);
+
+    window[callbackName] = payload=>{
+      clearTimeout(timer);
+      cleanup();
+      resolve(payload);
+    };
+
+    const separator = webAppUrl.includes('?') ? '&' : '?';
+    script.src = webAppUrl + separator +
+      'action=sync&callback=' + encodeURIComponent(callbackName) +
+      '&_=' + Date.now();
+
+    script.onerror = ()=>{
+      clearTimeout(timer);
+      cleanup();
+      reject(new Error('Mission Control could not reach the Google Calendar sync web app.'));
+    };
+
+    document.head.appendChild(script);
+  });
+}
+
+
+function changeCalendarSyncUrl(){
+  const current = getCalendarSyncUrl();
+  localStorage.removeItem('bauerCalendarSyncWebAppUrl');
+
+  const entered = prompt(
+    'Paste the Google Apps Script Web App URL ending in /exec.\n\nDo not paste the script.googleusercontent.com redirected URL.',
+    current && current.includes('script.google.com') ? current : ''
+  );
+
+  if(!entered) return;
+
+  const cleaned = String(entered).trim();
+
+  if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/i.test(cleaned)){
+    alert(
+      'That does not look like the Apps Script deployment URL.\n\n' +
+      'Copy it from Apps Script → Deploy → Manage deployments. ' +
+      'It should begin with https://script.google.com/macros/s/ and end in /exec.'
+    );
+    return;
+  }
+
+  localStorage.setItem('bauerCalendarSyncWebAppUrl', cleaned);
+  $('syncStatus').textContent = 'Sync URL updated';
+}
+
+async function syncGoogleCalendarNow(){
+  let url = getCalendarSyncUrl();
+  if(!url) url = askForCalendarSyncUrl();
+  if(!url) return;
+
+  const button = $('syncCalendarBtn');
+  const status = $('syncStatus');
+
+  button.disabled = true;
+  button.textContent = 'Syncing…';
+  status.textContent = 'Reading Google Calendar…';
+
+  try{
+    const payload = await runCalendarSyncJsonp_(url);
+
+    if(!payload || !payload.ok){
+      throw new Error(payload?.error || 'Calendar sync failed.');
+    }
+
+    const result = payload.result || {};
+    status.textContent =
+      'Synced ' + (result.synced ?? 0) +
+      (result.duplicatesRemoved ? ' • ' + result.duplicatesRemoved + ' duplicate removed' : '');
+
+    await loadWeek();
+
+    setTimeout(()=>{
+      if(status.textContent.startsWith('Synced')) status.textContent = 'Up to date';
+    },5000);
+  }catch(err){
+    status.textContent = 'Sync failed';
+    alert(
+      'Google Calendar could not be synced.\n\n' +
+      String(err && err.message ? err.message : err) +
+      '\n\nIf the Apps Script Web App URL changed, clear it from this browser and try again.'
+    );
+  }finally{
+    button.disabled = false;
+    button.textContent = 'Sync Google Calendar';
+  }
+}
+
+
+
 async function init(){
   if(!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY){
     showMessage('Mission Control config.js could not be found.');
