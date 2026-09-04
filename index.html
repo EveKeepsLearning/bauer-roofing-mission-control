@@ -215,66 +215,50 @@
           <div>
 
             <div class="card">
-
-              <h2>
-                Communication Due
-              </h2>
-
-              <div class="meta" style="margin-bottom:12px">
-                Customer calls, texts, emails, and follow-ups due today or overdue.
-              </div>
-
+              <h2>Communication Due</h2>
+              <div class="meta" style="margin-bottom:12px">Customer calls, texts, emails, and follow-ups due today or overdue.</div>
               <div id="commList"></div>
-
             </div>
 
+            <div class="card">
+              <h2>Financial / QuickBooks</h2>
+              <div class="meta" style="margin-bottom:12px">QuickBooks, payroll, taxes, bills, credit cards, deposits, and accounting work.</div>
+              <div id="financialList"></div>
+            </div>
 
             <div class="card">
-
               <div class="toolbar">
-
-                <h2>
-                  Needs Your Attention
-                </h2>
-
+                <h2>Needs Your Attention</h2>
                 <div class="spacer"></div>
-
-                <button
-                  class="btn small primary"
-                  id="newTaskBtn">
-                  + Task
-                </button>
-
+                <button class="btn small primary" id="newTaskBtn">+ Task</button>
               </div>
-
               <div id="taskList"></div>
-
             </div>
 
           </div>
 
-
           <div>
 
             <div class="card blocked-card">
-
-              <h3>
-                Blocked / Waiting
-              </h3>
-
+              <h3>Blocked / Waiting</h3>
               <div id="blockedList"></div>
-
             </div>
 
+            <div class="card">
+              <h3>Jobs Starting This Week</h3>
+              <div id="weekJobs"></div>
+            </div>
 
             <div class="card">
-
-              <h3>
-                Jobs Starting This Week
-              </h3>
-
-              <div id="weekJobs"></div>
-
+              <h3>Quick Notes</h3>
+              <div class="meta" style="margin-bottom:10px">A scratchpad for things worth remembering that are not tasks.</div>
+              <input id="quickNoteEditId" type="hidden">
+              <textarea id="quickNoteText" placeholder="Write something down…"></textarea>
+              <div class="toolbar" style="margin-top:8px">
+                <button class="btn primary small" id="saveQuickNoteBtn" type="button">Add Note</button>
+                <button class="btn small hidden" id="cancelQuickNoteEditBtn" type="button">Cancel Edit</button>
+              </div>
+              <div id="quickNotesList" style="margin-top:12px"></div>
             </div>
 
           </div>
@@ -516,15 +500,25 @@
         </div>
 
         <div class="card">
+          <h3>Import Existing Angi History</h3>
+          <p class="auth-note"><b>One-time migration.</b> This imports the existing tracker prospects, communication history, and appointments silently. Historical records are blocked from automatic first-contact text/email.</p>
+          <div class="toolbar">
+            <input id="angiHistoricalImportFile" type="file" accept=".json,application/json">
+            <button class="btn primary small" id="angiHistoricalImportBtn" type="button">Import Existing History</button>
+          </div>
+          <div id="angiHistoricalImportStatus" class="meta"></div>
+        </div>
+
+        <div class="card">
           <h3>Import New Angi Export</h3>
-          <p class="auth-note">Use this for new Angi downloads going forward. Choose which Angi account the export came from, then select the downloaded .xls or .csv file. Existing Angi reference numbers are skipped instead of overwritten.</p>
+          <p class="auth-note">Use this for new Angi downloads going forward. Choose which Angi account the export came from, then select the downloaded .csv file. Existing Angi reference numbers are skipped instead of overwritten.</p>
           <div class="toolbar">
             <select id="angiImportAccount" style="max-width:260px">
               <option value="">Choose Angi account…</option>
               <option>Bauer Roofing - PPL</option>
               <option>Bauer Roofing Inc - Angi Ads</option>
             </select>
-            <input id="angiImportFile" type="file" accept=".xls,.csv,text/csv,text/plain">
+            <input id="angiImportFile" type="file" accept=".csv,text/csv,text/plain">
             <button class="btn primary small" id="angiImportBtn" type="button">Import New Prospects</button>
           </div>
           <div id="angiImportStatus" class="meta"></div>
