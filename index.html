@@ -272,6 +272,12 @@
               <div id="royUpdateList"></div>
             </div>
 
+            <div class="card section-card section-production">
+              <h3>Dad's Production Updates</h3>
+              <div class="meta" style="margin-bottom:10px">Production changes, schedule notices, and customer-contact handoffs from Dad.</div>
+              <div id="dadUpdateList"></div>
+            </div>
+
             <div class="card blocked-card section-card section-blocked">
               <h3>Blocked / Waiting</h3>
               <div id="blockedList"></div>
@@ -632,6 +638,12 @@
             <div class="spacer"></div>
 
             <button
+              class="btn small"
+              id="createDadProductionLinkBtn">
+              Create Dad Production Check-Off
+            </button>
+
+            <button
               class="btn small primary"
               id="newJobBtn">
               + Job
@@ -641,10 +653,16 @@
 
 
           <p class="auth-note">
-            The production model is already connected to client communication.
-            Jobs can move from Sold → Pre-Production → Scheduled →
-            In Production → Complete → Closed without changing the task system.
+            You create the Job after receiving the signed contract. Dad updates
+            production facts; Mission Control keeps customer communication on
+            your list unless Dad marks that he already contacted the customer.
           </p>
+
+          <div class="production-kpis">
+            <div class="kpi"><div class="n" id="productionActiveKpi">0</div><div class="l">Active jobs</div></div>
+            <div class="kpi"><div class="n" id="productionUpdateKpi">0</div><div class="l">Need production update</div></div>
+            <div class="kpi"><div class="n" id="productionContactKpi">0</div><div class="l">Customer contact due</div></div>
+          </div>
 
 
           <div id="jobsTable"></div>
@@ -1287,6 +1305,16 @@
 
             </div>
 
+            <div>
+              <label>Contract date</label>
+              <input id="jobContractDate" type="date">
+            </div>
+
+            <div>
+              <label>Job type</label>
+              <input id="jobType" placeholder="Roof replacement, repair…">
+            </div>
+
 
             <div>
 
@@ -1295,14 +1323,50 @@
               </label>
 
               <select id="jobStage">
-                <option>Sold</option>
-                <option>Pre-Production</option>
+                <option>Needs Production Review</option>
+                <option>Waiting for Information</option>
+                <option>Production Queue</option>
+                <option>Ready to Order</option>
+                <option>Materials Ordered</option>
                 <option>Scheduled</option>
                 <option>In Production</option>
-                <option>Complete</option>
+                <option>Weather Delay</option>
+                <option>Other Delay</option>
+                <option>Punch List / Final Inspection</option>
+                <option>Production Complete</option>
                 <option>Final / Closed</option>
               </select>
 
+            </div>
+
+            <div>
+              <label>Material type</label>
+              <input id="jobMaterialType" placeholder="Shingle / metal / other">
+            </div>
+
+            <div>
+              <label>Material color</label>
+              <input id="jobMaterialColor">
+            </div>
+
+            <div>
+              <label>Material delivery date</label>
+              <input id="jobMaterialDelivery" type="date">
+            </div>
+
+            <div>
+              <label>Expected completion date</label>
+              <input id="jobExpectedCompletion" type="date">
+            </div>
+
+            <div>
+              <label>Next production update due</label>
+              <input id="jobNextProductionUpdate" type="date">
+            </div>
+
+            <div class="wide">
+              <label>Production blocker / waiting on</label>
+              <input id="jobProductionBlocker" placeholder="Permit, materials, weather, customer decision…">
             </div>
 
 
