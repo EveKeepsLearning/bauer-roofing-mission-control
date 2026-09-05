@@ -93,7 +93,7 @@
 
     <div id="appCard" class="card hidden">
       <h1>Quick appointment update</h1>
-      <div class="sub" id="introText">Just tap what happened. This should take less than a minute.</div>
+      <div class="sub" id="introText">Update today's appointments first, followed by any unanswered past appointments or estimates.</div>
 
       <div class="progress"><div id="progressBar"></div></div>
       <div class="small" id="progressText"></div>
@@ -159,6 +159,15 @@ function timeText(value){
   }).format(new Date(value));
 }
 
+function dateText(value){
+  return new Intl.DateTimeFormat('en-US',{
+    timeZone:'America/New_York',
+    month:'short',
+    day:'numeric',
+    year:'numeric'
+  }).format(new Date(value));
+}
+
 function renderOutcomeButtons(){
   const choices = items[index]?.item_type === 'estimate'
     ? ESTIMATE_OUTCOMES
@@ -191,10 +200,13 @@ function render(){
   const address = isEstimate ? (item.street_address || '') : (item.property_text || '');
   const leadNumber = isEstimate ? item.lead_number : item.matched_lead_number;
   const leadLabel=leadNumber ? 'Lead # '+leadNumber : '';
+  const appointmentLabel = isEstimate
+    ? 'PAST ESTIMATE CHECK'
+    : dateText(item.start_at)+' • '+timeText(item.start_at)+' - '+timeText(item.end_at);
 
   $('appointmentArea').innerHTML=`
     <div class="appt">
-      <div class="appt-time">${isEstimate ? 'PAST ESTIMATE CHECK' : esc(timeText(item.start_at))+' - '+esc(timeText(item.end_at))}</div>
+      <div class="appt-time">${esc(appointmentLabel)}</div>
       <div class="appt-title">${esc(homeowner || item.summary || 'Appointment')}</div>
       <div class="appt-meta">
         ${address ? esc(address)+'<br>' : ''}
