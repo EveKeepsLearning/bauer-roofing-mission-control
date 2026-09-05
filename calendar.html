@@ -236,7 +236,7 @@
     .review-queue-list{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:10px;margin-top:12px}
     .review-queue-row{padding:12px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}
     .review-queue-row:last-child{border-bottom:0}.review-queue-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
-    .review-queue-section{margin-top:16px}.review-queue-section h3{margin:0 0 6px}.queue-count{display:inline-block;background:#fef7e0;color:#8a4b00;border-radius:999px;padding:3px 8px;font-size:11px}
+    .review-queue-section{margin-top:16px}.review-queue-section h3{margin:0 0 6px}.queue-count{display:inline-block;background:#fef7e0;color:#8a4b00;border-radius:999px;padding:3px 8px;font-size:11px}.review-navigation{display:flex;align-items:center;gap:8px;margin-right:auto}.review-navigation.hidden{display:none}
 
     @media(max-width:700px){
       .brand{font-size:17px}
@@ -356,6 +356,11 @@
 
       <div class="dialog-actions">
         <button class="btn small" id="notSalesBtn">Not related to a lead</button>
+        <div id="reviewNavigation" class="review-navigation hidden">
+          <button class="btn small" id="backToReviewListBtn" type="button">Review List</button>
+          <span id="reviewProgress" class="status-line"></span>
+          <button class="btn primary small" id="nextReviewBtn" type="button">Next Unreviewed</button>
+        </div>
         <button class="btn" id="closeDialogBtn">Close</button>
       </div>
     </div>
@@ -489,7 +494,7 @@
   </dialog>
 
   <dialog id="pastReviewDialog">
-    <div class="dialog-card" style="max-width:900px">
+    <div class="dialog-card" id="pastReviewCard" style="max-width:900px">
       <h2>Past Items Needing Review</h2>
       <div class="dialog-sub">Unmatched calendar appointments and imported leads still waiting for an appointment outcome.</div>
       <div class="search-row">
@@ -521,6 +526,10 @@ let appointments = [];
 let activeEvent = null;
 let bulkImportPlan = [];
 let pastReviewEvents = [];
+let reviewQueueActive = false;
+let reviewQueueEventIds = [];
+let reviewQueueIndex = -1;
+let pastReviewScrollTop = 0;
 
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({
@@ -962,6 +971,7 @@ async function saveLeadFromCalendarDialog(){
 
   saveBtn.disabled = false;
   saveBtn.textContent = 'Add Lead';
+  await advanceReviewQueueAfterResolution(eventRow.id);
 }
 
 function getCalendarSyncUrl(){
@@ -1384,15 +1394,20 @@ function pastReviewSearchText(value){
   return normalizeText(value);
 }
 
-function renderPastReviewQueue(){
+function filteredPastReviewEvents(){
   const query=pastReviewSearchText($('pastReviewSearch').value);
-  const eventRows=pastReviewEvents.filter(row=>{
+  return pastReviewEvents.filter(row=>{
     if(!query) return true;
     return pastReviewSearchText([
       row.summary,row.property_text,row.contact_first_name,row.contact_last_name,
       row.phone_primary,row.phone_secondary,row.email,row.start_at
     ].filter(Boolean).join(' ')).includes(query);
   });
+}
+
+function renderPastReviewQueue(){
+  const query=pastReviewSearchText($('pastReviewSearch').value);
+  const eventRows=filteredPastReviewEvents();
 
   const outcomeLeads=leads.filter(lead=>
     !lead.deleted_at &&
@@ -1414,7 +1429,7 @@ function renderPastReviewQueue(){
       : hasEnoughInfoToCreateLead(row)
         ? 'No existing match found; this can be added as a new Lead.'
         : 'More information is needed before creating a Lead.';
-    return `<div class="review-queue-row">
+    return `<div class="review-queue-row" data-review-row-id="${esc(row.id)}">
       <div>
         <b>${esc(inferHomeownerName(row)||row.summary||'Calendar appointment')}</b>
         <div class="meta">${esc(displayDate(new Date(row.start_at),{month:'short',day:'numeric',year:'numeric'}))} • ${esc(row.property_text||'No address')} • ${esc(type)}</div>
@@ -1473,6 +1488,10 @@ async function loadPastReviewQueue(){
 }
 
 async function openPastReviewQueue(){
+  reviewQueueActive=false;
+  reviewQueueEventIds=[];
+  reviewQueueIndex=-1;
+  pastReviewScrollTop=0;
   $('pastReviewSearch').value='';
   $('pastReviewDialog').showModal();
   await loadPastReviewQueue();
@@ -1481,10 +1500,62 @@ async function openPastReviewQueue(){
 async function openPastReviewEvent(eventId){
   const row=pastReviewEvents.find(item=>item.id===eventId);
   if(!row) return;
+  reviewQueueActive=true;
+  reviewQueueEventIds=filteredPastReviewEvents().map(item=>item.id);
+  reviewQueueIndex=reviewQueueEventIds.indexOf(eventId);
+  pastReviewScrollTop=$('pastReviewCard').scrollTop;
   $('pastReviewDialog').close();
+  await showReviewQueueEvent(reviewQueueIndex);
+}
+
+async function showReviewQueueEvent(index){
+  if(!reviewQueueActive||!reviewQueueEventIds.length) return;
+  const safeIndex=Math.max(0,Math.min(index,reviewQueueEventIds.length-1));
+  const eventId=reviewQueueEventIds[safeIndex];
+  const row=pastReviewEvents.find(item=>item.id===eventId);
+  if(!row) return;
+  reviewQueueIndex=safeIndex;
   weekStart=startOfWeek(new Date(row.start_at));
   await loadWeek();
   openDetails(events.find(item=>item.id===eventId)||row);
+}
+
+function renderReviewNavigation(){
+  const nav=$('reviewNavigation');
+  if(!reviewQueueActive||reviewQueueIndex<0||!reviewQueueEventIds.length){
+    nav.classList.add('hidden');
+    return;
+  }
+  nav.classList.remove('hidden');
+  $('reviewProgress').textContent=`${reviewQueueIndex+1} of ${reviewQueueEventIds.length}`;
+  $('nextReviewBtn').disabled=reviewQueueIndex>=reviewQueueEventIds.length-1;
+}
+
+async function returnToReviewList(reload=false,message=''){
+  if($('eventDialog').open) $('eventDialog').close();
+  if(!$('pastReviewDialog').open) $('pastReviewDialog').showModal();
+  if(reload) await loadPastReviewQueue(); else renderPastReviewQueue();
+  if(message) $('pastReviewStatus').textContent=message;
+  requestAnimationFrame(()=>{$('pastReviewCard').scrollTop=pastReviewScrollTop;});
+}
+
+async function advanceReviewQueueAfterResolution(eventId){
+  if(!reviewQueueActive) return;
+  const oldIndex=reviewQueueEventIds.indexOf(eventId);
+  if(oldIndex<0) return;
+  pastReviewEvents=pastReviewEvents.filter(item=>item.id!==eventId);
+  reviewQueueEventIds.splice(oldIndex,1);
+
+  if(oldIndex<reviewQueueEventIds.length){
+    reviewQueueIndex=oldIndex;
+    await showReviewQueueEvent(reviewQueueIndex);
+    return;
+  }
+
+  reviewQueueIndex=Math.max(0,reviewQueueEventIds.length-1);
+  await returnToReviewList(true,reviewQueueEventIds.length
+    ? 'You reached the end of this review list. Remaining unresolved items are shown below.'
+    : 'All calendar items in this review list are complete.');
 }
 
 
@@ -1911,7 +1982,8 @@ function openDetails(row){
 
   renderReview(row);
   renderAppointmentResult(row);
-  $('eventDialog').showModal();
+  renderReviewNavigation();
+  if(!$('eventDialog').open) $('eventDialog').showModal();
 }
 
 
@@ -1923,11 +1995,12 @@ function appointmentExternalKey(row){
 
 function appointmentForCalendarEvent(row){
   const externalKey=appointmentExternalKey(row);
-  const exact=appointments.find(item=>item.external_import_key===externalKey);
+  const exact=appointments.find(item=>!item.deleted_at&&item.external_import_key===externalKey);
   if(exact) return exact;
   if(!row.matched_lead_id) return null;
   const target=new Date(row.start_at).getTime();
   return appointments.find(item=>
+    !item.deleted_at &&
     item.lead_id===row.matched_lead_id &&
     item.appointment_at &&
     Math.abs(new Date(item.appointment_at).getTime()-target)<60000
@@ -2058,13 +2131,31 @@ async function ensureMissionControlAppointment(row,lead){
     updated_at: new Date().toISOString()
   };
 
-  const existing = await db
+  let existing = await db
     .from('appointments')
     .select('*')
     .eq('external_import_key',externalKey)
+    .is('deleted_at',null)
     .limit(1);
 
   if(existing.error) throw existing.error;
+
+  // A manually entered appointment at the identical time is the same visit.
+  // Adopt it for the Google Calendar event instead of creating a duplicate.
+  if(!existing.data?.length){
+    const appointmentMinute=new Date(row.start_at);
+    appointmentMinute.setSeconds(0,0);
+    const nextMinute=new Date(appointmentMinute.getTime()+60000);
+    existing = await db
+      .from('appointments')
+      .select('*')
+      .eq('lead_id',lead.id)
+      .gte('appointment_at',appointmentMinute.toISOString())
+      .lt('appointment_at',nextMinute.toISOString())
+      .is('deleted_at',null)
+      .limit(1);
+    if(existing.error) throw existing.error;
+  }
 
   let saved;
 
@@ -2072,6 +2163,7 @@ async function ensureMissionControlAppointment(row,lead){
     const current = existing.data[0];
     const safePayload = {
       ...appointmentPayload,
+      notes: [...new Set([current.notes,appointmentPayload.notes].map(value=>String(value||'').trim()).filter(Boolean))].join('\n\n'),
       appointment_status: ['Completed','Cancelled'].includes(current.appointment_status)
         ? current.appointment_status
         : desiredStatus
@@ -2155,6 +2247,7 @@ async function matchEventToLead(leadId,score,reason){
   renderCalendar();
   renderReview(data);
   renderAppointmentResult(data);
+  await advanceReviewQueueAfterResolution(data.id);
 }
 
 async function markNotSalesRelated(){
@@ -2185,6 +2278,7 @@ async function markNotSalesRelated(){
   renderCalendar();
   renderReview(data);
   renderAppointmentResult(data);
+  await advanceReviewQueueAfterResolution(data.id);
 }
 
 function searchLeads(){
@@ -2258,8 +2352,15 @@ $('syncCalendarBtn').onclick=syncGoogleCalendarNow;
 $('bulkImportBtn').onclick=openBulkImportDialog;
 $('pastReviewBtn').onclick=openPastReviewQueue;
 $('refreshPastReviewBtn').onclick=loadPastReviewQueue;
-$('closePastReviewBtn').onclick=()=>$('pastReviewDialog').close();
+$('closePastReviewBtn').onclick=()=>{
+  reviewQueueActive=false;
+  reviewQueueEventIds=[];
+  reviewQueueIndex=-1;
+  $('pastReviewDialog').close();
+};
 $('pastReviewSearch').addEventListener('input',renderPastReviewQueue);
+$('backToReviewListBtn').onclick=()=>returnToReviewList(false);
+$('nextReviewBtn').onclick=()=>showReviewQueueEvent(reviewQueueIndex+1);
 $('previewBulkImportBtn').onclick=previewBulkImport;
 $('runBulkImportBtn').onclick=runBulkImport;
 $('closeBulkImportBtn').onclick=()=>$('bulkImportDialog').close();
@@ -2276,7 +2377,7 @@ $('refreshBtn').onclick=async()=>{
   await loadWeek();
 };
 $('saveCalendarAppointmentResultBtn').onclick=saveCalendarAppointmentResult;
-$('closeDialogBtn').onclick=()=>$('eventDialog').close();
+$('closeDialogBtn').onclick=()=>reviewQueueActive?returnToReviewList(false):$('eventDialog').close();
 $('leadSearchBtn').onclick=searchLeads;
 $('leadSearch').addEventListener('keydown',e=>{if(e.key==='Enter') searchLeads();});
 $('notSalesBtn').onclick=markNotSalesRelated;
