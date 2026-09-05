@@ -1,237 +1,2391 @@
-:root{--bg:#f5f6f8;--card:#fff;--text:#202124;--muted:#6b7280;--line:#dfe3e8;--blue:#1a73e8;--blue2:#1558b0;--red:#b3261e;--amber:#fff7ed;--green:#137333;--soft:#eef3f8;--shadow:0 1px 3px rgba(0,0,0,.08)}
-*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}button,input,textarea,select{font:inherit}.hidden{display:none!important}
-header{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line);padding:12px 18px}.head-row{max-width:1180px;margin:auto;display:flex;gap:12px;align-items:center;justify-content:space-between}.brand h1{font-size:21px;margin:0}.brand .sub{font-size:12px;color:var(--muted);margin-top:3px}.nav{max-width:1180px;margin:8px auto 0;display:flex;gap:5px;flex-wrap:wrap}.nav button{border:0;background:transparent;padding:8px 10px;border-radius:7px;cursor:pointer}.nav button.active,.nav button:hover{background:var(--soft)}
-.wrap{max-width:1180px;margin:16px auto;padding:0 14px}.grid{display:grid;grid-template-columns:2fr 1fr;gap:14px}.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px;box-shadow:var(--shadow)}.critical{border-left:5px solid #c62828}.blocked-card{background:var(--amber)}.card h2,.card h3{margin:0 0 10px}.task{padding:11px 0;border-bottom:1px solid #edf0f3}.task:last-child{border-bottom:0}.task-title{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.meta{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.5}.actions{margin-top:4px}.badge{display:inline-block;border-radius:11px;padding:2px 7px;font-size:11px;background:#eef0f2}.badge.Critical{background:#fce8e6;color:#a50e0e}.badge.High{background:#fef7e0;color:#8a5a00}.badge.Normal{background:#e8f0fe;color:#174ea6}.btn{border:0;border-radius:7px;padding:8px 11px;margin:6px 4px 0 0;cursor:pointer;background:#e9eef5}.btn:hover{filter:brightness(.97)}.btn.primary{background:var(--blue);color:#fff}.btn.primary:hover{background:var(--blue2)}.btn.danger{background:var(--red);color:#fff}.btn.small{padding:6px 8px;font-size:12px}.btn.ghost{background:transparent;border:1px solid var(--line)}
-input,textarea,select{width:100%;padding:9px;border:1px solid #c9cdd2;border-radius:7px;margin:4px 0 10px;background:#fff}textarea{min-height:86px;resize:vertical}label{font-size:13px;font-weight:600}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.form-grid .wide{grid-column:1/-1}.notice{padding:10px 12px;border-radius:8px;margin-bottom:14px;background:#eef3f8;font-size:13px}.notice.error{background:#fce8e6;color:#8c1d18;border:1px solid #f2b8b5}.notice.success{background:#e6f4ea;color:#137333;border:1px solid #ceead6}.empty{color:var(--muted);font-size:14px}.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.toolbar .spacer{flex:1}.current-next{font-weight:600}.loading-line{height:6px;background:linear-gradient(90deg,#ddd,#f4f4f4,#ddd);background-size:200% 100%;animation:shimmer 1.2s linear infinite;border-radius:4px;margin:10px 0}@keyframes shimmer{to{background-position:-200% 0}}
-.login{max-width:460px;margin:70px auto;padding:0 14px}.login .card{padding:24px}.login h1{margin-top:0}.auth-note{font-size:13px;color:var(--muted);line-height:1.5}.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}.kpi{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px}.kpi .n{font-size:24px;font-weight:700}.kpi .l{font-size:12px;color:var(--muted)}
-.table-wrap{overflow:auto}.simple-table{width:100%;border-collapse:collapse;font-size:13px}.simple-table th,.simple-table td{text-align:left;padding:8px;border-bottom:1px solid #eee;vertical-align:top}.simple-table th{color:#555;font-size:12px}.job-stage{font-weight:600}.comm-overdue{color:var(--red);font-weight:600}.footer{max-width:1180px;margin:28px auto;padding:0 14px 30px;color:var(--muted);font-size:11px}
-@media(max-width:780px){.grid,.form-grid{grid-template-columns:1fr}.form-grid .wide{grid-column:auto}.kpi-row{grid-template-columns:1fr 1fr}.head-row{align-items:flex-start}.wrap{margin-top:10px}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Bauer Roofing Mission Control - Calendar</title>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
 
-/* ============================================================
-   PHASE 3 VISUAL LANGUAGE — color is used as a workflow cue
-   ============================================================ */
-:root{
-  --danger-bg:#fdebea;--danger-line:#d93025;
-  --warn-bg:#fff4dc;--warn-line:#d68b00;
-  --success-bg:#e9f6ec;--success-line:#188038;
-  --info-bg:#eaf2ff;--info-line:#2f73d9;:root{--bg:#f5f6f8;--card:#fff;--text:#202124;--muted:#6b7280;--line:#dfe3e8;--blue:#1a73e8;--blue2:#1558b0;--red:#b3261e;--amber:#fff7ed;--green:#137333;--soft:#eef3f8;--shadow:0 1px 3px rgba(0,0,0,.08)}
-*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}button,input,textarea,select{font:inherit}.hidden{display:none!important}
-header{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line);padding:12px 18px}.head-row{max-width:1180px;margin:auto;display:flex;gap:12px;align-items:center;justify-content:space-between}.brand h1{font-size:21px;margin:0}.brand .sub{font-size:12px;color:var(--muted);margin-top:3px}.nav{max-width:1180px;margin:8px auto 0;display:flex;gap:5px;flex-wrap:wrap}.nav button{border:0;background:transparent;padding:8px 10px;border-radius:7px;cursor:pointer}.nav button.active,.nav button:hover{background:var(--soft)}
-.wrap{max-width:1180px;margin:16px auto;padding:0 14px}.grid{display:grid;grid-template-columns:2fr 1fr;gap:14px}.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px;box-shadow:var(--shadow)}.critical{border-left:5px solid #c62828}.blocked-card{background:var(--amber)}.card h2,.card h3{margin:0 0 10px}.task{padding:11px 0;border-bottom:1px solid #edf0f3}.task:last-child{border-bottom:0}.task-title{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.meta{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.5}.actions{margin-top:4px}.badge{display:inline-block;border-radius:11px;padding:2px 7px;font-size:11px;background:#eef0f2}.badge.Critical{background:#fce8e6;color:#a50e0e}.badge.High{background:#fef7e0;color:#8a5a00}.badge.Normal{background:#e8f0fe;color:#174ea6}.btn{border:0;border-radius:7px;padding:8px 11px;margin:6px 4px 0 0;cursor:pointer;background:#e9eef5}.btn:hover{filter:brightness(.97)}.btn.primary{background:var(--blue);color:#fff}.btn.primary:hover{background:var(--blue2)}.btn.danger{background:var(--red);color:#fff}.btn.small{padding:6px 8px;font-size:12px}.btn.ghost{background:transparent;border:1px solid var(--line)}
-input,textarea,select{width:100%;padding:9px;border:1px solid #c9cdd2;border-radius:7px;margin:4px 0 10px;background:#fff}textarea{min-height:86px;resize:vertical}label{font-size:13px;font-weight:600}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.form-grid .wide{grid-column:1/-1}.notice{padding:10px 12px;border-radius:8px;margin-bottom:14px;background:#eef3f8;font-size:13px}.notice.error{background:#fce8e6;color:#8c1d18;border:1px solid #f2b8b5}.notice.success{background:#e6f4ea;color:#137333;border:1px solid #ceead6}.empty{color:var(--muted);font-size:14px}.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.toolbar .spacer{flex:1}.current-next{font-weight:600}.loading-line{height:6px;background:linear-gradient(90deg,#ddd,#f4f4f4,#ddd);background-size:200% 100%;animation:shimmer 1.2s linear infinite;border-radius:4px;margin:10px 0}@keyframes shimmer{to{background-position:-200% 0}}
-.login{max-width:460px;margin:70px auto;padding:0 14px}.login .card{padding:24px}.login h1{margin-top:0}.auth-note{font-size:13px;color:var(--muted);line-height:1.5}.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}.kpi{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px}.kpi .n{font-size:24px;font-weight:700}.kpi .l{font-size:12px;color:var(--muted)}
-.table-wrap{overflow:auto}.simple-table{width:100%;border-collapse:collapse;font-size:13px}.simple-table th,.simple-table td{text-align:left;padding:8px;border-bottom:1px solid #eee;vertical-align:top}.simple-table th{color:#555;font-size:12px}.job-stage{font-weight:600}.comm-overdue{color:var(--red);font-weight:600}.footer{max-width:1180px;margin:28px auto;padding:0 14px 30px;color:var(--muted);font-size:11px}
-@media(max-width:780px){.grid,.form-grid{grid-template-columns:1fr}.form-grid .wide{grid-column:auto}.kpi-row{grid-template-columns:1fr 1fr}.head-row{align-items:flex-start}.wrap{margin-top:10px}}
+  <style>
+    :root{
+      --bg:#f8f9fa;
+      --panel:#fff;
+      --text:#202124;
+      --muted:#5f6368;
+      --line:#dadce0;
+      --soft-line:#e8eaed;
+      --today:#e8f0fe;
+      --today-strong:#1a73e8;
+      --repair:#4054b2;
+      --reroof:#039be5;
+      --other:#039be5;
+      --warning:#f9ab00;
+      --success:#188038;
+      --success-bg:#e6f4ea;
+      --danger:#d93025;
+      --hour-height:64px;
+      --header-height:70px;
+      --time-width:72px;
+    }
 
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:Arial,Helvetica,sans-serif;color:var(--text);background:var(--bg)}
+    button,input{font:inherit}
+    .hidden{display:none!important}
 
-/* ============================================================
-   PHASE 3 VISUAL LANGUAGE — color is used as a workflow cue
-   ============================================================ */
-:root{
-  --danger-bg:#fdebea;--danger-line:#d93025;
-  --warn-bg:#fff4dc;--warn-line:#d68b00;
-  --success-bg:#e9f6ec;--success-line:#188038;
-  --info-bg:#eaf2ff;--info-line:#2f73d9;
-  --purple-bg:#f3edff;--purple-line:#7b61b8;
-  --teal-bg:#e7f6f5;--teal-line:#188b86;
-  --note-bg:#fffbea;--note-line:#d6a800;
+    .topbar{
+      position:sticky;top:0;z-index:50;
+      background:#fff;border-bottom:1px solid var(--line);
+      padding:12px 18px;
+      display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    }
+    .brand{font-size:20px;font-weight:600;white-space:nowrap}
+    .top-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .spacer{flex:1}
+    .btn{
+      border:1px solid var(--line);background:#fff;color:#3c4043;
+      border-radius:20px;padding:9px 15px;cursor:pointer;text-decoration:none;
+    }
+    .btn:hover{background:#f1f3f4}
+    .btn.icon{padding:8px 12px;font-size:18px;line-height:1}
+    .btn.primary{background:#1a73e8;color:white;border-color:#1a73e8}
+    .btn.success{background:var(--success);color:white;border-color:var(--success)}
+    .btn.small{padding:6px 10px;border-radius:16px;font-size:12px}
+    .period-title{font-size:22px;font-weight:400;min-width:180px}
+
+    .legend{
+      background:#fff;border-bottom:1px solid var(--line);
+      display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+      padding:8px 18px;color:var(--muted);font-size:13px;
+    }
+    .legend-item{display:flex;align-items:center;gap:7px}
+    .dot{width:11px;height:11px;border-radius:3px;display:inline-block}
+    .dot.repair{background:var(--repair)}
+    .dot.reroof{background:var(--reroof)}
+    .review-dot{width:9px;height:9px;background:var(--warning);border-radius:50%;display:inline-block}
+    .lead-match-dot{width:10px;height:10px;background:#1a73e8;border-radius:50%;display:inline-block}
+    .matched-dot{width:10px;height:10px;background:var(--success);border-radius:50%;display:inline-block}
+
+    .message{
+      margin:14px 18px;padding:12px 14px;border-radius:8px;
+      background:#fff3cd;border:1px solid #ffe69c;color:#664d03;
+    }
+
+    .calendar-shell{
+      height:calc(100vh - 112px);
+      min-height:600px;
+      overflow:auto;background:#fff;
+    }
+
+    .calendar{
+      min-width:1100px;
+      display:grid;
+      grid-template-columns:var(--time-width) repeat(7,minmax(145px,1fr));
+      position:relative;
+    }
+
+    .corner{
+      position:sticky;top:0;left:0;z-index:35;background:#fff;
+      border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+      height:var(--header-height);
+    }
+
+    .day-head{
+      position:sticky;top:0;z-index:30;background:#fff;
+      height:var(--header-height);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      border-bottom:1px solid var(--line);
+    }
+    .day-head.today{background:#f8fbff}
+    .day-name{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.5px}
+    .day-number{
+      margin-top:6px;width:38px;height:38px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;font-size:24px;
+    }
+    .day-head.today .day-number{background:var(--today-strong);color:#fff}
+
+    .time-col{
+      position:sticky;left:0;z-index:15;background:#fff;border-right:1px solid var(--line);
+    }
+    .time-slot{
+      height:var(--hour-height);position:relative;border-bottom:1px solid transparent;
+      color:var(--muted);font-size:11px;text-align:right;padding-right:9px;
+    }
+    .time-slot span{position:relative;top:-7px;background:#fff;padding-left:4px}
+
+    .day-col{
+      position:relative;border-right:1px solid var(--line);
+      background:
+        repeating-linear-gradient(
+          to bottom,
+          transparent 0,
+          transparent calc(var(--hour-height) - 1px),
+          var(--soft-line) calc(var(--hour-height) - 1px),
+          var(--soft-line) var(--hour-height)
+        );
+    }
+    .day-col.today{background-color:#fbfdff}
+
+    .event{
+      position:absolute;left:4px;right:4px;
+      border-radius:5px;padding:5px 7px;
+      color:#fff;font-size:12px;line-height:1.25;
+      overflow:hidden;cursor:pointer;
+      border-left:3px solid rgba(255,255,255,.55);
+      box-shadow:0 1px 2px rgba(0,0,0,.12);
+    }
+    .event:hover{filter:brightness(.96)}
+    .event.repair{background:var(--repair)}
+    .event.reroof{background:var(--reroof)}
+    .event.other{background:var(--other)}
+    .event.matched{outline:2px solid rgba(24,128,56,.55);outline-offset:-2px}
+    .event-title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .event-time{opacity:.95;margin-top:2px}
+    .event-contact{opacity:.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .event .review-dot,.event .lead-match-dot,.event .matched-dot{position:absolute;right:5px;top:5px;border:1px solid rgba(255,255,255,.8)}
+
+    .now-line{
+      position:absolute;height:2px;background:#ea4335;left:0;right:0;z-index:10;pointer-events:none;
+    }
+    .now-line:before{
+      content:"";position:absolute;width:8px;height:8px;background:#ea4335;border-radius:50%;
+      left:-4px;top:-3px;
+    }
+
+    dialog{
+      border:0;border-radius:12px;padding:0;max-width:min(720px,94vw);
+      width:720px;box-shadow:0 18px 50px rgba(0,0,0,.22);
+    }
+    dialog::backdrop{background:rgba(32,33,36,.35)}
+    .dialog-card{padding:22px}
+    .dialog-card h2{margin:0 0 5px;font-size:20px}
+    .dialog-sub{color:var(--muted);margin-bottom:18px}
+    .detail-grid{display:grid;grid-template-columns:145px 1fr;gap:9px 14px;font-size:14px}
+    .detail-label{color:var(--muted)}
+    .dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:22px;flex-wrap:wrap}
+
+    .review-box{
+      margin-top:20px;padding:16px;border:1px solid #f6d36b;
+      background:#fffaf0;border-radius:10px;
+    }
+    .review-title{font-size:16px;font-weight:700;margin-bottom:4px}
+    .review-sub{font-size:13px;color:var(--muted);margin-bottom:12px}
+    .suggestions{display:grid;gap:9px}
+    .suggestion{
+      background:white;border:1px solid var(--line);border-radius:9px;
+      padding:11px 12px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;
+    }
+    .suggestion.best{border-color:#8ab4f8;box-shadow:0 0 0 1px #d2e3fc inset}
+    .suggestion-name{font-weight:700}
+    .suggestion-meta{font-size:12px;color:var(--muted);margin-top:3px}
+    .confidence{
+      display:inline-block;font-size:11px;border-radius:10px;padding:2px 7px;margin-left:6px;
+      background:#f1f3f4;color:#3c4043;
+    }
+    .confidence.high{background:var(--success-bg);color:#137333}
+    .confidence.possible{background:#fef7e0;color:#b06000}
+
+    .match-banner{
+      margin-top:18px;padding:13px 14px;border:1px solid #a8dab5;background:var(--success-bg);
+      border-radius:9px;color:#0d652d;
+    }
+    .match-banner b{color:#0d652d}
+
+    .search-row{display:flex;gap:8px;margin-top:13px}
+    .search-row input{
+      flex:1;border:1px solid var(--line);border-radius:8px;padding:9px 10px;
+    }
+    .manual-results{display:grid;gap:7px;margin-top:9px;max-height:230px;overflow:auto}
+    .manual-result{
+      background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px 10px;
+      display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;
+    }
+    .status-line{font-size:12px;color:var(--muted);margin-top:8px}
+    .appointment-result-box{margin-top:16px;padding:14px;border:1px solid #b7c9e5;background:#f7faff;border-radius:10px}
+    .appointment-result-box h3{margin:0 0 5px}.appointment-result-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+    .appointment-result-grid label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+    .appointment-result-grid select,.appointment-result-grid textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 10px;font:inherit;background:#fff}
+    .appointment-result-grid textarea{min-height:72px;resize:vertical}.appointment-result-grid .wide{grid-column:1/-1}
+    .lead-form-grid{
+      display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;margin-top:14px;
+    }
+    .lead-form-grid .wide{grid-column:1/-1}
+    .lead-form-grid label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+    .lead-form-grid input,.lead-form-grid select,.lead-form-grid textarea{
+      width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 10px;font:inherit;
+    }
+    .lead-form-grid textarea{min-height:78px;resize:vertical}
+    .sync-status{
+      font-size:12px;color:var(--muted);min-width:120px;text-align:right;
+    }
+    .create-lead-box{
+      margin-top:13px;padding-top:13px;border-top:1px solid var(--line);
+      display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+    }
+    .create-lead-copy{font-size:13px;color:var(--muted)}
+    .bulk-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}
+    .bulk-stat{border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center;background:#f8fafd}
+    .bulk-stat b{display:block;font-size:24px;color:var(--blue)}
+    .bulk-stat span{font-size:11px;color:var(--muted)}
+    .bulk-list{max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+    .bulk-row{padding:10px 12px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:105px 1fr;gap:10px}
+    .bulk-row:last-child{border-bottom:0}.bulk-kind{font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted)}
+    .bulk-row b{display:block}.bulk-row .meta{margin-top:3px}.bulk-warning{color:#8a4b00}
+    .review-queue-list{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:10px;margin-top:12px}
+    .review-queue-row{padding:12px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}
+    .review-queue-row:last-child{border-bottom:0}.review-queue-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+    .review-queue-section{margin-top:16px}.review-queue-section h3{margin:0 0 6px}.queue-count{display:inline-block;background:#fef7e0;color:#8a4b00;border-radius:999px;padding:3px 8px;font-size:11px}.review-navigation{display:flex;align-items:center;gap:8px;margin-right:auto}.review-navigation.hidden{display:none}
+
+    @media(max-width:700px){
+      .brand{font-size:17px}
+      .period-title{font-size:18px;min-width:auto}
+      .calendar-shell{height:calc(100vh - 150px)}
+      .detail-grid{grid-template-columns:1fr}
+      .detail-label{font-weight:700;margin-top:6px}
+      .suggestion,.manual-result{grid-template-columns:1fr}
+      .bulk-summary{grid-template-columns:1fr 1fr}
+      .bulk-row{grid-template-columns:1fr}
+      .review-queue-row{grid-template-columns:1fr}.review-queue-actions{justify-content:flex-start}
+      .appointment-result-grid{grid-template-columns:1fr}.appointment-result-grid .wide{grid-column:auto}
+    }
+  </style>
+</head>
+<body>
+
+  <div id="authMessage" class="message hidden"></div>
+
+  <div id="calendarApp" class="hidden">
+    <div class="topbar">
+      <div class="brand">Bauer Roofing Mission Control</div>
+
+      <div class="top-actions">
+        <a class="btn" href="https://evekeepslearning.github.io/bauer-roofing-mission-control/">Mission Control</a>
+        <button class="btn" id="todayBtn">Today</button>
+        <button class="btn icon" id="prevBtn" aria-label="Previous week">‹</button>
+        <button class="btn icon" id="nextBtn" aria-label="Next week">›</button>
+      </div>
+
+      <div class="period-title" id="periodTitle">Calendar</div>
+
+      <div class="spacer"></div>
+
+      <div class="sync-status" id="syncStatus"></div>
+      <button class="btn primary" id="syncCalendarBtn">Sync Google Calendar</button>
+      <button class="btn primary" id="bulkImportBtn">Import Past Appointments</button>
+      <button class="btn" id="pastReviewBtn">Past Items Needing Review</button>
+      <button class="btn" id="backfillAppointmentsBtn">Backfill Missing Appointments</button>
+      <button class="btn" id="createRoyLinkBtn">Create Roy Daily Check-Off</button>
+      <button class="btn" id="changeSyncUrlBtn">Change Sync URL</button>
+      <button class="btn" id="refreshBtn">Refresh View</button>
+    </div>
+
+    <div class="legend">
+      <span class="legend-item"><span class="dot repair"></span> Repair appointment</span>
+      <span class="legend-item"><span class="dot reroof"></span> Reroof / measure / presentation</span>
+      <span class="legend-item"><span class="lead-match-dot"></span> Sales appointment needs Lead match</span>
+      <span class="legend-item"><span class="review-dot"></span> Likely return visit needs review</span>
+      <span class="legend-item"><span class="matched-dot"></span> Matched to a Lead</span>
+      <span class="legend-item">Google Calendar remains the schedule</span>
+    </div>
+
+    <div class="calendar-shell" id="calendarShell">
+      <div class="calendar" id="calendarGrid"></div>
+    </div>
+  </div>
+
+  <dialog id="eventDialog">
+    <div class="dialog-card">
+      <h2 id="detailTitle"></h2>
+      <div class="dialog-sub" id="detailWhen"></div>
+
+      <div class="detail-grid" id="detailGrid"></div>
+
+      <div id="matchBanner" class="match-banner hidden"></div>
+
+      <div id="appointmentResultBox" class="appointment-result-box hidden">
+        <h3>Appointment Result</h3>
+        <div class="dialog-sub" id="appointmentResultCurrent">No result has been entered yet.</div>
+        <div class="appointment-result-grid">
+          <div>
+            <label>Result</label>
+            <select id="calendarAppointmentResult">
+              <option value="">Choose result</option>
+              <option>Estimate needed</option>
+              <option>Estimate sent / given</option>
+              <option>Another appointment needed</option>
+              <option>Another professional needs to look at the work</option>
+              <option>Contract signed</option>
+              <option>Customer thinking / follow up</option>
+              <option>Not interested</option>
+              <option>Reschedule</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="wide">
+            <label>Result note</label>
+            <textarea id="calendarAppointmentResultNote" placeholder="Optional details Roy gave you"></textarea>
+          </div>
+        </div>
+        <div class="dialog-actions" style="padding-bottom:0">
+          <div id="calendarAppointmentResultStatus" class="status-line"></div>
+          <div class="spacer"></div>
+          <button class="btn primary small" id="saveCalendarAppointmentResultBtn" type="button">Save Appointment Result</button>
+        </div>
+      </div>
+
+      <div id="reviewBox" class="review-box hidden">
+        <div class="review-title" id="reviewTitle">Review calendar event</div>
+        <div class="review-sub" id="reviewSub"></div>
+
+        <div id="suggestions" class="suggestions"></div>
+
+        <div class="search-row">
+          <input id="leadSearch" placeholder="Search another lead by name, address, phone, email, or lead #">
+          <button class="btn small" id="leadSearchBtn">Search</button>
+        </div>
+        <div id="manualResults" class="manual-results"></div>
+        <div id="matchStatus" class="status-line"></div>
+
+        <div class="create-lead-box">
+          <div class="create-lead-copy">If no existing Lead is correct, create a Lead from the calendar information without retyping it.</div>
+          <button class="btn primary small" id="createLeadBtn">Create New Lead</button>
+        </div>
+      </div>
+
+      <div class="dialog-actions">
+        <button class="btn small" id="notSalesBtn">Not related to a lead</button>
+        <div id="reviewNavigation" class="review-navigation hidden">
+          <button class="btn small" id="backToReviewListBtn" type="button">Review List</button>
+          <span id="reviewProgress" class="status-line"></span>
+          <button class="btn primary small" id="nextReviewBtn" type="button">Next Unreviewed</button>
+        </div>
+        <button class="btn" id="closeDialogBtn">Close</button>
+      </div>
+    </div>
+  </dialog>
+
+<dialog id="newLeadDialog">
+    <div class="dialog-card">
+      <h2>Add Lead from Calendar</h2>
+      <div class="dialog-sub">
+        Review and edit the information before it is added to Mission Control.
+      </div>
+
+      <div class="lead-form-grid">
+        <div>
+          <label>Bauer Lead #</label>
+          <input id="calLeadNumber" placeholder="Optional">
+        </div>
+
+        <div>
+          <label>Source</label>
+          <input id="calLeadSource">
+        </div>
+
+        <div>
+          <label>First name</label>
+          <input id="calLeadFirstName">
+        </div>
+
+        <div>
+          <label>Last name</label>
+          <input id="calLeadLastName">
+        </div>
+
+        <div class="wide">
+          <label>Street address</label>
+          <input id="calLeadStreet">
+        </div>
+
+        <div>
+          <label>City</label>
+          <input id="calLeadCity">
+        </div>
+
+        <div>
+          <label>State</label>
+          <input id="calLeadState" value="SC">
+        </div>
+
+        <div>
+          <label>ZIP</label>
+          <input id="calLeadZip">
+        </div>
+
+        <div>
+          <label>Primary phone</label>
+          <input id="calLeadPhone">
+        </div>
+
+        <div>
+          <label>Secondary phone</label>
+          <input id="calLeadPhone2">
+        </div>
+
+        <div class="wide">
+          <label>Email</label>
+          <input id="calLeadEmail" type="email">
+        </div>
+
+        <div>
+          <label>Lead status</label>
+          <select id="calLeadStatus">
+            <option>Appointment Wanted</option>
+            <option>Scheduling</option>
+            <option selected>Appointment Scheduled</option>
+            <option>Appointment Outcome Needed</option>
+            <option>Estimate Pending</option>
+            <option>Estimate Sent</option>
+            <option>Sold</option>
+            <option>Not Moving Forward</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Work requested</label>
+          <select id="calLeadWorkCategory">
+            <option>Roofing</option>
+            <option>Windows</option>
+            <option>Siding</option>
+            <option>Gutters</option>
+            <option>Multiple</option>
+            <option>Not Sure</option>
+            <option>Other</option>
+          </select>
+        </div>
+
+        <div class="wide">
+          <label>Notes</label>
+          <textarea id="calLeadNotes"></textarea>
+        </div>
+      </div>
+
+      <div id="newLeadSaveStatus" class="status-line"></div>
+
+      <div class="dialog-actions">
+        <button class="btn" id="cancelNewLeadBtn" type="button">Cancel</button>
+        <button class="btn primary" id="saveNewLeadBtn" type="button">Add Lead</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="bulkImportDialog">
+    <div class="dialog-card" style="max-width:820px">
+      <h2>Import Past Appointments into Leads</h2>
+      <div class="dialog-sub">Preview first. Mission Control will only automate clear matches and well-formed new leads.</div>
+
+      <div class="lead-form-grid">
+        <div><label>Beginning date</label><input id="bulkStartDate" type="date" value="2026-06-01"></div>
+        <div><label>Ending date</label><input id="bulkEndDate" type="date" value="2026-07-31"></div>
+      </div>
+
+      <div id="bulkImportStatus" class="status-line"></div>
+      <div id="bulkImportSummary"></div>
+      <div id="bulkImportList" class="bulk-list hidden"></div>
+
+      <div class="dialog-actions">
+        <button class="btn" id="closeBulkImportBtn" type="button">Cancel</button>
+        <button class="btn" id="previewBulkImportBtn" type="button">Preview Import</button>
+        <button class="btn primary hidden" id="runBulkImportBtn" type="button">Import Approved Items</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="pastReviewDialog">
+    <div class="dialog-card" id="pastReviewCard" style="max-width:900px">
+      <h2>Past Items Needing Review</h2>
+      <div class="dialog-sub">Unmatched calendar appointments and imported leads still waiting for an appointment outcome.</div>
+      <div class="search-row">
+        <input id="pastReviewSearch" type="search" placeholder="Search name, address, phone, lead number, or date">
+        <button class="btn small" id="refreshPastReviewBtn" type="button">Refresh</button>
+      </div>
+      <div id="pastReviewStatus" class="status-line"></div>
+      <div id="pastReviewContent"></div>
+      <div class="dialog-actions">
+        <button class="btn" id="closePastReviewBtn" type="button">Close</button>
+      </div>
+    </div>
+  </dialog>
+
+<script>
+'use strict';
+
+const cfg = window.BAUER_CONFIG || {};
+const TZ = 'America/New_York';
+const START_HOUR = 6;
+const END_HOUR = 20;
+const HOUR_HEIGHT = 64;
+
+let db = null;
+let weekStart = startOfWeek(new Date());
+let events = [];
+let leads = [];
+let appointments = [];
+let activeEvent = null;
+let bulkImportPlan = [];
+let pastReviewEvents = [];
+let reviewQueueActive = false;
+let reviewQueueEventIds = [];
+let reviewQueueIndex = -1;
+let pastReviewScrollTop = 0;
+
+const $ = id => document.getElementById(id);
+const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({
+  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+}[c]));
+
+function startOfWeek(date){
+  const d = new Date(date);
+  d.setHours(0,0,0,0);
+  d.setDate(d.getDate() - d.getDay());
+  return d;
 }
 
-/* Navigation: small consistent color cue without becoming decorative. */
-.nav button[data-view="today"].active{background:#eaf2ff;color:#174ea6}
-.nav button[data-view="phone"].active{background:#e7f6f5;color:#146c68}
-.nav button[data-view="incoming"].active{background:#f3edff;color:#6947a3}
-.nav button[data-view="angi"].active{background:#e9f6ec;color:#176b34}
-.nav button[data-view="leads"].active{background:#eaf2ff;color:#174ea6}
-.nav button[data-view="jobs"].active{background:#fff4dc;color:#7a5200}
-.nav button[data-view="playbook"].active{background:#eef0f2;color:#41464c}
-.nav button[data-view="suggestions"].active{background:#f3edff;color:#6947a3}
-
-/* Today sections */
-.section-card{border-left:5px solid var(--line)}
-.section-communication{border-left-color:#2f73d9;background:linear-gradient(90deg,#f7faff 0,#fff 90px)}
-.section-financial{border-left-color:#188b86;background:linear-gradient(90deg,#f5fbfa 0,#fff 90px)}
-.section-attention{border-left-color:#d93025;background:linear-gradient(90deg,#fff8f7 0,#fff 90px)}
-.section-blocked{border-left-color:#d68b00}
-.section-jobs{border-left-color:#188038;background:linear-gradient(90deg,#f7fcf8 0,#fff 90px)}
-.section-notes{border-left-color:#d6a800;background:linear-gradient(90deg,#fffdf3 0,#fff 90px)}
-
-/* Give each operational tab a restrained identity. */
-#view-phone>.card{border-top:4px solid var(--teal-line)}
-#view-incoming>.card{border-top:4px solid var(--purple-line)}
-#view-leads>.card,#view-leads>.grid .card{border-top:4px solid var(--info-line)}
-#view-jobs>.card{border-top:4px solid var(--warn-line)}
-#view-playbook>.card{border-top:4px solid #7c8794}
-#view-suggestions>.card{border-top:4px solid var(--purple-line)}
-
-/* Useful status emphasis across lists. */
-.task{transition:background .12s ease,border-color .12s ease}
-.task:hover{background:#fafcff}
-.notice.warning{background:var(--warn-bg);border:1px solid #f0d38b;color:#6f4d00}
-.badge.Crucial,.badge.Critical{background:var(--danger-bg);color:#a50e0e}
-.badge.High{background:var(--warn-bg);color:#825500}
-.badge.Normal{background:var(--info-bg);color:#174ea6}
-
-/* Angi — intentionally mirrors the fast work-one-contact-at-a-time experience. */
-.angi-kpis{grid-template-columns:repeat(6,1fr)}
-.angi-kpis .kpi{border-top:4px solid var(--line)}
-.angi-kpis .tone-new{border-top-color:#188038;background:#f4fbf5}
-.angi-kpis .tone-overdue{border-top-color:#d93025;background:#fff7f6}
-.angi-kpis .tone-today{border-top-color:#2f73d9;background:#f5f9ff}
-.angi-kpis .tone-admin{border-top-color:#d68b00;background:#fffaf0}
-.angi-kpis .tone-review{border-top-color:#7b61b8;background:#faf7ff}
-.angi-kpis .tone-duplicate{border-top-color:#b35c00;background:#fff6ec}
-.angi-toolbar-card{border-top:4px solid #1f4f7f}
-.angi-legend{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px}
-.legend-pill,.angi-time-pill{display:inline-block;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:700;letter-spacing:.02em;border:1px solid rgba(0,0,0,.06)}
-.call-first{background:#dff3e4;color:#146c2e}.morning{background:#e7f6f5;color:#146c68}.midday{background:#e9f1ff;color:#2457a3}.final-call{background:#f2ebff;color:#6844a3}.overdue{background:#fde3e1;color:#a71911}.later{background:#f0f1f3;color:#525960}.admin{background:#fff0c9;color:#775000}.duplicate{background:#ffe9d6;color:#8a4300}
-.angi-workspace{display:grid;grid-template-columns:minmax(270px,30%) minmax(0,1fr);gap:14px;align-items:start}
-.angi-rail-card{padding:0;overflow:hidden;position:sticky;top:124px;max-height:calc(100vh - 145px)}
-.angi-rail-card h3{padding:14px 14px 8px;margin:0;background:#fff;border-bottom:1px solid var(--line)}
-.angi-queue-list{overflow:auto;max-height:calc(100vh - 205px)}
-.angi-queue-row{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid #dfe7ee;padding:12px 12px 12px 14px;cursor:pointer;background:#fff;position:relative;color:var(--text)}
-.angi-queue-row:hover{filter:brightness(.985)}
-.angi-queue-row.selected::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:#1473e6}
-.angi-queue-row.selected{box-shadow:inset 0 0 0 2px rgba(20,115,230,.12)}
-.angi-queue-row.tone-call-first,.angi-queue-row.tone-morning{background:#edf9f0}
-.angi-queue-row.tone-midday{background:#edf5ff}
-.angi-queue-row.tone-final-call{background:#f5efff}
-.angi-queue-row.tone-overdue{background:#fff0ee}
-.angi-queue-row.tone-later{background:#f7f7f8}
-.angi-queue-row.tone-admin{background:#fff8e6}
-.angi-queue-row.tone-duplicate{background:#fff2e8}
-.angi-row-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;font-size:15px}
-.angi-row-next{font-size:12px;font-weight:700;margin-top:8px;color:#35516d}
-.angi-row-due{font-size:12px;font-weight:700;color:#5d6875;margin-top:3px}
-.angi-detail-card{min-height:520px;padding:28px 38px}
-.angi-detail-head{text-align:center;margin-bottom:18px}.angi-detail-head h2{font-size:28px;margin:7px 0 3px;color:#58657a}
-.angi-call-main{display:block;text-decoration:none;text-align:center;background:#188038;color:#fff;font-size:21px;font-weight:700;border-radius:10px;padding:17px 16px;margin:18px 0}.angi-call-main:hover{background:#146c2e}
-.angi-result-label{text-align:center;color:#687385;font-weight:700;font-size:11px;letter-spacing:.08em;margin:17px 0 8px}
-.angi-result-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}.btn.outcome{font-weight:700;font-size:14px;padding:10px 14px}.btn.outcome.success{background:#188038;color:#fff}.btn.outcome.warning{background:#fff0c9;color:#6f4d00}
-.angi-notes-block{margin:18px 0}.angi-notes-block label{display:block;text-align:center;color:#687385;font-size:11px;letter-spacing:.08em;text-transform:uppercase}.angi-notes-block textarea{min-height:100px}
-.angi-contact-grid,.followup-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}.info-tile{background:#f0f4f8;border-radius:9px;padding:12px;text-align:center;min-height:66px}.info-tile.wide{grid-column:1/-1}.info-tile span{display:block;color:#687385;font-size:10px;font-weight:700;letter-spacing:.06em;margin-bottom:4px}.info-tile b{font-weight:500;color:#566479}.more-actions-title{text-align:center;color:#687385;font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin-top:20px}.comm-history-details{margin-top:16px}
-
-/* Prospect / lead / job lists — color remains subtle and informational. */
-#prospectList .task{border-left:4px solid #2f73d9;padding-left:10px}
-#leadList .task{border-left:4px solid #188038;padding-left:10px}
-#appointmentList .task{border-left:4px solid #7b61b8;padding-left:10px}
-#archivedSalesList .task,#archivedJobsList .task{border-left:4px solid #9aa0a6;padding-left:10px;background:#fafafa}
-#jobsTable .task{border-left:4px solid #d68b00;padding-left:10px}
-#phoneHistory .task{border-left:4px solid #188b86;padding-left:10px}
-#incomingList .task{border-left:4px solid #7b61b8;padding-left:10px}
-#suggestionList .task{border-left:4px solid #7b61b8;padding-left:10px;background:#fcfaff}
-
-@media(max-width:980px){.angi-kpis{grid-template-columns:repeat(3,1fr)}.angi-workspace{grid-template-columns:1fr}.angi-rail-card{position:static;max-height:none}.angi-queue-list{max-height:360px}.angi-detail-card{padding:20px}}
-@media(max-width:620px){.angi-kpis{grid-template-columns:1fr 1fr}.angi-contact-grid,.followup-grid{grid-template-columns:1fr}.info-tile.wide{grid-column:auto}}
-
-
-/* Leads workspace — mirrors the Angi left-rail / active-record layout. */
-.leads-toolbar-card{border-top:4px solid var(--info-line)}
-.leads-workspace{display:grid;grid-template-columns:minmax(270px,30%) minmax(0,1fr);gap:14px;align-items:start}
-.leads-rail-card{padding:0;overflow:hidden;position:sticky;top:124px;max-height:calc(100vh - 145px);border-top:4px solid #2f73d9!important}
-.leads-rail-card h3{padding:14px 14px 9px;margin:0;border-bottom:1px solid var(--line);background:#fff}
-.leads-queue-list{overflow:auto;max-height:calc(100vh - 205px)}
-.lead-queue-row{display:block;width:100%;border:0;border-bottom:1px solid #dfe7ee;padding:12px 12px 12px 14px;text-align:left;cursor:pointer;background:#fff;color:var(--text);position:relative}
-.lead-queue-row:hover{filter:brightness(.985)}
-.lead-queue-row.selected::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:#1473e6}
-.lead-queue-row.selected{box-shadow:inset 0 0 0 2px rgba(20,115,230,.12)}
-.lead-queue-row.tone-active{background:#f4f8ff}.lead-queue-row.tone-appointment{background:#f3edff}.lead-queue-row.tone-estimate{background:#fff8e6}.lead-queue-row.tone-sold{background:#edf9f0}.lead-queue-row.tone-closed{background:#f3f4f6}
-.lead-row-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}.lead-row-address{font-size:12px;margin-top:6px;color:#4f5d6b}.lead-row-next{font-size:12px;font-weight:700;margin-top:8px;color:#35516d}
-.lead-status-pill{display:inline-block;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:700;white-space:nowrap;border:1px solid rgba(0,0,0,.05)}
-.lead-status-pill.tone-active{background:#eaf2ff;color:#174ea6}.lead-status-pill.tone-appointment{background:#f3edff;color:#6947a3}.lead-status-pill.tone-estimate{background:#fff0c9;color:#775000}.lead-status-pill.tone-sold{background:#e9f6ec;color:#176b34}.lead-status-pill.tone-closed{background:#eef0f2;color:#525960}
-.leads-detail-card{min-height:520px;padding:28px 38px;border-top:4px solid #2f73d9!important}.lead-detail-head{text-align:center;margin-bottom:18px}.lead-detail-head h2{font-size:28px;margin:8px 0 4px;color:#58657a}.lead-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}.lead-info-grid .wide{grid-column:1/-1}.lead-detail-note{background:#fffbea;border-left:4px solid #d6a800;border-radius:8px;padding:11px 12px;margin-top:12px;white-space:pre-wrap}.lead-detail-note span{display:block;font-size:10px;letter-spacing:.06em;font-weight:700;color:#6b7280;margin-bottom:5px}.lead-detail-section-title{text-align:center;color:#687385;font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;margin:22px 0 9px}.lead-detail-appointments{border:1px solid #dbe2ea;border-radius:10px;overflow:hidden}.lead-detail-appt{display:grid;grid-template-columns:minmax(145px,1.15fr) minmax(120px,1fr) minmax(120px,1fr) minmax(155px,1.3fr) auto;gap:10px;align-items:center;background:#fff;padding:11px 12px;border-bottom:1px solid #e7ecf2}.lead-detail-appt:last-child{border-bottom:0}.lead-detail-appt.header{background:#f3f6fa;color:#687385;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}.lead-detail-appt span{font-size:12px;color:var(--muted)}.appointment-result-note{display:block;margin-top:3px;color:#687385;font-size:11px}.lead-detail-actions{margin-top:16px}
-@media(max-width:980px){.leads-workspace{grid-template-columns:1fr}.leads-rail-card{position:static;max-height:none}.leads-queue-list{max-height:360px}.leads-detail-card{padding:20px}}
-@media(max-width:620px){.lead-info-grid{grid-template-columns:1fr}.lead-info-grid .wide{grid-column:auto}.lead-detail-appt{grid-template-columns:1fr}.lead-detail-appt.header{display:none}}
-
-  --purple-bg:#f3edff;--purple-line:#7b61b8;
-  --teal-bg:#e7f6f5;--teal-line:#188b86;
-  --note-bg:#fffbea;--note-line:#d6a800;
+function addDays(date,days){
+  const d = new Date(date);
+  d.setDate(d.getDate()+days);
+  return d;
 }
 
-/* Navigation: small consistent color cue without becoming decorative. */
-.nav button[data-view="today"].active{background:#eaf2ff;color:#174ea6}
-.nav button[data-view="phone"].active{background:#e7f6f5;color:#146c68}
-.nav button[data-view="incoming"].active{background:#f3edff;color:#6947a3}
-.nav button[data-view="angi"].active{background:#e9f6ec;color:#176b34}
-.nav button[data-view="leads"].active{background:#eaf2ff;color:#174ea6}
-.nav button[data-view="jobs"].active{background:#fff4dc;color:#7a5200}
-.nav button[data-view="playbook"].active{background:#eef0f2;color:#41464c}
-.nav button[data-view="suggestions"].active{background:#f3edff;color:#6947a3}
+function localDateKey(date){
+  return new Intl.DateTimeFormat('en-CA',{
+    timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit'
+  }).format(date);
+}
 
-/* Today sections */
-.section-card{border-left:5px solid var(--line)}
-.section-communication{border-left-color:#2f73d9;background:linear-gradient(90deg,#f7faff 0,#fff 90px)}
-.section-financial{border-left-color:#188b86;background:linear-gradient(90deg,#f5fbfa 0,#fff 90px)}
-.section-attention{border-left-color:#d93025;background:linear-gradient(90deg,#fff8f7 0,#fff 90px)}
-.section-blocked{border-left-color:#d68b00}
-.section-jobs{border-left-color:#188038;background:linear-gradient(90deg,#f7fcf8 0,#fff 90px)}
-.section-notes{border-left-color:#d6a800;background:linear-gradient(90deg,#fffdf3 0,#fff 90px)}
+function displayDate(date, opts){
+  return new Intl.DateTimeFormat('en-US',{timeZone:TZ,...opts}).format(date);
+}
 
-/* Give each operational tab a restrained identity. */
-#view-phone>.card{border-top:4px solid var(--teal-line)}
-#view-incoming>.card{border-top:4px solid var(--purple-line)}
-#view-leads>.card,#view-leads>.grid .card{border-top:4px solid var(--info-line)}
-#view-jobs>.card{border-top:4px solid var(--warn-line)}
-#view-playbook>.card{border-top:4px solid #7c8794}
-#view-suggestions>.card{border-top:4px solid var(--purple-line)}
+function timeText(date){
+  return displayDate(date,{hour:'numeric',minute:'2-digit'});
+}
 
-/* Useful status emphasis across lists. */
-.task{transition:background .12s ease,border-color .12s ease}
-.task:hover{background:#fafcff}
-.notice.warning{background:var(--warn-bg);border:1px solid #f0d38b;color:#6f4d00}
-.badge.Crucial,.badge.Critical{background:var(--danger-bg);color:#a50e0e}
-.badge.High{background:var(--warn-bg);color:#825500}
-.badge.Normal{background:var(--info-bg);color:#174ea6}
+function monthRangeTitle(){
+  const end = addDays(weekStart,6);
+  const sameMonth = weekStart.getMonth() === end.getMonth();
+  const sameYear = weekStart.getFullYear() === end.getFullYear();
 
-/* Angi — intentionally mirrors the fast work-one-contact-at-a-time experience. */
-.angi-kpis{grid-template-columns:repeat(6,1fr)}
-.angi-kpis .kpi{border-top:4px solid var(--line)}
-.angi-kpis .tone-new{border-top-color:#188038;background:#f4fbf5}
-.angi-kpis .tone-overdue{border-top-color:#d93025;background:#fff7f6}
-.angi-kpis .tone-today{border-top-color:#2f73d9;background:#f5f9ff}
-.angi-kpis .tone-admin{border-top-color:#d68b00;background:#fffaf0}
-.angi-kpis .tone-review{border-top-color:#7b61b8;background:#faf7ff}
-.angi-kpis .tone-duplicate{border-top-color:#b35c00;background:#fff6ec}
-.angi-toolbar-card{border-top:4px solid #1f4f7f}
-.angi-legend{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px}
-.legend-pill,.angi-time-pill{display:inline-block;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:700;letter-spacing:.02em;border:1px solid rgba(0,0,0,.06)}
-.call-first{background:#dff3e4;color:#146c2e}.morning{background:#e7f6f5;color:#146c68}.midday{background:#e9f1ff;color:#2457a3}.final-call{background:#f2ebff;color:#6844a3}.overdue{background:#fde3e1;color:#a71911}.later{background:#f0f1f3;color:#525960}.admin{background:#fff0c9;color:#775000}.duplicate{background:#ffe9d6;color:#8a4300}
-.angi-workspace{display:grid;grid-template-columns:minmax(270px,30%) minmax(0,1fr);gap:14px;align-items:start}
-.angi-rail-card{padding:0;overflow:hidden;position:sticky;top:124px;max-height:calc(100vh - 145px)}
-.angi-rail-card h3{padding:14px 14px 8px;margin:0;background:#fff;border-bottom:1px solid var(--line)}
-.angi-queue-list{overflow:auto;max-height:calc(100vh - 205px)}
-.angi-queue-row{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid #dfe7ee;padding:12px 12px 12px 14px;cursor:pointer;background:#fff;position:relative;color:var(--text)}
-.angi-queue-row:hover{filter:brightness(.985)}
-.angi-queue-row.selected::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:#1473e6}
-.angi-queue-row.selected{box-shadow:inset 0 0 0 2px rgba(20,115,230,.12)}
-.angi-queue-row.tone-call-first,.angi-queue-row.tone-morning{background:#edf9f0}
-.angi-queue-row.tone-midday{background:#edf5ff}
-.angi-queue-row.tone-final-call{background:#f5efff}
-.angi-queue-row.tone-overdue{background:#fff0ee}
-.angi-queue-row.tone-later{background:#f7f7f8}
-.angi-queue-row.tone-admin{background:#fff8e6}
-.angi-queue-row.tone-duplicate{background:#fff2e8}
-.angi-row-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;font-size:15px}
-.angi-row-next{font-size:12px;font-weight:700;margin-top:8px;color:#35516d}
-.angi-row-due{font-size:12px;font-weight:700;color:#5d6875;margin-top:3px}
-.angi-detail-card{min-height:520px;padding:28px 38px}
-.angi-detail-head{text-align:center;margin-bottom:18px}.angi-detail-head h2{font-size:28px;margin:7px 0 3px;color:#58657a}
-.angi-call-main{display:block;text-decoration:none;text-align:center;background:#188038;color:#fff;font-size:21px;font-weight:700;border-radius:10px;padding:17px 16px;margin:18px 0}.angi-call-main:hover{background:#146c2e}
-.angi-result-label{text-align:center;color:#687385;font-weight:700;font-size:11px;letter-spacing:.08em;margin:17px 0 8px}
-.angi-result-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}.btn.outcome{font-weight:700;font-size:14px;padding:10px 14px}.btn.outcome.success{background:#188038;color:#fff}.btn.outcome.warning{background:#fff0c9;color:#6f4d00}
-.angi-notes-block{margin:18px 0}.angi-notes-block label{display:block;text-align:center;color:#687385;font-size:11px;letter-spacing:.08em;text-transform:uppercase}.angi-notes-block textarea{min-height:100px}
-.angi-contact-grid,.followup-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}.info-tile{background:#f0f4f8;border-radius:9px;padding:12px;text-align:center;min-height:66px}.info-tile.wide{grid-column:1/-1}.info-tile span{display:block;color:#687385;font-size:10px;font-weight:700;letter-spacing:.06em;margin-bottom:4px}.info-tile b{font-weight:500;color:#566479}.more-actions-title{text-align:center;color:#687385;font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin-top:20px}.comm-history-details{margin-top:16px}
+  if(sameMonth) return displayDate(weekStart,{month:'long',year:'numeric'});
+  if(sameYear){
+    return displayDate(weekStart,{month:'short'}) + ' - ' +
+      displayDate(end,{month:'short',year:'numeric'});
+  }
+  return displayDate(weekStart,{month:'short',year:'numeric'}) + ' - ' +
+    displayDate(end,{month:'short',year:'numeric'});
+}
 
-/* Prospect / lead / job lists — color remains subtle and informational. */
-#prospectList .task{border-left:4px solid #2f73d9;padding-left:10px}
-#leadList .task{border-left:4px solid #188038;padding-left:10px}
-#appointmentList .task{border-left:4px solid #7b61b8;padding-left:10px}
-#archivedSalesList .task,#archivedJobsList .task{border-left:4px solid #9aa0a6;padding-left:10px;background:#fafafa}
-#jobsTable .task{border-left:4px solid #d68b00;padding-left:10px}
-#phoneHistory .task{border-left:4px solid #188b86;padding-left:10px}
-#incomingList .task{border-left:4px solid #7b61b8;padding-left:10px}
-#suggestionList .task{border-left:4px solid #7b61b8;padding-left:10px;background:#fcfaff}
+function eventClass(row){
+  if(row.appointment_code === 'F' || row.appointment_type === 'Repair') return 'repair';
+  if(['M','P'].includes(row.appointment_code)) return 'reroof';
+  return 'other';
+}
 
-@media(max-width:980px){.angi-kpis{grid-template-columns:repeat(3,1fr)}.angi-workspace{grid-template-columns:1fr}.angi-rail-card{position:static;max-height:none}.angi-queue-list{max-height:360px}.angi-detail-card{padding:20px}}
-@media(max-width:620px){.angi-kpis{grid-template-columns:1fr 1fr}.angi-contact-grid,.followup-grid{grid-template-columns:1fr}.info-tile.wide{grid-column:auto}}
+function eventContact(row){
+  return [row.contact_last_name,row.contact_first_name].filter(Boolean).join(', ');
+}
+
+function calendarTitleStatus(row){
+  const title=String(row?.summary||'').trim();
+  if(/^CANC\s*-\s*/i.test(title)) return 'Cancelled';
+  if(/^Resch\s*-\s*/i.test(title)) return 'Rescheduled';
+  return '';
+}
+
+function isStructuredSalesAppointment(row){
+  if(row.is_detailed || row.is_sales_appointment) return true;
+  if(row.source_code && row.appointment_code && row.property_text) return true;
+
+  const title = String(row.summary || '').trim();
+  return /^(?:(?:Resch|CANC)\s*-\s*)?(Mail|HA|INT|RB|Ref|SI|YP|HS|Y|WF|AA)\s*-\s*[FMP]\s*-\s*.+$/i.test(title);
+}
+
+function isReturnVisitCandidate(row){
+  if(row.matched_lead_id) return false;
+  if(row.calendar_classification === 'Not Sales Related') return false;
+  return row.calendar_classification === 'Needs Review' && !isStructuredSalesAppointment(row);
+}
+
+function isSalesLeadMatchCandidate(row){
+  if(row.matched_lead_id) return false;
+  if(row.calendar_classification === 'Not Sales Related') return false;
+  return isStructuredSalesAppointment(row);
+}
+
+function hasEnoughInfoToCreateLead(row){
+  if(!isStructuredSalesAppointment(row)) return false;
+  const hasName = Boolean(row.contact_first_name || row.contact_last_name);
+  const hasAddress = Boolean(row.property_text);
+  const hasContact = Boolean(row.phone_primary || row.phone_secondary || row.email);
+  return hasName && hasAddress && hasContact;
+}
+
+function leadName(lead){
+  return lead.homeowner_name || [lead.first_name,lead.last_name].filter(Boolean).join(' ') || 'Unnamed lead';
+}
+
+function leadAddress(lead){
+  return [lead.street_address,lead.city,lead.state,lead.zip].filter(Boolean).join(', ');
+}
+
+function minuteOfDay(date){
+  const parts = new Intl.DateTimeFormat('en-US',{
+    timeZone:TZ,hour12:false,hour:'2-digit',minute:'2-digit'
+  }).formatToParts(date);
+  const hour = Number(parts.find(p=>p.type==='hour')?.value || 0);
+  const minute = Number(parts.find(p=>p.type==='minute')?.value || 0);
+  return hour*60 + minute;
+}
+
+function showMessage(text){
+  $('authMessage').textContent = text;
+  $('authMessage').classList.remove('hidden');
+}
+
+function normalizeText(value){
+  return String(value || '')
+    .toLowerCase()
+    .replace(/&/g,' and ')
+    .replace(/[^a-z0-9]+/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+function normalizePhone(value){
+  let digits = String(value || '').replace(/\D/g,'');
+  if(digits.length===11 && digits.startsWith('1')) digits=digits.slice(1);
+  return digits.length===10 ? digits : digits;
+}
+
+function tokens(value){
+  const stop = new Set([
+    'st','street','rd','road','dr','drive','ct','court','ln','lane','ave','avenue',
+    'blvd','way','cir','circle','trl','trail','sc','south','carolina','the','and',
+    'house','home','job','repair','roof','roofing','visit'
+  ]);
+  return normalizeText(value).split(' ').filter(x=>x && x.length>1 && !stop.has(x));
+}
+
+function overlapCount(a,b){
+  const as = new Set(tokens(a));
+  const bs = new Set(tokens(b));
+  let count = 0;
+  as.forEach(t=>{ if(bs.has(t)) count++; });
+  return count;
+}
+
+function confidenceLabel(score){
+  if(score>=75) return {label:'High confidence',cls:'high'};
+  if(score>=40) return {label:'Possible',cls:'possible'};
+  return {label:'Weak',cls:''};
+}
+
+function recentAppointmentBonus(leadId,eventDate){
+  const matching = appointments.filter(a=>a.lead_id===leadId && a.appointment_at);
+  if(!matching.length) return {score:0,reason:null};
+
+  const target = eventDate.getTime();
+  let nearest = Infinity;
+  matching.forEach(a=>{
+    const diff = Math.abs(new Date(a.appointment_at).getTime()-target);
+    if(diff<nearest) nearest=diff;
+  });
+
+  const days = nearest/(24*60*60*1000);
+  if(days<=14) return {score:20,reason:'another appointment for this lead was within 2 weeks'};
+  if(days<=45) return {score:12,reason:'another appointment for this lead was within 45 days'};
+  if(days<=90) return {score:6,reason:'another appointment for this lead was within 90 days'};
+  return {score:0,reason:null};
+}
+
+function scoreLeadForEvent(event,lead){
+  let score = 0;
+  const reasons = [];
+
+  const eventText = [
+    event.summary,event.location_raw,event.description,event.property_text,
+    event.contact_first_name,event.contact_last_name,event.phone_primary,
+    event.phone_secondary,event.email
+  ].filter(Boolean).join(' ');
+
+  const eventNorm = normalizeText(eventText);
+  const eventPhones = [event.phone_primary,event.phone_secondary].filter(Boolean).map(normalizePhone);
+  const leadPhone = normalizePhone(lead.phone);
+  const eventEmail = String(event.email || '').trim().toLowerCase();
+  const leadEmail = String(lead.email || '').trim().toLowerCase();
+
+  if(leadPhone && eventPhones.includes(leadPhone)){
+    score += 100;
+    reasons.push('phone matches');
+  }
+
+  if(eventEmail && leadEmail && eventEmail===leadEmail){
+    score += 100;
+    reasons.push('email matches');
+  }
+
+  const street = normalizeText(lead.street_address);
+  if(street && eventNorm.includes(street)){
+    score += 90;
+    reasons.push('property address appears in the calendar event');
+  }else if(street){
+    const overlap = overlapCount(eventText,lead.street_address);
+    if(overlap>=3){
+      score += 65;
+      reasons.push('strong property-address match');
+    }else if(overlap===2){
+      score += 45;
+      reasons.push('property words match');
+    }else if(overlap===1){
+      score += 18;
+      reasons.push('one property word matches');
+    }
+
+    const streetNumber = String(lead.street_address || '').match(/\b\d+\b/)?.[0];
+    if(streetNumber && normalizeText(eventText).split(' ').includes(streetNumber)){
+      score += 25;
+      reasons.push('street number matches');
+    }
+  }
+
+  const last = normalizeText(lead.last_name);
+  const first = normalizeText(lead.first_name);
+  if(last && eventNorm.split(' ').includes(last)){
+    score += 50;
+    reasons.push('last name matches');
+  }
+  if(first && eventNorm.split(' ').includes(first)){
+    score += 20;
+    reasons.push('first name matches');
+  }
+
+  const homeowner = normalizeText(leadName(lead));
+  if(homeowner && eventNorm.includes(homeowner)){
+    score += 55;
+    reasons.push('homeowner name matches');
+  }
+
+  const city = normalizeText(lead.city);
+  if(city && eventNorm.split(' ').includes(city)){
+    score += 8;
+    reasons.push('city matches');
+  }
+
+  const recent = recentAppointmentBonus(lead.id,new Date(event.start_at));
+  score += recent.score;
+  if(recent.reason) reasons.push(recent.reason);
+
+  if(lead.lead_status && !['Sold','Not Moving Forward'].includes(lead.lead_status)){
+    score += 5;
+  }
+
+  return {lead,score,reasons};
+}
+
+function suggestedLeads(event){
+  return leads
+    .filter(l=>!l.deleted_at)
+    .map(l=>scoreLeadForEvent(event,l))
+    .filter(x=>x.score>=15)
+    .sort((a,b)=>b.score-a.score)
+    .slice(0,3);
+}
+
+function leadMatchesSearch(lead,query){
+  const q = normalizeText(query);
+  if(!q) return false;
+
+  const haystack = normalizeText([
+    leadName(lead),lead.first_name,lead.last_name,lead.street_address,lead.city,
+    lead.state,lead.zip,lead.phone,lead.email,lead.lead_number,lead.source,lead.source_reference
+  ].filter(Boolean).join(' '));
+
+  const qPhone = normalizePhone(query);
+  if(qPhone && qPhone.length>=7 && normalizePhone(lead.phone).includes(qPhone)) return true;
+
+  return q.split(' ').every(part=>haystack.includes(part));
+}
+
+
+function inferLeadSource(row){
+  return row.source_label || row.source_code || 'Other';
+}
+
+function inferHomeownerName(row){
+  const first = String(row.contact_first_name || '').trim();
+  const last = String(row.contact_last_name || '').trim();
+  if(first && last) return first + ' ' + last;
+  return first || last || '';
+}
+
+function inferPropertyFields(row){
+  const raw = String(row.property_text || '').trim();
+  if(!raw) return {street_address:null,city:null,state:'SC',zip:null};
+
+  const zipMatch = raw.match(/(?:,\s*)?(\d{5})(?:-\d{4})?\s*$/);
+  const zip = zipMatch ? zipMatch[1] : null;
+  let street = raw;
+
+  if(zipMatch){
+    street = raw.substring(0,zipMatch.index).replace(/,\s*$/,'').trim();
+  }
+
+  return {
+    street_address: street || raw,
+    city: null,
+    state: 'SC',
+    zip: zip
+  };
+}
+
+function inferWorkCategory(row){
+  if(row.appointment_code === 'F' || row.appointment_type === 'Repair') return 'Roofing';
+  if(row.appointment_code === 'M' || row.appointment_code === 'P') return 'Roofing';
+  return 'Roofing';
+}
+
+function openCreateLeadDialog(){
+  if(!activeEvent) return;
+
+  const property = inferPropertyFields(activeEvent);
+
+  $('calLeadNumber').value = '';
+  $('calLeadSource').value = inferLeadSource(activeEvent);
+  $('calLeadFirstName').value = activeEvent.contact_first_name || '';
+  $('calLeadLastName').value = activeEvent.contact_last_name || '';
+  $('calLeadStreet').value = property.street_address || '';
+  $('calLeadCity').value = property.city || '';
+  $('calLeadState').value = property.state || 'SC';
+  $('calLeadZip').value = property.zip || '';
+  $('calLeadPhone').value = activeEvent.phone_primary || '';
+  $('calLeadPhone2').value = activeEvent.phone_secondary || '';
+  $('calLeadEmail').value = activeEvent.email || '';
+  $('calLeadStatus').value = 'Appointment Scheduled';
+  $('calLeadWorkCategory').value = inferWorkCategory(activeEvent);
+  $('calLeadNotes').value =
+    'Created from Google Calendar. Appointment: ' +
+    (activeEvent.summary || 'Calendar event') +
+    '. Date: ' + new Date(activeEvent.start_at).toLocaleString();
+
+  $('newLeadSaveStatus').textContent = '';
+  $('newLeadDialog').showModal();
+}
+
+async function saveLeadFromCalendarDialog(){
+  if(!activeEvent) return;
+
+  const saveBtn = $('saveNewLeadBtn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Adding…';
+  $('newLeadSaveStatus').textContent = '';
+
+  const firstName = $('calLeadFirstName').value.trim() || null;
+  const lastName = $('calLeadLastName').value.trim() || null;
+  const homeownerName = [firstName,lastName].filter(Boolean).join(' ') || null;
+  const phone2 = $('calLeadPhone2').value.trim();
+
+  const notesParts = [
+    $('calLeadNotes').value.trim(),
+    phone2 ? 'Secondary phone: ' + phone2 : ''
+  ].filter(Boolean);
+
+  const payload = {
+    lead_number: $('calLeadNumber').value.trim() || null,
+    homeowner_name: homeownerName,
+    first_name: firstName,
+    last_name: lastName,
+    street_address: $('calLeadStreet').value.trim() || null,
+    city: $('calLeadCity').value.trim() || null,
+    state: $('calLeadState').value.trim() || 'SC',
+    zip: $('calLeadZip').value.trim() || null,
+    phone: $('calLeadPhone').value.trim() || null,
+    email: $('calLeadEmail').value.trim() || null,
+    source: $('calLeadSource').value.trim() || 'Other',
+    source_reference: activeEvent.google_event_id || null,
+    lead_status: $('calLeadStatus').value,
+    work_category: $('calLeadWorkCategory').value,
+    notes: notesParts.join('\n') || null
+  };
+
+  const {data:lead,error:leadError} = await db
+    .from('leads')
+    .insert(payload)
+    .select()
+    .single();
+
+  if(leadError){
+    $('newLeadSaveStatus').textContent = 'Could not create lead: ' + leadError.message;
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Add Lead';
+    return;
+  }
+
+  leads.unshift(lead);
+
+  const patch = {
+    matched_lead_id: lead.id,
+    matched_lead_number: lead.lead_number || null,
+    match_confidence: 100,
+    match_reason: 'New Lead created from calendar event after review',
+    calendar_classification: isStructuredSalesAppointment(activeEvent) ? 'Sales Appointment' : 'Return Visit',
+    updated_at: new Date().toISOString()
+  };
+
+  const {data:eventRow,error:eventError} = await db
+    .from('calendar_events')
+    .update(patch)
+    .eq('id',activeEvent.id)
+    .select()
+    .single();
+
+  if(eventError){
+    $('newLeadSaveStatus').textContent =
+      'Lead was created, but the calendar event could not be linked: ' + eventError.message;
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Add Lead';
+    return;
+  }
+
+  events = events.map(e => e.id === eventRow.id ? eventRow : e);
+  activeEvent = eventRow;
+
+  if(isStructuredSalesAppointment(eventRow)){
+    try{
+      await ensureMissionControlAppointment(eventRow,lead);
+    }catch(appointmentError){
+      $('newLeadSaveStatus').textContent =
+        'Lead was created and linked, but the Mission Control appointment could not be saved: ' +
+        (appointmentError.message || String(appointmentError));
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Add Lead';
+      return;
+    }
+  }
+
+  $('newLeadDialog').close();
+  renderCalendar();
+  renderReview(eventRow);
+  renderAppointmentResult(eventRow);
+
+  saveBtn.disabled = false;
+  saveBtn.textContent = 'Add Lead';
+  await advanceReviewQueueAfterResolution(eventRow.id);
+}
+
+function getCalendarSyncUrl(){
+  const configured = String(cfg.CALENDAR_SYNC_WEB_APP_URL || '').trim();
+  if(configured) return configured;
+
+  return String(localStorage.getItem('bauerCalendarSyncWebAppUrl') || '').trim();
+}
+
+function askForCalendarSyncUrl(){
+  const current = getCalendarSyncUrl();
+  const entered = prompt(
+    'Paste the Bauer Roofing Calendar Sync Web App URL from Google Apps Script.\n\nYou only need to do this once on this browser.',
+    current
+  );
+
+  if(!entered) return null;
+
+  const cleaned = String(entered).trim();
+  if(!/^https:\/\/script\.google\.com\//i.test(cleaned)){
+    alert('That does not look like a Google Apps Script Web App URL.');
+    return null;
+  }
+
+  localStorage.setItem('bauerCalendarSyncWebAppUrl', cleaned);
+  return cleaned;
+}
+
+function runCalendarSyncJsonp_(webAppUrl){
+  return new Promise((resolve,reject)=>{
+    const callbackName = 'bauerCalendarSyncCallback_' + Date.now() + '_' + Math.floor(Math.random()*100000);
+    const script = document.createElement('script');
+    const timeoutMs = 45000;
+
+    const cleanup = ()=>{
+      try{ delete window[callbackName]; }catch(e){ window[callbackName]=undefined; }
+      if(script.parentNode) script.parentNode.removeChild(script);
+    };
+
+    const timer = setTimeout(()=>{
+      cleanup();
+      reject(new Error('The Google Calendar sync did not respond within 45 seconds.'));
+    },timeoutMs);
+
+    window[callbackName] = payload=>{
+      clearTimeout(timer);
+      cleanup();
+      resolve(payload);
+    };
+
+    const separator = webAppUrl.includes('?') ? '&' : '?';
+    script.src = webAppUrl + separator +
+      'action=sync&callback=' + encodeURIComponent(callbackName) +
+      '&_=' + Date.now();
+
+    script.onerror = ()=>{
+      clearTimeout(timer);
+      cleanup();
+      reject(new Error('Mission Control could not reach the Google Calendar sync web app.'));
+    };
+
+    document.head.appendChild(script);
+  });
+}
+
+
+function changeCalendarSyncUrl(){
+  const current = getCalendarSyncUrl();
+  localStorage.removeItem('bauerCalendarSyncWebAppUrl');
+
+  const entered = prompt(
+    'Paste the Google Apps Script Web App URL ending in /exec.\n\nDo not paste the script.googleusercontent.com redirected URL.',
+    current && current.includes('script.google.com') ? current : ''
+  );
+
+  if(!entered) return;
+
+  const cleaned = String(entered).trim();
+
+  if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/i.test(cleaned)){
+    alert(
+      'That does not look like the Apps Script deployment URL.\n\n' +
+      'Copy it from Apps Script → Deploy → Manage deployments. ' +
+      'It should begin with https://script.google.com/macros/s/ and end in /exec.'
+    );
+    return;
+  }
+
+  localStorage.setItem('bauerCalendarSyncWebAppUrl', cleaned);
+  $('syncStatus').textContent = 'Sync URL updated';
+}
+
+
+async function createRoyUpdateLink(){
+  const button = $('createRoyLinkBtn');
+  button.disabled = true;
+  button.textContent = 'Creating…';
+
+  try{
+    const today = new Intl.DateTimeFormat('en-CA',{
+      timeZone:TZ,
+      year:'numeric',
+      month:'2-digit',
+      day:'2-digit'
+    }).format(new Date());
+
+    const {data,error} = await db.rpc('create_roy_update_session',{
+      p_update_date:today
+    });
+
+    if(error) throw error;
+
+    const token = Array.isArray(data) ? data[0]?.token : data?.token || data;
+    if(!token) throw new Error('Mission Control did not receive a daily check-off token.');
+
+    const url = new URL('roy-update.html',window.location.href);
+    url.searchParams.set('token',token);
+
+    try{
+      await navigator.clipboard.writeText(url.toString());
+      alert(
+        "Roy's daily check-off link has been copied.\n\n" +
+        'Paste it into a text message to Roy after his appointments.'
+      );
+    }catch(copyError){
+      prompt('Copy this link and text it to Roy:',url.toString());
+    }
+  }catch(error){
+    alert(
+      "Roy's daily check-off link could not be created.\n\n" +
+      String(error && error.message ? error.message : error)
+    );
+  }finally{
+    button.disabled = false;
+    button.textContent = 'Create Roy Daily Check-Off';
+  }
+}
+
+
+function bulkDateIso(dateValue,endExclusive){
+  const date=new Date(String(dateValue)+'T00:00:00-04:00');
+  if(endExclusive) date.setDate(date.getDate()+1);
+  return date.toISOString();
+}
+
+function bulkLeadFromEvent(row,id){
+  const property=inferPropertyFields(row);
+  const first=String(row.contact_first_name||'').trim()||null;
+  const last=String(row.contact_last_name||'').trim()||null;
+  return {
+    id,
+    homeowner_name:[first,last].filter(Boolean).join(' ')||null,
+    first_name:first,
+    last_name:last,
+    street_address:property.street_address,
+    city:property.city,
+    state:property.state,
+    zip:property.zip,
+    phone:row.phone_primary||null,
+    email:row.email||null,
+    source:inferLeadSource(row),
+    source_reference:row.google_event_id||null,
+    assigned_to:'Roy',
+    lead_status:calendarTitleStatus(row) ? 'Scheduling' : 'Appointment Outcome Needed'
+  };
+}
+
+function bulkCandidates(row,pool){
+  return pool
+    .filter(lead=>!lead.deleted_at)
+    .map(lead=>{
+      const result=scoreLeadForEvent(row,lead);
+      if(row.google_event_id && lead.source_reference===row.google_event_id){
+        result.score+=300;
+        result.reasons.unshift('same Google Calendar event');
+      }
+      return result;
+    })
+    .filter(result=>result.score>=15)
+    .sort((a,b)=>b.score-a.score);
+}
+
+function buildBulkImportPlan(rows){
+  const pool=leads.filter(lead=>!lead.deleted_at).map(lead=>({...lead}));
+  const plan=[];
+  let newCounter=0;
+
+  rows.slice().sort((a,b)=>String(a.start_at).localeCompare(String(b.start_at))).forEach(row=>{
+    if(!isStructuredSalesAppointment(row) || row.calendar_classification==='Not Sales Related'){
+      plan.push({row,action:'ignore',reason:'Not a structured sales appointment'});
+      return;
+    }
+
+    if(row.matched_lead_id){
+      plan.push({row,action:'already',leadId:row.matched_lead_id,reason:'Already connected to a Lead; appointment will be verified'});
+      return;
+    }
+
+    const candidates=bulkCandidates(row,pool);
+    const top=candidates[0];
+    const second=candidates[1];
+    const clearWinner=top && top.score>=100 && (!second || top.score-second.score>=25);
+
+    if(clearWinner){
+      plan.push({
+        row,
+        action:'match',
+        leadId:top.lead.id,
+        leadLabel:leadName(top.lead),
+        score:top.score,
+        reason:top.reasons.join(' • ')||'High-confidence match'
+      });
+      return;
+    }
+
+    if(candidates.length){
+      plan.push({
+        row,
+        action:'review',
+        reason:'Possible match: '+leadName(top.lead)+' ('+top.score+' points)'
+      });
+      return;
+    }
+
+    if(hasEnoughInfoToCreateLead(row)){
+      const provisionalId='bulk:new:'+(++newCounter);
+      const virtualLead=bulkLeadFromEvent(row,provisionalId);
+      pool.push(virtualLead);
+      plan.push({row,action:'create',leadId:provisionalId,leadLabel:leadName(virtualLead),reason:'No existing match found'});
+      return;
+    }
+
+    plan.push({row,action:'review',reason:'Not enough name, address, or contact information to create safely'});
+  });
+
+  return plan;
+}
+
+function bulkActionText(item){
+  if(item.action==='create') return 'Create Lead';
+  if(item.action==='match') return 'Link Match';
+  if(item.action==='already') return 'Already Done';
+  if(item.action==='review') return 'Needs Review';
+  return 'Ignored';
+}
+
+function renderBulkImportPlan(){
+  const counts={create:0,match:0,already:0,review:0,ignore:0};
+  bulkImportPlan.forEach(item=>{counts[item.action]=(counts[item.action]||0)+1;});
+
+  $('bulkImportSummary').innerHTML=`<div class="bulk-summary">
+    <div class="bulk-stat"><b>${counts.match}</b><span>MATCH EXISTING</span></div>
+    <div class="bulk-stat"><b>${counts.create}</b><span>CREATE LEADS</span></div>
+    <div class="bulk-stat"><b>${counts.review}</b><span>NEEDS REVIEW</span></div>
+    <div class="bulk-stat"><b>${counts.already}</b><span>ALREADY CONNECTED</span></div>
+  </div>`;
+
+  const visible=bulkImportPlan.filter(item=>item.action!=='ignore');
+  $('bulkImportList').innerHTML=visible.map(item=>{
+    const warning=item.action==='review'?' bulk-warning':'';
+    const person=inferHomeownerName(item.row)||item.row.summary||'Calendar appointment';
+    return `<div class="bulk-row">
+      <div class="bulk-kind${warning}">${esc(bulkActionText(item))}</div>
+      <div><b>${esc(person)}</b><div class="meta">${esc(displayDate(new Date(item.row.start_at),{month:'short',day:'numeric',year:'numeric'}))} • ${esc(item.row.property_text||'No address')}</div><div class="meta${warning}">${esc(item.reason||'')}</div></div>
+    </div>`;
+  }).join('')||'<div class="bulk-row"><div>No sales appointments were found in this date range.</div></div>';
+  $('bulkImportList').classList.remove('hidden');
+
+  const approved=counts.create+counts.match+counts.already;
+  $('runBulkImportBtn').classList.toggle('hidden',approved===0);
+  $('runBulkImportBtn').textContent='Import '+approved+' Approved Item'+(approved===1?'':'s');
+  $('bulkImportStatus').textContent=counts.review
+    ? counts.review+' appointment'+(counts.review===1?' needs':'s need')+' manual review and will not be changed.'
+    : 'Everything is ready. Nothing uncertain will be changed.';
+}
+
+async function previewBulkImport(){
+  const start=$('bulkStartDate').value;
+  const end=$('bulkEndDate').value;
+  if(!start||!end||start>end){
+    $('bulkImportStatus').textContent='Choose a valid beginning and ending date.';
+    return;
+  }
+
+  const button=$('previewBulkImportBtn');
+  button.disabled=true;
+  button.textContent='Checking…';
+  $('runBulkImportBtn').classList.add('hidden');
+  $('bulkImportList').classList.add('hidden');
+  $('bulkImportSummary').innerHTML='';
+  $('bulkImportStatus').textContent='Comparing calendar appointments with existing Leads…';
+
+  const {data,error}=await db
+    .from('calendar_events')
+    .select('*')
+    .gte('start_at',bulkDateIso(start,false))
+    .lt('start_at',bulkDateIso(end,true))
+    .order('start_at',{ascending:true});
+
+  button.disabled=false;
+  button.textContent='Preview Import';
+
+  if(error){
+    $('bulkImportStatus').textContent='Could not read past appointments: '+error.message;
+    return;
+  }
+
+  bulkImportPlan=buildBulkImportPlan(data||[]);
+  renderBulkImportPlan();
+}
+
+async function createBulkLead(row){
+  const lead=bulkLeadFromEvent(row,null);
+  const secondary=row.phone_secondary ? '\nSecondary phone: '+row.phone_secondary : '';
+  const payload={
+    ...lead,
+    id:undefined,
+    lead_number:null,
+    source_reference:row.google_event_id||null,
+    work_category:inferWorkCategory(row),
+    estimate_status:'Not Known',
+    import_source:'Google Calendar Bulk Import',
+    notes:'Created from a past Google Calendar appointment on '+displayDate(new Date(row.start_at),{month:'long',day:'numeric',year:'numeric'})+'.'+secondary
+  };
+  delete payload.id;
+
+  const {data,error}=await db.from('leads').insert(payload).select().single();
+  if(error) throw error;
+  leads.push(data);
+  return data;
+}
+
+async function linkBulkEvent(row,lead,score,reason){
+  const patch={
+    matched_lead_id:lead.id,
+    matched_lead_number:lead.lead_number||null,
+    match_confidence:Math.min(100,Math.max(0,Math.round(Number(score||100)))),
+    match_reason:reason||'Bulk import',
+    calendar_classification:'Sales Appointment',
+    updated_at:new Date().toISOString()
+  };
+  const {data,error}=await db.from('calendar_events').update(patch).eq('id',row.id).select().single();
+  if(error) throw error;
+  events=events.map(event=>event.id===data.id?data:event);
+  await ensureMissionControlAppointment(data,lead);
+  return data;
+}
+
+async function runBulkImport(){
+  const approved=bulkImportPlan.filter(item=>['create','match','already'].includes(item.action));
+  const reviewItem=bulkImportPlan.find(item=>item.action==='review');
+  if(!approved.length) return;
+  if(!confirm('Import '+approved.length+' approved appointment'+(approved.length===1?'':'s')+'?\n\nItems marked Needs Review will remain unchanged.')) return;
+
+  const button=$('runBulkImportBtn');
+  button.disabled=true;
+  button.textContent='Importing…';
+  const createdLeadIds={};
+  let created=0;
+  let matched=0;
+  let verified=0;
+  const failures=[];
+
+  for(let i=0;i<approved.length;i++){
+    const item=approved[i];
+    $('bulkImportStatus').textContent='Importing '+(i+1)+' of '+approved.length+'…';
+    try{
+      let lead;
+      if(item.action==='already'){
+        lead=leads.find(candidate=>candidate.id===item.leadId);
+        if(!lead) throw new Error('The connected Lead could not be found.');
+        await ensureMissionControlAppointment(item.row,lead);
+        verified++;
+        continue;
+      }else if(item.action==='create'){
+        lead=await createBulkLead(item.row);
+        createdLeadIds[item.leadId]=lead.id;
+        created++;
+      }else{
+        const realId=createdLeadIds[item.leadId]||item.leadId;
+        lead=leads.find(candidate=>candidate.id===realId);
+        if(!lead) throw new Error('The approved Lead match could not be found.');
+      }
+      await linkBulkEvent(item.row,lead,item.score,item.reason);
+      if(item.action==='match') matched++;
+    }catch(error){
+      failures.push((item.row.summary||'Appointment')+': '+(error.message||String(error)));
+    }
+  }
+
+  button.disabled=false;
+  button.classList.add('hidden');
+  bulkImportPlan=[];
+
+  let result='Import complete: '+created+' Lead'+(created===1?'':'s')+' created, '+matched+' existing Lead match'+(matched===1?'':'es')+' connected, and '+verified+' previously connected appointment'+(verified===1?'':'s')+' verified.';
+  if(failures.length) result+=' '+failures.length+' item'+(failures.length===1?' needs':'s need')+' attention.';
+  $('bulkImportStatus').textContent=result;
+
+  if(reviewItem){
+    weekStart=startOfWeek(new Date(reviewItem.row.start_at));
+  }
+  await loadWeek();
+}
+
+function openBulkImportDialog(){
+  bulkImportPlan=[];
+  $('bulkImportStatus').textContent='Click Preview Import to see exactly what Mission Control will do.';
+  $('bulkImportSummary').innerHTML='';
+  $('bulkImportList').innerHTML='';
+  $('bulkImportList').classList.add('hidden');
+  $('runBulkImportBtn').classList.add('hidden');
+  $('bulkImportDialog').showModal();
+}
+
+function missionControlLeadUrl(leadId,edit){
+  return 'index.html?view=leads&lead='+encodeURIComponent(leadId)+(edit?'&edit=1':'');
+}
+
+function pastReviewSearchText(value){
+  return normalizeText(value);
+}
+
+function filteredPastReviewEvents(){
+  const query=pastReviewSearchText($('pastReviewSearch').value);
+  return pastReviewEvents.filter(row=>{
+    if(!query) return true;
+    return pastReviewSearchText([
+      row.summary,row.property_text,row.contact_first_name,row.contact_last_name,
+      row.phone_primary,row.phone_secondary,row.email,row.start_at
+    ].filter(Boolean).join(' ')).includes(query);
+  });
+}
+
+function renderPastReviewQueue(){
+  const query=pastReviewSearchText($('pastReviewSearch').value);
+  const eventRows=filteredPastReviewEvents();
+
+  const outcomeLeads=leads.filter(lead=>
+    !lead.deleted_at &&
+    lead.lead_status==='Appointment Outcome Needed' &&
+    !appointments.some(appointment=>appointment.lead_id===lead.id&&appointment.appointment_result) && (
+      !query || pastReviewSearchText([
+        leadName(lead),lead.lead_number,lead.street_address,lead.city,
+        lead.phone,lead.email
+      ].filter(Boolean).join(' ')).includes(query)
+    )
+  );
+
+  const eventHtml=eventRows.map(row=>{
+    const suggestion=suggestedLeads(row)[0];
+    const titleStatus=calendarTitleStatus(row);
+    const type=titleStatus || (isStructuredSalesAppointment(row)?'Sales appointment':'Possible return visit');
+    const suggestionText=suggestion
+      ? 'Possible match: '+leadName(suggestion.lead)+' • '+suggestion.score+' points'
+      : hasEnoughInfoToCreateLead(row)
+        ? 'No existing match found; this can be added as a new Lead.'
+        : 'More information is needed before creating a Lead.';
+    return `<div class="review-queue-row" data-review-row-id="${esc(row.id)}">
+      <div>
+        <b>${esc(inferHomeownerName(row)||row.summary||'Calendar appointment')}</b>
+        <div class="meta">${esc(displayDate(new Date(row.start_at),{month:'short',day:'numeric',year:'numeric'}))} • ${esc(row.property_text||'No address')} • ${esc(type)}</div>
+        <div class="meta bulk-warning">${esc(suggestionText)}</div>
+      </div>
+      <div class="review-queue-actions"><button class="btn primary small" type="button" data-review-event-id="${esc(row.id)}">Review / Edit</button></div>
+    </div>`;
+  }).join('')||'<div class="review-queue-row"><div class="empty">No unmatched past appointments need review.</div></div>';
+
+  const leadHtml=outcomeLeads.map(lead=>{
+    const latest=appointments
+      .filter(appointment=>appointment.lead_id===lead.id&&appointment.appointment_at)
+      .sort((a,b)=>String(b.appointment_at).localeCompare(String(a.appointment_at)))[0];
+    return `<div class="review-queue-row">
+      <div>
+        <b>${esc(leadName(lead))}${lead.lead_number?' • Lead # '+esc(lead.lead_number):''}</b>
+        <div class="meta">${esc(leadAddress(lead)||'No address')}${latest?' • Appointment '+esc(displayDate(new Date(latest.appointment_at),{month:'short',day:'numeric',year:'numeric'})):''}</div>
+        <div class="meta bulk-warning">Waiting for the appointment outcome.</div>
+      </div>
+      <div class="review-queue-actions"><a class="btn primary small" href="${missionControlLeadUrl(lead.id,true)}">Open / Edit Lead</a></div>
+    </div>`;
+  }).join('')||'<div class="review-queue-row"><div class="empty">No imported leads are waiting for an outcome.</div></div>';
+
+  $('pastReviewContent').innerHTML=`
+    <div class="review-queue-section"><h3>Calendar matches to review <span class="queue-count">${eventRows.length}</span></h3><div class="review-queue-list">${eventHtml}</div></div>
+    <div class="review-queue-section"><h3>Leads waiting for an outcome <span class="queue-count">${outcomeLeads.length}</span></h3><div class="review-queue-list">${leadHtml}</div></div>`;
+  const totalOutcomeLeads=leads.filter(lead=>
+    !lead.deleted_at &&
+    lead.lead_status==='Appointment Outcome Needed' &&
+    !appointments.some(appointment=>appointment.lead_id===lead.id&&appointment.appointment_result)
+  ).length;
+  $('pastReviewStatus').textContent=(pastReviewEvents.length+totalOutcomeLeads)+' total item(s) currently need review.';
+}
+
+async function loadPastReviewQueue(){
+  $('pastReviewStatus').textContent='Loading past items…';
+  $('pastReviewContent').innerHTML='';
+  const {data,error}=await db
+    .from('calendar_events')
+    .select('*')
+    .gte('start_at','2026-06-01T04:00:00.000Z')
+    .lt('start_at',new Date().toISOString())
+    .order('start_at',{ascending:false});
+
+  if(error){
+    $('pastReviewStatus').textContent='Could not load past items: '+error.message;
+    return;
+  }
+
+  pastReviewEvents=(data||[]).filter(row=>
+    !row.matched_lead_id &&
+    row.calendar_classification!=='Not Sales Related' &&
+    (isStructuredSalesAppointment(row)||row.calendar_classification==='Needs Review')
+  );
+  renderPastReviewQueue();
+}
+
+async function openPastReviewQueue(){
+  reviewQueueActive=false;
+  reviewQueueEventIds=[];
+  reviewQueueIndex=-1;
+  pastReviewScrollTop=0;
+  $('pastReviewSearch').value='';
+  $('pastReviewDialog').showModal();
+  await loadPastReviewQueue();
+}
+
+async function openPastReviewEvent(eventId){
+  const row=pastReviewEvents.find(item=>item.id===eventId);
+  if(!row) return;
+  reviewQueueActive=true;
+  reviewQueueEventIds=filteredPastReviewEvents().map(item=>item.id);
+  reviewQueueIndex=reviewQueueEventIds.indexOf(eventId);
+  pastReviewScrollTop=$('pastReviewCard').scrollTop;
+  $('pastReviewDialog').close();
+  await showReviewQueueEvent(reviewQueueIndex);
+}
+
+async function showReviewQueueEvent(index){
+  if(!reviewQueueActive||!reviewQueueEventIds.length) return;
+  const safeIndex=Math.max(0,Math.min(index,reviewQueueEventIds.length-1));
+  const eventId=reviewQueueEventIds[safeIndex];
+  const row=pastReviewEvents.find(item=>item.id===eventId);
+  if(!row) return;
+  reviewQueueIndex=safeIndex;
+  weekStart=startOfWeek(new Date(row.start_at));
+  await loadWeek();
+  openDetails(events.find(item=>item.id===eventId)||row);
+}
+
+function renderReviewNavigation(){
+  const nav=$('reviewNavigation');
+  if(!reviewQueueActive||reviewQueueIndex<0||!reviewQueueEventIds.length){
+    nav.classList.add('hidden');
+    return;
+  }
+  nav.classList.remove('hidden');
+  $('reviewProgress').textContent=`${reviewQueueIndex+1} of ${reviewQueueEventIds.length}`;
+  $('nextReviewBtn').disabled=reviewQueueIndex>=reviewQueueEventIds.length-1;
+}
+
+async function returnToReviewList(reload=false,message=''){
+  if($('eventDialog').open) $('eventDialog').close();
+  if(!$('pastReviewDialog').open) $('pastReviewDialog').showModal();
+  if(reload) await loadPastReviewQueue(); else renderPastReviewQueue();
+  if(message) $('pastReviewStatus').textContent=message;
+  requestAnimationFrame(()=>{$('pastReviewCard').scrollTop=pastReviewScrollTop;});
+}
+
+async function advanceReviewQueueAfterResolution(eventId){
+  if(!reviewQueueActive) return;
+  const oldIndex=reviewQueueEventIds.indexOf(eventId);
+  if(oldIndex<0) return;
+  pastReviewEvents=pastReviewEvents.filter(item=>item.id!==eventId);
+  reviewQueueEventIds.splice(oldIndex,1);
+
+  if(oldIndex<reviewQueueEventIds.length){
+    reviewQueueIndex=oldIndex;
+    await showReviewQueueEvent(reviewQueueIndex);
+    return;
+  }
+
+  reviewQueueIndex=Math.max(0,reviewQueueEventIds.length-1);
+  await returnToReviewList(true,reviewQueueEventIds.length
+    ? 'You reached the end of this review list. Remaining unresolved items are shown below.'
+    : 'All calendar items in this review list are complete.');
+}
+
+
+async function backfillMissingMissionControlAppointments(){
+  const button = $('backfillAppointmentsBtn');
+  button.disabled = true;
+  button.textContent = 'Backfilling…';
+
+  try{
+    // Pull all calendar events currently matched to Leads.
+    const {data:matchedEvents,error:eventError} = await db
+      .from('calendar_events')
+      .select('*')
+      .not('matched_lead_id','is',null)
+      .order('start_at',{ascending:true});
+
+    if(eventError) throw eventError;
+
+    const salesEvents = (matchedEvents || []).filter(isStructuredSalesAppointment);
+
+    if(!salesEvents.length){
+      alert('No matched sales appointments were found to backfill.');
+      return;
+    }
+
+    // Make sure we have a complete Lead lookup for those matched IDs.
+    const leadIds = [...new Set(salesEvents.map(e=>e.matched_lead_id).filter(Boolean))];
+
+    const {data:matchedLeads,error:leadError} = await db
+      .from('leads')
+      .select('*')
+      .in('id',leadIds);
+
+    if(leadError) throw leadError;
+
+    const leadMap = {};
+    (matchedLeads || []).forEach(lead=>{
+      leadMap[lead.id] = lead;
+    });
+
+    let createdOrUpdated = 0;
+    let skipped = 0;
+    const failures = [];
+
+    for(const row of salesEvents){
+      const lead = leadMap[row.matched_lead_id];
+
+      if(!lead){
+        skipped++;
+        continue;
+      }
+
+      try{
+        await ensureMissionControlAppointment(row,lead);
+        createdOrUpdated++;
+      }catch(err){
+        failures.push(
+          (row.summary || row.google_event_id || 'Calendar event') +
+          ': ' + (err.message || String(err))
+        );
+      }
+    }
+
+    // Reload appointments so Mission Control reflects the backfill immediately in this page.
+    const refreshed = await db
+      .from('appointments')
+      .select('*')
+      .order('appointment_at',{ascending:false})
+      .limit(2000);
+
+    if(!refreshed.error){
+      appointments = refreshed.data || [];
+    }
+
+    let message =
+      'Backfill complete.\n\n' +
+      'Matched sales appointments processed: ' + salesEvents.length + '\n' +
+      'Appointments created or updated: ' + createdOrUpdated;
+
+    if(skipped) message += '\nSkipped because the Lead could not be found: ' + skipped;
+    if(failures.length){
+      message += '\n\nSome appointments could not be saved:\n' + failures.slice(0,8).join('\n');
+      if(failures.length > 8) message += '\n…and ' + (failures.length - 8) + ' more.';
+    }
+
+    alert(message);
+  }catch(err){
+    alert(
+      'The appointment backfill could not finish.\n\n' +
+      String(err && err.message ? err.message : err)
+    );
+  }finally{
+    button.disabled = false;
+    button.textContent = 'Backfill Missing Appointments';
+  }
+}
+
+async function syncGoogleCalendarNow(){
+  let url = getCalendarSyncUrl();
+  if(!url) url = askForCalendarSyncUrl();
+  if(!url) return;
+
+  const button = $('syncCalendarBtn');
+  const status = $('syncStatus');
+
+  button.disabled = true;
+  button.textContent = 'Syncing…';
+  status.textContent = 'Reading Google Calendar…';
+
+  try{
+    const payload = await runCalendarSyncJsonp_(url);
+
+    if(!payload || !payload.ok){
+      throw new Error(payload?.error || 'Calendar sync failed.');
+    }
+
+    const result = payload.result || {};
+    status.textContent =
+      'Synced ' + (result.synced ?? 0) +
+      (result.duplicatesRemoved ? ' • ' + result.duplicatesRemoved + ' duplicate removed' : '');
+
+    await loadWeek();
+
+    setTimeout(()=>{
+      if(status.textContent.startsWith('Synced')) status.textContent = 'Up to date';
+    },5000);
+  }catch(err){
+    status.textContent = 'Sync failed';
+    alert(
+      'Google Calendar could not be synced.\n\n' +
+      String(err && err.message ? err.message : err) +
+      '\n\nIf the Apps Script Web App URL changed, clear it from this browser and try again.'
+    );
+  }finally{
+    button.disabled = false;
+    button.textContent = 'Sync Google Calendar';
+  }
+}
+
+
+
+async function init(){
+  if(!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY){
+    showMessage('Mission Control config.js could not be found.');
+    return;
+  }
+
+  db = supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
+
+  const {data:{session}} = await db.auth.getSession();
+
+  if(!session?.user){
+    showMessage('Please sign in to Mission Control first, then open Calendar again.');
+    return;
+  }
+
+  $('calendarApp').classList.remove('hidden');
+
+  const [leadResult,appointmentResult] = await Promise.all([
+    db.from('leads').select('*').order('created_at',{ascending:false}).limit(1000),
+    db.from('appointments').select('*').order('appointment_at',{ascending:false}).limit(1000)
+  ]);
+
+  if(leadResult.error){
+    showMessage('Calendar loaded, but Mission Control leads could not be read: '+leadResult.error.message);
+    return;
+  }
+  if(appointmentResult.error){
+    showMessage('Calendar loaded, but appointment history could not be read: '+appointmentResult.error.message);
+    return;
+  }
+
+  leads = leadResult.data || [];
+  appointments = appointmentResult.data || [];
+
+  await loadWeek();
+}
+
+async function loadWeek(){
+  $('periodTitle').textContent = monthRangeTitle();
+
+  const start = new Date(weekStart);
+  const end = addDays(weekStart,7);
+
+  const {data,error} = await db
+    .from('calendar_events')
+    .select('*')
+    .gte('start_at',start.toISOString())
+    .lt('start_at',end.toISOString())
+    .order('start_at',{ascending:true});
+
+  if(error){
+    showMessage('Calendar could not load: ' + error.message);
+    return;
+  }
+
+  $('authMessage').classList.add('hidden');
+  events = data || [];
+  renderCalendar();
+
+  requestAnimationFrame(()=>{
+    const shell = $('calendarShell');
+    const desired = Math.max(0,(8-START_HOUR)*HOUR_HEIGHT - 30);
+    shell.scrollTop = desired;
+  });
+}
+
+function renderCalendar(){
+  const grid = $('calendarGrid');
+  grid.innerHTML = '';
+
+  const corner = document.createElement('div');
+  corner.className = 'corner';
+  grid.appendChild(corner);
+
+  const todayKey = localDateKey(new Date());
+
+  for(let i=0;i<7;i++){
+    const day = addDays(weekStart,i);
+    const key = localDateKey(day);
+    const head = document.createElement('div');
+    head.className = 'day-head' + (key===todayKey ? ' today' : '');
+    head.innerHTML =
+      '<div class="day-name">'+esc(displayDate(day,{weekday:'short'}))+'</div>'+
+      '<div class="day-number">'+esc(displayDate(day,{day:'numeric'}))+'</div>';
+    grid.appendChild(head);
+  }
+
+  const timeCol = document.createElement('div');
+  timeCol.className='time-col';
+
+  for(let h=START_HOUR;h<END_HOUR;h++){
+    const slot=document.createElement('div');
+    slot.className='time-slot';
+    const sample=new Date(2026,0,1,h,0,0);
+    slot.innerHTML='<span>'+esc(new Intl.DateTimeFormat('en-US',{hour:'numeric'}).format(sample))+'</span>';
+    timeCol.appendChild(slot);
+  }
+  grid.appendChild(timeCol);
+
+  for(let dayIndex=0;dayIndex<7;dayIndex++){
+    const day=addDays(weekStart,dayIndex);
+    const key=localDateKey(day);
+    const col=document.createElement('div');
+    col.className='day-col' + (key===todayKey ? ' today' : '');
+    col.style.height=((END_HOUR-START_HOUR)*HOUR_HEIGHT)+'px';
+
+    const dayEvents=events.filter(row=>localDateKey(new Date(row.start_at))===key);
+
+    dayEvents.forEach(row=>{
+      const start=new Date(row.start_at);
+      const end=new Date(row.end_at);
+      const startMinutes=minuteOfDay(start);
+      const endMinutes=minuteOfDay(end);
+
+      const top=((startMinutes-START_HOUR*60)/60)*HOUR_HEIGHT;
+      const height=Math.max(28,((endMinutes-startMinutes)/60)*HOUR_HEIGHT);
+
+      if(top+height<0 || top>((END_HOUR-START_HOUR)*HOUR_HEIGHT)) return;
+
+      const el=document.createElement('div');
+      el.className='event '+eventClass(row)+(row.matched_lead_id ? ' matched' : '');
+      el.style.top=Math.max(0,top)+'px';
+      el.style.height=Math.min(height,((END_HOUR-START_HOUR)*HOUR_HEIGHT)-Math.max(0,top))+'px';
+
+      const contact=eventContact(row);
+      const marker = row.matched_lead_id
+        ? '<span class="matched-dot" title="Matched to a Lead"></span>'
+        : isSalesLeadMatchCandidate(row)
+          ? '<span class="lead-match-dot" title="Sales appointment needs Lead match"></span>'
+          : isReturnVisitCandidate(row)
+            ? '<span class="review-dot" title="Likely return visit needs review"></span>'
+            : '';
+
+      el.innerHTML=
+        '<div class="event-title">'+esc(row.summary || 'Calendar event')+'</div>'+
+        '<div class="event-time">'+esc(timeText(start))+' - '+esc(timeText(end))+'</div>'+
+        (contact ? '<div class="event-contact">'+esc(contact)+'</div>' : '')+
+        marker;
+
+      el.addEventListener('click',()=>openDetails(row));
+      col.appendChild(el);
+    });
+
+    if(key===todayKey){
+      const now=new Date();
+      const mins=minuteOfDay(now);
+      if(mins>=START_HOUR*60 && mins<=END_HOUR*60){
+        const line=document.createElement('div');
+        line.className='now-line';
+        line.style.top=(((mins-START_HOUR*60)/60)*HOUR_HEIGHT)+'px';
+        col.appendChild(line);
+      }
+    }
+
+    grid.appendChild(col);
+  }
+}
+
+function renderSuggestionCard(result,index){
+  const lead=result.lead;
+  const conf=confidenceLabel(result.score);
+  return `
+    <div class="suggestion ${index===0?'best':''}">
+      <div>
+        <div class="suggestion-name">
+          ${esc(leadName(lead))}
+          <span class="confidence ${esc(conf.cls)}">${esc(conf.label)}</span>
+        </div>
+        <div class="suggestion-meta">
+          ${lead.lead_number ? 'Lead # '+esc(lead.lead_number)+' • ' : ''}
+          ${esc(leadAddress(lead) || 'No address entered')}
+          ${lead.lead_status ? ' • '+esc(lead.lead_status) : ''}
+        </div>
+        <div class="suggestion-meta">${esc(result.reasons.join(' • ') || 'Possible match')}</div>
+      </div>
+      <button
+        class="btn success small"
+        data-match-lead="${esc(lead.id)}"
+        data-match-score="${esc(result.score)}"
+        data-match-reason="${esc(result.reasons.join(' • '))}">
+        ${isStructuredSalesAppointment(activeEvent) ? 'Match Sales Appointment' : 'Match Return Visit'}
+      </button>
+    </div>
+  `;
+}
+
+function renderReview(event){
+  const returnVisitCandidate = isReturnVisitCandidate(event);
+  const salesMatchCandidate = isSalesLeadMatchCandidate(event);
+  const needsReview = returnVisitCandidate || salesMatchCandidate;
+
+  $('reviewBox').classList.toggle('hidden',!needsReview);
+  $('matchBanner').classList.add('hidden');
+  $('manualResults').innerHTML='';
+  $('matchStatus').textContent='';
+  $('leadSearch').value='';
+
+  if(event.matched_lead_id){
+    const lead=leads.find(l=>l.id===event.matched_lead_id);
+    const label=isStructuredSalesAppointment(event) ? 'Matched sales appointment:' : 'Matched return visit:';
+    const openLeadLink='<div style="margin-top:10px"><a class="btn primary small" href="index.html?view=leads&lead='+encodeURIComponent(event.matched_lead_id)+'">Open Lead in Mission Control</a></div>';
+    $('matchBanner').innerHTML = lead
+      ? '<b>'+esc(label)+'</b> '+esc(leadName(lead))+
+        (lead.lead_number ? ' • Lead # '+esc(lead.lead_number) : '')+
+        (leadAddress(lead) ? '<br>'+esc(leadAddress(lead)) : '')+openLeadLink
+      : '<b>Matched to Lead # '+esc(event.matched_lead_number || '')+'</b>'+openLeadLink;
+    $('matchBanner').classList.remove('hidden');
+    $('notSalesBtn').classList.add('hidden');
+    return;
+  }
+
+  if(event.calendar_classification==='Not Sales Related'){
+    $('matchBanner').innerHTML='<b>Marked not related to a lead.</b>';
+    $('matchBanner').classList.remove('hidden');
+    $('notSalesBtn').classList.add('hidden');
+    return;
+  }
+
+  if(!needsReview){
+    $('notSalesBtn').classList.add('hidden');
+    $('reviewBox').classList.add('hidden');
+    return;
+  }
+
+  if(salesMatchCandidate){
+    $('reviewTitle').textContent='Sales appointment — connect it to a Mission Control Lead';
+    $('reviewSub').textContent=
+      'This event has the normal Bauer sales appointment format. Mission Control checks existing Leads first. ' +
+      'If none is correct, you can create a new Lead from the calendar information with one click.';
+  }else{
+    $('reviewTitle').textContent='Likely return visit — match it to the existing Lead';
+    $('reviewSub').textContent=
+      'This event does not follow the normal Source-Type-Address sales appointment format, so Mission Control is treating it as a likely return visit. ' +
+      'Choose the existing Lead it belongs to, or create a new Lead only if this is actually a new opportunity.';
+  }
+
+  $('notSalesBtn').classList.remove('hidden');
+  $('createLeadBtn').textContent = salesMatchCandidate ? 'Add to Leads' : 'Create New Lead';
+
+  const suggestions=suggestedLeads(event);
+  $('suggestions').innerHTML=suggestions.length
+    ? suggestions.map(renderSuggestionCard).join('')
+    : salesMatchCandidate
+      ? '<div class="suggestion"><div><b>No matching Lead found.</b><div class="suggestion-meta">If this is a new opportunity, use Create New Lead below.</div></div></div>'
+      : '<div class="suggestion"><div><b>No strong automatic suggestion yet.</b><div class="suggestion-meta">Search the Leads list below.</div></div></div>';
+
+  $('createLeadBtn').classList.toggle('hidden',salesMatchCandidate && !hasEnoughInfoToCreateLead(event));
+}
+
+function openDetails(row){
+  activeEvent=row;
+  const start=new Date(row.start_at);
+  const end=new Date(row.end_at);
+
+  $('detailTitle').textContent=row.summary || 'Calendar event';
+  $('detailWhen').textContent=
+    displayDate(start,{weekday:'long',month:'long',day:'numeric',year:'numeric'})+
+    ' • '+timeText(start)+' - '+timeText(end);
+
+  const displayClassification = row.matched_lead_id
+    ? (isStructuredSalesAppointment(row) ? 'Sales Appointment — Matched' : row.calendar_classification)
+    : isStructuredSalesAppointment(row)
+      ? 'Sales Appointment — Needs Lead Match'
+      : row.calendar_classification;
+
+  const fields=[
+    ['Classification',displayClassification],
+    ['Calendar note',calendarTitleStatus(row)],
+    ['Lead source',row.source_label || row.source_code],
+    ['Appointment type',row.appointment_type || row.appointment_code],
+    ['Property',row.property_text],
+    ['Homeowner',eventContact(row)],
+    ['Primary phone',row.phone_primary],
+    ['Secondary phone',row.phone_secondary],
+    ['Email',row.email],
+    ['Description',row.description],
+    ['Google calendar',row.calendar_name]
+  ].filter(([,value])=>value);
+
+  $('detailGrid').innerHTML=fields.map(([label,value])=>
+    '<div class="detail-label">'+esc(label)+'</div><div>'+esc(value)+'</div>'
+  ).join('');
+
+  renderReview(row);
+  renderAppointmentResult(row);
+  renderReviewNavigation();
+  if(!$('eventDialog').open) $('eventDialog').showModal();
+}
+
+
+function appointmentExternalKey(row){
+  return 'google-calendar|' +
+    String(row.google_calendar_id || '') + '|' +
+    String(row.google_event_id || '');
+}
+
+function appointmentForCalendarEvent(row){
+  const externalKey=appointmentExternalKey(row);
+  const exact=appointments.find(item=>!item.deleted_at&&item.external_import_key===externalKey);
+  if(exact) return exact;
+  if(!row.matched_lead_id) return null;
+  const target=new Date(row.start_at).getTime();
+  return appointments.find(item=>
+    !item.deleted_at &&
+    item.lead_id===row.matched_lead_id &&
+    item.appointment_at &&
+    Math.abs(new Date(item.appointment_at).getTime()-target)<60000
+  )||null;
+}
+
+function renderAppointmentResult(row){
+  const box=$('appointmentResultBox');
+  const show=Boolean(row&&row.matched_lead_id&&isStructuredSalesAppointment(row));
+  box.classList.toggle('hidden',!show);
+  if(!show) return;
+
+  const appointment=appointmentForCalendarEvent(row);
+  const result=appointment?.appointment_result||'';
+  const note=appointment?.appointment_result_note||'';
+  $('calendarAppointmentResult').value=result;
+  $('calendarAppointmentResultNote').value=note;
+  $('calendarAppointmentResultStatus').textContent='';
+
+  if(result){
+    const enteredBy=appointment.appointment_result_by ? ' • Entered by '+appointment.appointment_result_by : '';
+    const enteredAt=appointment.appointment_result_at ? ' • '+formatWhenForCalendar(appointment.appointment_result_at) : '';
+    $('appointmentResultCurrent').textContent='Current result: '+result+enteredBy+enteredAt;
+  }else{
+    $('appointmentResultCurrent').textContent='No result has been entered yet.';
+  }
+}
+
+function formatWhenForCalendar(value){
+  if(!value) return '';
+  return displayDate(new Date(value),{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+}
+
+function leadPatchForAppointmentResult(result){
+  if(result==='Estimate needed'||result==='Another professional needs to look at the work'){
+    return {lead_status:'Estimate Pending',estimate_status:'Expected'};
+  }
+  if(result==='Estimate sent / given') return {lead_status:'Estimate Sent',estimate_status:'Sent'};
+  if(result==='Another appointment needed'||result==='Reschedule') return {lead_status:'Scheduling'};
+  if(result==='Contract signed') return {lead_status:'Sold'};
+  if(result==='Not interested') return {lead_status:'Not Moving Forward'};
+  return {};
+}
+
+async function saveCalendarAppointmentResult(){
+  if(!activeEvent||!activeEvent.matched_lead_id) return;
+  const result=$('calendarAppointmentResult').value;
+  if(!result){
+    $('calendarAppointmentResultStatus').textContent='Choose an appointment result first.';
+    return;
+  }
+
+  const lead=leads.find(item=>item.id===activeEvent.matched_lead_id);
+  if(!lead){
+    $('calendarAppointmentResultStatus').textContent='The matched Lead could not be found.';
+    return;
+  }
+
+  const button=$('saveCalendarAppointmentResultBtn');
+  button.disabled=true;
+  button.textContent='Saving…';
+  $('calendarAppointmentResultStatus').textContent='';
+
+  try{
+    const appointment=await ensureMissionControlAppointment(activeEvent,lead);
+    const patch={
+      appointment_result:result,
+      appointment_result_note:$('calendarAppointmentResultNote').value.trim()||null,
+      appointment_result_at:new Date().toISOString(),
+      appointment_result_by:'Eve',
+      appointment_status:'Completed',
+      updated_at:new Date().toISOString()
+    };
+    const {data,error}=await db.from('appointments').update(patch).eq('id',appointment.id).select().single();
+    if(error) throw error;
+    appointments=appointments.map(item=>item.id===data.id?data:item);
+
+    const leadPatch=leadPatchForAppointmentResult(result);
+    if(Object.keys(leadPatch).length){
+      const updatedLead=await db.from('leads').update(leadPatch).eq('id',lead.id).select().single();
+      if(updatedLead.error) throw updatedLead.error;
+      leads=leads.map(item=>item.id===updatedLead.data.id?updatedLead.data:item);
+    }
+
+    renderAppointmentResult(activeEvent);
+    $('calendarAppointmentResultStatus').textContent='Appointment result saved in Mission Control.';
+  }catch(error){
+    $('calendarAppointmentResultStatus').textContent='Could not save the result: '+(error.message||String(error));
+  }finally{
+    button.disabled=false;
+    button.textContent='Save Appointment Result';
+  }
+}
+
+function calendarMarketSharpStatus(row){
+  const source = String(row.source_code || '').toUpperCase();
+
+  if(source === 'HA') return 'Automatic';
+  if(source === 'AA') return 'Needs Entry';
+
+  return 'Not Needed Yet';
+}
+
+async function ensureMissionControlAppointment(row,lead){
+  if(!row || !lead || !isStructuredSalesAppointment(row)) return null;
+
+  const externalKey = appointmentExternalKey(row);
+  const titleStatus=calendarTitleStatus(row);
+  const desiredStatus = titleStatus || (
+    localDateKey(new Date(row.start_at)) < localDateKey(new Date())
+      ? 'Outcome Needed'
+      : 'Scheduled'
+  );
+
+  const appointmentPayload = {
+    lead_id: lead.id,
+    appointment_at: row.start_at,
+    appointment_type: row.appointment_type || 'Measure & Presentation',
+    appointment_status: desiredStatus,
+    assigned_to: lead.assigned_to || 'Roy',
+    notes:
+      'Google Calendar: ' + (row.summary || 'Sales appointment') +
+      (row.appointment_type ? '\nAppointment type: ' + row.appointment_type : ''),
+    marketsharp_status: calendarMarketSharpStatus(row),
+    google_calendar_status: 'Added',
+    import_source: 'Google Calendar',
+    external_import_key: externalKey,
+    updated_at: new Date().toISOString()
+  };
+
+  let existing = await db
+    .from('appointments')
+    .select('*')
+    .eq('external_import_key',externalKey)
+    .is('deleted_at',null)
+    .limit(1);
+
+  if(existing.error) throw existing.error;
+
+  // A manually entered appointment at the identical time is the same visit.
+  // Adopt it for the Google Calendar event instead of creating a duplicate.
+  if(!existing.data?.length){
+    const appointmentMinute=new Date(row.start_at);
+    appointmentMinute.setSeconds(0,0);
+    const nextMinute=new Date(appointmentMinute.getTime()+60000);
+    existing = await db
+      .from('appointments')
+      .select('*')
+      .eq('lead_id',lead.id)
+      .gte('appointment_at',appointmentMinute.toISOString())
+      .lt('appointment_at',nextMinute.toISOString())
+      .is('deleted_at',null)
+      .limit(1);
+    if(existing.error) throw existing.error;
+  }
+
+  let saved;
+
+  if(existing.data && existing.data.length){
+    const current = existing.data[0];
+    const safePayload = {
+      ...appointmentPayload,
+      notes: [...new Set([current.notes,appointmentPayload.notes].map(value=>String(value||'').trim()).filter(Boolean))].join('\n\n'),
+      appointment_status: ['Completed','Cancelled'].includes(current.appointment_status)
+        ? current.appointment_status
+        : desiredStatus
+    };
+
+    const update = await db
+      .from('appointments')
+      .update(safePayload)
+      .eq('id',current.id)
+      .select()
+      .single();
+
+    if(update.error) throw update.error;
+    saved = update.data;
+    appointments = appointments.map(a => a.id === saved.id ? saved : a);
+  }else{
+    const insert = await db
+      .from('appointments')
+      .insert({
+        ...appointmentPayload,
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if(insert.error) throw insert.error;
+    saved = insert.data;
+    appointments.push(saved);
+  }
+
+  return saved;
+}
+
+async function matchEventToLead(leadId,score,reason){
+  if(!activeEvent) return;
+
+  const lead=leads.find(l=>l.id===leadId);
+  if(!lead) return;
+
+  $('matchStatus').textContent='Saving match…';
+
+  const structured = isStructuredSalesAppointment(activeEvent);
+
+  const patch={
+    matched_lead_id:lead.id,
+    matched_lead_number:lead.lead_number || null,
+    match_confidence:Math.min(100, Math.max(0, Math.round(Number(score || 0)))),
+    match_reason:reason || 'Manually selected',
+    calendar_classification:structured ? 'Sales Appointment' : 'Return Visit',
+    updated_at:new Date().toISOString()
+  };
+
+  const {data,error}=await db
+    .from('calendar_events')
+    .update(patch)
+    .eq('id',activeEvent.id)
+    .select()
+    .single();
+
+  if(error){
+    $('matchStatus').textContent='Could not save match: '+error.message;
+    return;
+  }
+
+  events=events.map(e=>e.id===data.id ? data : e);
+  activeEvent=data;
+
+  if(isStructuredSalesAppointment(data)){
+    try{
+      await ensureMissionControlAppointment(data,lead);
+    }catch(appointmentError){
+      renderCalendar();
+      renderReview(data);
+      $('matchStatus').textContent =
+        'Lead was matched, but the Mission Control appointment could not be saved: ' +
+        (appointmentError.message || String(appointmentError));
+      return;
+    }
+  }
+
+  renderCalendar();
+  renderReview(data);
+  renderAppointmentResult(data);
+  await advanceReviewQueueAfterResolution(data.id);
+}
+
+async function markNotSalesRelated(){
+  if(!activeEvent) return;
+  if(!confirm('Mark this calendar event as not related to a lead?')) return;
+
+  const {data,error}=await db
+    .from('calendar_events')
+    .update({
+      matched_lead_id:null,
+      matched_lead_number:null,
+      match_confidence:null,
+      match_reason:'Marked not related to a lead',
+      calendar_classification:'Not Sales Related',
+      updated_at:new Date().toISOString()
+    })
+    .eq('id',activeEvent.id)
+    .select()
+    .single();
+
+  if(error){
+    $('matchStatus').textContent='Could not save: '+error.message;
+    return;
+  }
+
+  events=events.map(e=>e.id===data.id ? data : e);
+  activeEvent=data;
+  renderCalendar();
+  renderReview(data);
+  renderAppointmentResult(data);
+  await advanceReviewQueueAfterResolution(data.id);
+}
+
+function searchLeads(){
+  const query=$('leadSearch').value.trim();
+  if(!query){
+    $('manualResults').innerHTML='';
+    return;
+  }
+
+  const found=leads.filter(l=>!l.deleted_at && leadMatchesSearch(l,query)).slice(0,12);
+
+  $('manualResults').innerHTML=found.length
+    ? found.map(lead=>`
+      <div class="manual-result">
+        <div>
+          <b>${esc(leadName(lead))}</b>
+          <div class="suggestion-meta">
+            ${lead.lead_number ? 'Lead # '+esc(lead.lead_number)+' • ' : ''}
+            ${esc(leadAddress(lead) || 'No address entered')}
+            ${lead.phone ? ' • '+esc(lead.phone) : ''}
+          </div>
+        </div>
+        <button class="btn success small" data-manual-match="${esc(lead.id)}">${isStructuredSalesAppointment(activeEvent) ? 'Match Sales Appointment' : 'Match Return Visit'}</button>
+      </div>
+    `).join('')
+    : '<div class="status-line">No leads matched that search.</div>';
+}
+
+document.addEventListener('click',event=>{
+  const reviewEventBtn=event.target.closest('[data-review-event-id]');
+  if(reviewEventBtn){
+    openPastReviewEvent(reviewEventBtn.dataset.reviewEventId);
+    return;
+  }
+
+  const matchBtn=event.target.closest('[data-match-lead]');
+  if(matchBtn){
+    matchEventToLead(
+      matchBtn.dataset.matchLead,
+      matchBtn.dataset.matchScore,
+      matchBtn.dataset.matchReason
+    );
+    return;
+  }
+
+  const manualBtn=event.target.closest('[data-manual-match]');
+  if(manualBtn){
+    matchEventToLead(
+      manualBtn.dataset.manualMatch,
+      50,
+      isStructuredSalesAppointment(activeEvent)
+        ? 'Sales appointment manually matched from lead search'
+        : 'Return visit manually matched from lead search'
+    );
+  }
+});
+
+$('todayBtn').onclick=async()=>{
+  weekStart=startOfWeek(new Date());
+  await loadWeek();
+};
+$('prevBtn').onclick=async()=>{
+  weekStart=addDays(weekStart,-7);
+  await loadWeek();
+};
+$('nextBtn').onclick=async()=>{
+  weekStart=addDays(weekStart,7);
+  await loadWeek();
+};
+$('syncCalendarBtn').onclick=syncGoogleCalendarNow;
+$('bulkImportBtn').onclick=openBulkImportDialog;
+$('pastReviewBtn').onclick=openPastReviewQueue;
+$('refreshPastReviewBtn').onclick=loadPastReviewQueue;
+$('closePastReviewBtn').onclick=()=>{
+  reviewQueueActive=false;
+  reviewQueueEventIds=[];
+  reviewQueueIndex=-1;
+  $('pastReviewDialog').close();
+};
+$('pastReviewSearch').addEventListener('input',renderPastReviewQueue);
+$('backToReviewListBtn').onclick=()=>returnToReviewList(false);
+$('nextReviewBtn').onclick=()=>showReviewQueueEvent(reviewQueueIndex+1);
+$('previewBulkImportBtn').onclick=previewBulkImport;
+$('runBulkImportBtn').onclick=runBulkImport;
+$('closeBulkImportBtn').onclick=()=>$('bulkImportDialog').close();
+$('backfillAppointmentsBtn').onclick=backfillMissingMissionControlAppointments;
+$('createRoyLinkBtn').onclick=createRoyUpdateLink;
+$('changeSyncUrlBtn').onclick=changeCalendarSyncUrl;
+$('refreshBtn').onclick=async()=>{
+  const [leadResult,appointmentResult]=await Promise.all([
+    db.from('leads').select('*'),
+    db.from('appointments').select('*')
+  ]);
+  if(!leadResult.error) leads=leadResult.data||[];
+  if(!appointmentResult.error) appointments=appointmentResult.data||[];
+  await loadWeek();
+};
+$('saveCalendarAppointmentResultBtn').onclick=saveCalendarAppointmentResult;
+$('closeDialogBtn').onclick=()=>reviewQueueActive?returnToReviewList(false):$('eventDialog').close();
+$('leadSearchBtn').onclick=searchLeads;
+$('leadSearch').addEventListener('keydown',e=>{if(e.key==='Enter') searchLeads();});
+$('notSalesBtn').onclick=markNotSalesRelated;
+$('createLeadBtn').onclick=openCreateLeadDialog;
+$('saveNewLeadBtn').onclick=saveLeadFromCalendarDialog;
+$('cancelNewLeadBtn').onclick=()=>$('newLeadDialog').close();
+
+init();
+</script>
+</body>
+</html>
