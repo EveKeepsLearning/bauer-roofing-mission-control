@@ -203,6 +203,11 @@
       display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;
     }
     .status-line{font-size:12px;color:var(--muted);margin-top:8px}
+    .appointment-result-box{margin-top:16px;padding:14px;border:1px solid #b7c9e5;background:#f7faff;border-radius:10px}
+    .appointment-result-box h3{margin:0 0 5px}.appointment-result-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+    .appointment-result-grid label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+    .appointment-result-grid select,.appointment-result-grid textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 10px;font:inherit;background:#fff}
+    .appointment-result-grid textarea{min-height:72px;resize:vertical}.appointment-result-grid .wide{grid-column:1/-1}
     .lead-form-grid{
       display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;margin-top:14px;
     }
@@ -228,6 +233,10 @@
     .bulk-row{padding:10px 12px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:105px 1fr;gap:10px}
     .bulk-row:last-child{border-bottom:0}.bulk-kind{font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted)}
     .bulk-row b{display:block}.bulk-row .meta{margin-top:3px}.bulk-warning{color:#8a4b00}
+    .review-queue-list{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:10px;margin-top:12px}
+    .review-queue-row{padding:12px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}
+    .review-queue-row:last-child{border-bottom:0}.review-queue-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+    .review-queue-section{margin-top:16px}.review-queue-section h3{margin:0 0 6px}.queue-count{display:inline-block;background:#fef7e0;color:#8a4b00;border-radius:999px;padding:3px 8px;font-size:11px}
 
     @media(max-width:700px){
       .brand{font-size:17px}
@@ -238,6 +247,8 @@
       .suggestion,.manual-result{grid-template-columns:1fr}
       .bulk-summary{grid-template-columns:1fr 1fr}
       .bulk-row{grid-template-columns:1fr}
+      .review-queue-row{grid-template-columns:1fr}.review-queue-actions{justify-content:flex-start}
+      .appointment-result-grid{grid-template-columns:1fr}.appointment-result-grid .wide{grid-column:auto}
     }
   </style>
 </head>
@@ -263,6 +274,7 @@
       <div class="sync-status" id="syncStatus"></div>
       <button class="btn primary" id="syncCalendarBtn">Sync Google Calendar</button>
       <button class="btn primary" id="bulkImportBtn">Import Past Appointments</button>
+      <button class="btn" id="pastReviewBtn">Past Items Needing Review</button>
       <button class="btn" id="backfillAppointmentsBtn">Backfill Missing Appointments</button>
       <button class="btn" id="createRoyLinkBtn">Create Roy Daily Check-Off</button>
       <button class="btn" id="changeSyncUrlBtn">Change Sync URL</button>
@@ -291,6 +303,37 @@
       <div class="detail-grid" id="detailGrid"></div>
 
       <div id="matchBanner" class="match-banner hidden"></div>
+
+      <div id="appointmentResultBox" class="appointment-result-box hidden">
+        <h3>Appointment Result</h3>
+        <div class="dialog-sub" id="appointmentResultCurrent">No result has been entered yet.</div>
+        <div class="appointment-result-grid">
+          <div>
+            <label>Result</label>
+            <select id="calendarAppointmentResult">
+              <option value="">Choose result</option>
+              <option>Estimate needed</option>
+              <option>Estimate sent / given</option>
+              <option>Another appointment needed</option>
+              <option>Another professional needs to look at the work</option>
+              <option>Contract signed</option>
+              <option>Customer thinking / follow up</option>
+              <option>Not interested</option>
+              <option>Reschedule</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="wide">
+            <label>Result note</label>
+            <textarea id="calendarAppointmentResultNote" placeholder="Optional details Roy gave you"></textarea>
+          </div>
+        </div>
+        <div class="dialog-actions" style="padding-bottom:0">
+          <div id="calendarAppointmentResultStatus" class="status-line"></div>
+          <div class="spacer"></div>
+          <button class="btn primary small" id="saveCalendarAppointmentResultBtn" type="button">Save Appointment Result</button>
+        </div>
+      </div>
 
       <div id="reviewBox" class="review-box hidden">
         <div class="review-title" id="reviewTitle">Review calendar event</div>
@@ -445,6 +488,22 @@
     </div>
   </dialog>
 
+  <dialog id="pastReviewDialog">
+    <div class="dialog-card" style="max-width:900px">
+      <h2>Past Items Needing Review</h2>
+      <div class="dialog-sub">Unmatched calendar appointments and imported leads still waiting for an appointment outcome.</div>
+      <div class="search-row">
+        <input id="pastReviewSearch" type="search" placeholder="Search name, address, phone, lead number, or date">
+        <button class="btn small" id="refreshPastReviewBtn" type="button">Refresh</button>
+      </div>
+      <div id="pastReviewStatus" class="status-line"></div>
+      <div id="pastReviewContent"></div>
+      <div class="dialog-actions">
+        <button class="btn" id="closePastReviewBtn" type="button">Close</button>
+      </div>
+    </div>
+  </dialog>
+
 <script>
 'use strict';
 
@@ -461,6 +520,7 @@ let leads = [];
 let appointments = [];
 let activeEvent = null;
 let bulkImportPlan = [];
+let pastReviewEvents = [];
 
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({
@@ -518,12 +578,19 @@ function eventContact(row){
   return [row.contact_last_name,row.contact_first_name].filter(Boolean).join(', ');
 }
 
+function calendarTitleStatus(row){
+  const title=String(row?.summary||'').trim();
+  if(/^CANC\s*-\s*/i.test(title)) return 'Cancelled';
+  if(/^Resch\s*-\s*/i.test(title)) return 'Rescheduled';
+  return '';
+}
+
 function isStructuredSalesAppointment(row){
   if(row.is_detailed || row.is_sales_appointment) return true;
   if(row.source_code && row.appointment_code && row.property_text) return true;
 
   const title = String(row.summary || '').trim();
-  return /^(Mail|HA|INT|RB|Ref|SI|YP|HS|Y|WF|AA)\s*-\s*[FMP]\s*-\s*.+$/i.test(title);
+  return /^(?:(?:Resch|CANC)\s*-\s*)?(Mail|HA|INT|RB|Ref|SI|YP|HS|Y|WF|AA)\s*-\s*[FMP]\s*-\s*.+$/i.test(title);
 }
 
 function isReturnVisitCandidate(row){
@@ -891,6 +958,7 @@ async function saveLeadFromCalendarDialog(){
   $('newLeadDialog').close();
   renderCalendar();
   renderReview(eventRow);
+  renderAppointmentResult(eventRow);
 
   saveBtn.disabled = false;
   saveBtn.textContent = 'Add Lead';
@@ -1057,7 +1125,7 @@ function bulkLeadFromEvent(row,id){
     source:inferLeadSource(row),
     source_reference:row.google_event_id||null,
     assigned_to:'Roy',
-    lead_status:'Appointment Outcome Needed'
+    lead_status:calendarTitleStatus(row) ? 'Scheduling' : 'Appointment Outcome Needed'
   };
 }
 
@@ -1306,6 +1374,117 @@ function openBulkImportDialog(){
   $('bulkImportList').classList.add('hidden');
   $('runBulkImportBtn').classList.add('hidden');
   $('bulkImportDialog').showModal();
+}
+
+function missionControlLeadUrl(leadId,edit){
+  return 'index.html?view=leads&lead='+encodeURIComponent(leadId)+(edit?'&edit=1':'');
+}
+
+function pastReviewSearchText(value){
+  return normalizeText(value);
+}
+
+function renderPastReviewQueue(){
+  const query=pastReviewSearchText($('pastReviewSearch').value);
+  const eventRows=pastReviewEvents.filter(row=>{
+    if(!query) return true;
+    return pastReviewSearchText([
+      row.summary,row.property_text,row.contact_first_name,row.contact_last_name,
+      row.phone_primary,row.phone_secondary,row.email,row.start_at
+    ].filter(Boolean).join(' ')).includes(query);
+  });
+
+  const outcomeLeads=leads.filter(lead=>
+    !lead.deleted_at &&
+    lead.lead_status==='Appointment Outcome Needed' &&
+    !appointments.some(appointment=>appointment.lead_id===lead.id&&appointment.appointment_result) && (
+      !query || pastReviewSearchText([
+        leadName(lead),lead.lead_number,lead.street_address,lead.city,
+        lead.phone,lead.email
+      ].filter(Boolean).join(' ')).includes(query)
+    )
+  );
+
+  const eventHtml=eventRows.map(row=>{
+    const suggestion=suggestedLeads(row)[0];
+    const titleStatus=calendarTitleStatus(row);
+    const type=titleStatus || (isStructuredSalesAppointment(row)?'Sales appointment':'Possible return visit');
+    const suggestionText=suggestion
+      ? 'Possible match: '+leadName(suggestion.lead)+' • '+suggestion.score+' points'
+      : hasEnoughInfoToCreateLead(row)
+        ? 'No existing match found; this can be added as a new Lead.'
+        : 'More information is needed before creating a Lead.';
+    return `<div class="review-queue-row">
+      <div>
+        <b>${esc(inferHomeownerName(row)||row.summary||'Calendar appointment')}</b>
+        <div class="meta">${esc(displayDate(new Date(row.start_at),{month:'short',day:'numeric',year:'numeric'}))} • ${esc(row.property_text||'No address')} • ${esc(type)}</div>
+        <div class="meta bulk-warning">${esc(suggestionText)}</div>
+      </div>
+      <div class="review-queue-actions"><button class="btn primary small" type="button" data-review-event-id="${esc(row.id)}">Review / Edit</button></div>
+    </div>`;
+  }).join('')||'<div class="review-queue-row"><div class="empty">No unmatched past appointments need review.</div></div>';
+
+  const leadHtml=outcomeLeads.map(lead=>{
+    const latest=appointments
+      .filter(appointment=>appointment.lead_id===lead.id&&appointment.appointment_at)
+      .sort((a,b)=>String(b.appointment_at).localeCompare(String(a.appointment_at)))[0];
+    return `<div class="review-queue-row">
+      <div>
+        <b>${esc(leadName(lead))}${lead.lead_number?' • Lead # '+esc(lead.lead_number):''}</b>
+        <div class="meta">${esc(leadAddress(lead)||'No address')}${latest?' • Appointment '+esc(displayDate(new Date(latest.appointment_at),{month:'short',day:'numeric',year:'numeric'})):''}</div>
+        <div class="meta bulk-warning">Waiting for the appointment outcome.</div>
+      </div>
+      <div class="review-queue-actions"><a class="btn primary small" href="${missionControlLeadUrl(lead.id,true)}">Open / Edit Lead</a></div>
+    </div>`;
+  }).join('')||'<div class="review-queue-row"><div class="empty">No imported leads are waiting for an outcome.</div></div>';
+
+  $('pastReviewContent').innerHTML=`
+    <div class="review-queue-section"><h3>Calendar matches to review <span class="queue-count">${eventRows.length}</span></h3><div class="review-queue-list">${eventHtml}</div></div>
+    <div class="review-queue-section"><h3>Leads waiting for an outcome <span class="queue-count">${outcomeLeads.length}</span></h3><div class="review-queue-list">${leadHtml}</div></div>`;
+  const totalOutcomeLeads=leads.filter(lead=>
+    !lead.deleted_at &&
+    lead.lead_status==='Appointment Outcome Needed' &&
+    !appointments.some(appointment=>appointment.lead_id===lead.id&&appointment.appointment_result)
+  ).length;
+  $('pastReviewStatus').textContent=(pastReviewEvents.length+totalOutcomeLeads)+' total item(s) currently need review.';
+}
+
+async function loadPastReviewQueue(){
+  $('pastReviewStatus').textContent='Loading past items…';
+  $('pastReviewContent').innerHTML='';
+  const {data,error}=await db
+    .from('calendar_events')
+    .select('*')
+    .gte('start_at','2026-06-01T04:00:00.000Z')
+    .lt('start_at',new Date().toISOString())
+    .order('start_at',{ascending:false});
+
+  if(error){
+    $('pastReviewStatus').textContent='Could not load past items: '+error.message;
+    return;
+  }
+
+  pastReviewEvents=(data||[]).filter(row=>
+    !row.matched_lead_id &&
+    row.calendar_classification!=='Not Sales Related' &&
+    (isStructuredSalesAppointment(row)||row.calendar_classification==='Needs Review')
+  );
+  renderPastReviewQueue();
+}
+
+async function openPastReviewQueue(){
+  $('pastReviewSearch').value='';
+  $('pastReviewDialog').showModal();
+  await loadPastReviewQueue();
+}
+
+async function openPastReviewEvent(eventId){
+  const row=pastReviewEvents.find(item=>item.id===eventId);
+  if(!row) return;
+  $('pastReviewDialog').close();
+  weekStart=startOfWeek(new Date(row.start_at));
+  await loadWeek();
+  openDetails(events.find(item=>item.id===eventId)||row);
 }
 
 
@@ -1647,11 +1826,12 @@ function renderReview(event){
   if(event.matched_lead_id){
     const lead=leads.find(l=>l.id===event.matched_lead_id);
     const label=isStructuredSalesAppointment(event) ? 'Matched sales appointment:' : 'Matched return visit:';
+    const openLeadLink='<div style="margin-top:10px"><a class="btn primary small" href="index.html?view=leads&lead='+encodeURIComponent(event.matched_lead_id)+'">Open Lead in Mission Control</a></div>';
     $('matchBanner').innerHTML = lead
       ? '<b>'+esc(label)+'</b> '+esc(leadName(lead))+
         (lead.lead_number ? ' • Lead # '+esc(lead.lead_number) : '')+
-        (leadAddress(lead) ? '<br>'+esc(leadAddress(lead)) : '')
-      : '<b>Matched to Lead # '+esc(event.matched_lead_number || '')+'</b>';
+        (leadAddress(lead) ? '<br>'+esc(leadAddress(lead)) : '')+openLeadLink
+      : '<b>Matched to Lead # '+esc(event.matched_lead_number || '')+'</b>'+openLeadLink;
     $('matchBanner').classList.remove('hidden');
     $('notSalesBtn').classList.add('hidden');
     return;
@@ -1713,6 +1893,7 @@ function openDetails(row){
 
   const fields=[
     ['Classification',displayClassification],
+    ['Calendar note',calendarTitleStatus(row)],
     ['Lead source',row.source_label || row.source_code],
     ['Appointment type',row.appointment_type || row.appointment_code],
     ['Property',row.property_text],
@@ -1729,6 +1910,7 @@ function openDetails(row){
   ).join('');
 
   renderReview(row);
+  renderAppointmentResult(row);
   $('eventDialog').showModal();
 }
 
@@ -1737,6 +1919,107 @@ function appointmentExternalKey(row){
   return 'google-calendar|' +
     String(row.google_calendar_id || '') + '|' +
     String(row.google_event_id || '');
+}
+
+function appointmentForCalendarEvent(row){
+  const externalKey=appointmentExternalKey(row);
+  const exact=appointments.find(item=>item.external_import_key===externalKey);
+  if(exact) return exact;
+  if(!row.matched_lead_id) return null;
+  const target=new Date(row.start_at).getTime();
+  return appointments.find(item=>
+    item.lead_id===row.matched_lead_id &&
+    item.appointment_at &&
+    Math.abs(new Date(item.appointment_at).getTime()-target)<60000
+  )||null;
+}
+
+function renderAppointmentResult(row){
+  const box=$('appointmentResultBox');
+  const show=Boolean(row&&row.matched_lead_id&&isStructuredSalesAppointment(row));
+  box.classList.toggle('hidden',!show);
+  if(!show) return;
+
+  const appointment=appointmentForCalendarEvent(row);
+  const result=appointment?.appointment_result||'';
+  const note=appointment?.appointment_result_note||'';
+  $('calendarAppointmentResult').value=result;
+  $('calendarAppointmentResultNote').value=note;
+  $('calendarAppointmentResultStatus').textContent='';
+
+  if(result){
+    const enteredBy=appointment.appointment_result_by ? ' • Entered by '+appointment.appointment_result_by : '';
+    const enteredAt=appointment.appointment_result_at ? ' • '+formatWhenForCalendar(appointment.appointment_result_at) : '';
+    $('appointmentResultCurrent').textContent='Current result: '+result+enteredBy+enteredAt;
+  }else{
+    $('appointmentResultCurrent').textContent='No result has been entered yet.';
+  }
+}
+
+function formatWhenForCalendar(value){
+  if(!value) return '';
+  return displayDate(new Date(value),{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+}
+
+function leadPatchForAppointmentResult(result){
+  if(result==='Estimate needed'||result==='Another professional needs to look at the work'){
+    return {lead_status:'Estimate Pending',estimate_status:'Expected'};
+  }
+  if(result==='Estimate sent / given') return {lead_status:'Estimate Sent',estimate_status:'Sent'};
+  if(result==='Another appointment needed'||result==='Reschedule') return {lead_status:'Scheduling'};
+  if(result==='Contract signed') return {lead_status:'Sold'};
+  if(result==='Not interested') return {lead_status:'Not Moving Forward'};
+  return {};
+}
+
+async function saveCalendarAppointmentResult(){
+  if(!activeEvent||!activeEvent.matched_lead_id) return;
+  const result=$('calendarAppointmentResult').value;
+  if(!result){
+    $('calendarAppointmentResultStatus').textContent='Choose an appointment result first.';
+    return;
+  }
+
+  const lead=leads.find(item=>item.id===activeEvent.matched_lead_id);
+  if(!lead){
+    $('calendarAppointmentResultStatus').textContent='The matched Lead could not be found.';
+    return;
+  }
+
+  const button=$('saveCalendarAppointmentResultBtn');
+  button.disabled=true;
+  button.textContent='Saving…';
+  $('calendarAppointmentResultStatus').textContent='';
+
+  try{
+    const appointment=await ensureMissionControlAppointment(activeEvent,lead);
+    const patch={
+      appointment_result:result,
+      appointment_result_note:$('calendarAppointmentResultNote').value.trim()||null,
+      appointment_result_at:new Date().toISOString(),
+      appointment_result_by:'Eve',
+      appointment_status:'Completed',
+      updated_at:new Date().toISOString()
+    };
+    const {data,error}=await db.from('appointments').update(patch).eq('id',appointment.id).select().single();
+    if(error) throw error;
+    appointments=appointments.map(item=>item.id===data.id?data:item);
+
+    const leadPatch=leadPatchForAppointmentResult(result);
+    if(Object.keys(leadPatch).length){
+      const updatedLead=await db.from('leads').update(leadPatch).eq('id',lead.id).select().single();
+      if(updatedLead.error) throw updatedLead.error;
+      leads=leads.map(item=>item.id===updatedLead.data.id?updatedLead.data:item);
+    }
+
+    renderAppointmentResult(activeEvent);
+    $('calendarAppointmentResultStatus').textContent='Appointment result saved in Mission Control.';
+  }catch(error){
+    $('calendarAppointmentResultStatus').textContent='Could not save the result: '+(error.message||String(error));
+  }finally{
+    button.disabled=false;
+    button.textContent='Save Appointment Result';
+  }
 }
 
 function calendarMarketSharpStatus(row){
@@ -1752,13 +2035,17 @@ async function ensureMissionControlAppointment(row,lead){
   if(!row || !lead || !isStructuredSalesAppointment(row)) return null;
 
   const externalKey = appointmentExternalKey(row);
-  const desiredStatus = localDateKey(new Date(row.start_at)) < localDateKey(new Date())
-    ? 'Outcome Needed'
-    : 'Scheduled';
+  const titleStatus=calendarTitleStatus(row);
+  const desiredStatus = titleStatus || (
+    localDateKey(new Date(row.start_at)) < localDateKey(new Date())
+      ? 'Outcome Needed'
+      : 'Scheduled'
+  );
 
   const appointmentPayload = {
     lead_id: lead.id,
     appointment_at: row.start_at,
+    appointment_type: row.appointment_type || 'Measure & Presentation',
     appointment_status: desiredStatus,
     assigned_to: lead.assigned_to || 'Roy',
     notes:
@@ -1867,6 +2154,7 @@ async function matchEventToLead(leadId,score,reason){
 
   renderCalendar();
   renderReview(data);
+  renderAppointmentResult(data);
 }
 
 async function markNotSalesRelated(){
@@ -1896,6 +2184,7 @@ async function markNotSalesRelated(){
   activeEvent=data;
   renderCalendar();
   renderReview(data);
+  renderAppointmentResult(data);
 }
 
 function searchLeads(){
@@ -1925,6 +2214,12 @@ function searchLeads(){
 }
 
 document.addEventListener('click',event=>{
+  const reviewEventBtn=event.target.closest('[data-review-event-id]');
+  if(reviewEventBtn){
+    openPastReviewEvent(reviewEventBtn.dataset.reviewEventId);
+    return;
+  }
+
   const matchBtn=event.target.closest('[data-match-lead]');
   if(matchBtn){
     matchEventToLead(
@@ -1961,6 +2256,10 @@ $('nextBtn').onclick=async()=>{
 };
 $('syncCalendarBtn').onclick=syncGoogleCalendarNow;
 $('bulkImportBtn').onclick=openBulkImportDialog;
+$('pastReviewBtn').onclick=openPastReviewQueue;
+$('refreshPastReviewBtn').onclick=loadPastReviewQueue;
+$('closePastReviewBtn').onclick=()=>$('pastReviewDialog').close();
+$('pastReviewSearch').addEventListener('input',renderPastReviewQueue);
 $('previewBulkImportBtn').onclick=previewBulkImport;
 $('runBulkImportBtn').onclick=runBulkImport;
 $('closeBulkImportBtn').onclick=()=>$('bulkImportDialog').close();
@@ -1968,8 +2267,15 @@ $('backfillAppointmentsBtn').onclick=backfillMissingMissionControlAppointments;
 $('createRoyLinkBtn').onclick=createRoyUpdateLink;
 $('changeSyncUrlBtn').onclick=changeCalendarSyncUrl;
 $('refreshBtn').onclick=async()=>{
+  const [leadResult,appointmentResult]=await Promise.all([
+    db.from('leads').select('*'),
+    db.from('appointments').select('*')
+  ]);
+  if(!leadResult.error) leads=leadResult.data||[];
+  if(!appointmentResult.error) appointments=appointmentResult.data||[];
   await loadWeek();
 };
+$('saveCalendarAppointmentResultBtn').onclick=saveCalendarAppointmentResult;
 $('closeDialogBtn').onclick=()=>$('eventDialog').close();
 $('leadSearchBtn').onclick=searchLeads;
 $('leadSearch').addEventListener('keydown',e=>{if(e.key==='Enter') searchLeads();});
