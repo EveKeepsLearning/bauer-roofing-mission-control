@@ -105,6 +105,18 @@ input,textarea,select{width:100%;padding:9px;border:1px solid #c9cdd2;border-rad
 #incomingList .task{border-left:4px solid #7b61b8;padding-left:10px}
 #suggestionList .task{border-left:4px solid #7b61b8;padding-left:10px;background:#fcfaff}
 
+/* Jobs / production handoff. */
+.section-production{border-top:4px solid #d68b00}
+.production-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}
+.production-job-card{border:1px solid var(--line);border-left:5px solid #d68b00;border-radius:10px;padding:14px;margin:10px 0;background:#fff}
+.production-job-card.needs-update{background:#fffaf0}.production-job-card.needs-contact{border-left-color:#d93025}
+.production-job-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.production-job-head b{font-size:17px}
+.production-stage{display:inline-block;border-radius:999px;background:#fff0c9;color:#775000;padding:4px 9px;font-size:11px;font-weight:700;white-space:nowrap}
+.production-job-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}
+.production-job-grid>div{background:#f3f6fa;border-radius:8px;padding:9px}.production-job-grid span{display:block;color:#687385;font-size:10px;font-weight:800;letter-spacing:.05em;margin-bottom:4px}.production-job-grid b{font-size:12px;color:#46566a}
+.production-alert{background:#fff4e5;border-left:4px solid #d68b00;border-radius:7px;padding:9px 10px;margin:8px 0}.production-alert.customer{background:#fff1f0;border-left-color:#d93025}
+.production-communication{border-left:4px solid #d93025!important}
+
 @media(max-width:980px){.angi-kpis{grid-template-columns:repeat(3,1fr)}.angi-workspace{grid-template-columns:1fr}.angi-rail-card{position:static;max-height:none}.angi-queue-list{max-height:360px}.angi-detail-card{padding:20px}}
 @media(max-width:620px){.angi-kpis{grid-template-columns:1fr 1fr}.angi-contact-grid,.followup-grid{grid-template-columns:1fr}.info-tile.wide{grid-column:auto}}
 
@@ -126,3 +138,4 @@ input,textarea,select{width:100%;padding:9px;border:1px solid #c9cdd2;border-rad
 .leads-detail-card{min-height:520px;padding:28px 38px;border-top:4px solid #2f73d9!important}.lead-detail-head{text-align:center;margin-bottom:18px}.lead-detail-head h2{font-size:28px;margin:8px 0 4px;color:#58657a}.lead-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}.lead-info-grid .wide{grid-column:1/-1}.lead-detail-note{background:#fffbea;border-left:4px solid #d6a800;border-radius:8px;padding:11px 12px;margin-top:12px;white-space:pre-wrap}.lead-detail-note span{display:block;font-size:10px;letter-spacing:.06em;font-weight:700;color:#6b7280;margin-bottom:5px}.lead-detail-section-title{text-align:center;color:#687385;font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;margin:22px 0 9px}.lead-detail-appointments{border:1px solid #dbe2ea;border-radius:10px;overflow:hidden}.lead-detail-appt{display:grid;grid-template-columns:minmax(145px,1.15fr) minmax(120px,1fr) minmax(100px,.8fr) minmax(145px,1.2fr) auto;gap:10px;align-items:center;background:#fff;padding:11px 12px;border-bottom:1px solid #e7ecf2}.lead-detail-appt:last-child{border-bottom:0}.lead-detail-appt.header{background:#f3f6fa;color:#687385;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}.lead-detail-appt span{font-size:12px;color:var(--muted)}.appointment-result-note{display:block;margin-top:3px;color:#687385;font-size:11px}.appointment-result-empty{color:#a0a8b5}.appointment-row-actions{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}.lead-detail-actions{margin-top:16px}
 @media(max-width:980px){.leads-workspace{grid-template-columns:1fr}.leads-rail-card{position:static;max-height:none}.leads-queue-list{max-height:360px}.leads-detail-card{padding:20px}}
 @media(max-width:620px){.lead-info-grid{grid-template-columns:1fr}.lead-info-grid .wide{grid-column:auto}.lead-detail-appt{grid-template-columns:1fr}.lead-detail-appt.header{display:none}}
+@media(max-width:700px){.production-kpis{grid-template-columns:1fr}.production-job-head{display:block}.production-stage{margin-top:7px}.production-job-grid{grid-template-columns:1fr 1fr}}
