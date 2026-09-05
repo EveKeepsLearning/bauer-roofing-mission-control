@@ -20,7 +20,8 @@ let state = {
   sops: [],
   suggestions: [],
   quick_notes: [],
-  roy_updates: []
+  roy_updates: [],
+  dad_updates: []
 };
 
 let selectedLeadId = '';
@@ -2652,7 +2653,12 @@ function communicationDueItems() {
     .filter(c => activeRow(c) && c.status !== 'Completed' && c.due_date && c.due_date <= td)
     .map(c => ({ kind:'communication', dueDate:c.due_date || '', dueTime:c.due_time || '', item:c }));
 
-  return [...taskItems, ...responsibilityItems].sort((a,b) => {
+  const jobItems = state.jobs
+    .filter(j => activeRow(j) && !['Final / Closed','Closed'].includes(j.stage || ''))
+    .filter(j => j.client_communication_needed || (j.client_communication_due_date && j.client_communication_due_date <= td))
+    .map(j => ({ kind:'job', dueDate:j.client_communication_due_date || td, dueTime:'', item:j }));
+
+  return [...taskItems, ...responsibilityItems, ...jobItems].sort((a,b) => {
     const ad = `${a.dueDate || '9999'} ${a.dueTime || '23:59:59'}`;
     const bd = `${b.dueDate || '9999'} ${b.dueTime || '23:59:59'}`;
     return ad.localeCompare(bd);
@@ -2661,6 +2667,10 @@ function communicationDueItems() {
 
 function communicationDueCard(entry) {
   if (entry.kind === 'task') return taskCard(entry.item);
+  if (entry.kind === 'job') {
+    const j=entry.item;
+    return `<div class="task production-communication"><b>${esc(j.customer_name || 'Job customer')}</b><div>${esc(j.client_communication_reason || 'Weekly production check-in is due')}</div><div class="meta ${j.client_communication_due_date && j.client_communication_due_date < todayISO() ? 'comm-overdue' : ''}">${j.job_number ? 'Job # '+esc(j.job_number)+' • ' : ''}Due ${esc(j.client_communication_due_date || 'today')}${j.stage ? ' • '+esc(j.stage) : ''}</div><div class="actions">${contactActionHtml({...contactForJob(j),kind:'job',id:j.id,name:j.customer_name})}<button class="btn success small" data-job-contacted="${esc(j.id)}">Mark Customer Contacted</button></div></div>`;
+  }
   const c = entry.item;
   return `<div class="task"><b>${esc(c.purpose || c.type || 'Customer communication')}</b><div class="meta ${c.due_date && c.due_date < todayISO() ? 'comm-overdue' : ''}">${esc(c.type || 'Communication')} • ${esc(c.status || 'Due')} • Due ${esc([c.due_date,c.due_time].filter(Boolean).join(' '))}${c.job_id ? ' • Job ' + esc(c.job_id) : ''}</div></div>`;
 }
@@ -2696,6 +2706,7 @@ function renderDashboard() {
   $('commList').innerHTML = comms.map(communicationDueCard).join('') || empty('No customer communication due today.');
   if ($('financialList')) $('financialList').innerHTML = financialTasks().map(taskCard).join('') || empty('No financial or QuickBooks tasks due.');
   renderRoyUpdates();
+  renderDadUpdates();
   renderQuickNotes();
   const td = todayISO();
   const isOpen = t => activeRow(t) && !['Completed','Cancelled','Skipped'].includes(t.status);
@@ -2720,6 +2731,22 @@ function renderRoyUpdates(){
       ${row.note ? `<div class="lead-detail-note"><span>ROY'S NOTE</span>${esc(row.note)}</div>` : ''}
     </div>`;
   }).join('') || empty('No Roy updates have been submitted yet.');
+}
+
+function renderDadUpdates(){
+  const target=$('dadUpdateList');
+  if(!target) return;
+  const rows=(state.dad_updates||[]).slice(0,20);
+  target.innerHTML=rows.map(row=>{
+    const when=row.submitted_at ? formatWhen(row.submitted_at) : '';
+    return `<div class="task">
+      <b>${esc(row.customer_name || 'Job')}</b>
+      <div>${esc(row.stage || 'Production update')}</div>
+      <div class="meta">${row.job_number ? 'Job # '+esc(row.job_number)+' • ' : ''}${row.communication_action ? esc(row.communication_action)+' • ' : ''}${esc(when)}</div>
+      ${row.blocker ? `<div class="lead-detail-note"><span>BLOCKER</span>${esc(row.blocker)}</div>` : ''}
+      ${row.note ? `<div class="lead-detail-note"><span>${esc((row.submitted_by || 'Dad').toUpperCase())}'S NOTE</span>${esc(row.note)}</div>` : ''}
+    </div>`;
+  }).join('') || empty('No production updates have been submitted yet.');
 }
 
 function renderIncoming() {
@@ -3770,11 +3797,31 @@ function renderProspectsLeads() {
 
 function renderJobs() {
   const activeJobs = state.jobs.filter(activeRow);
+  const today=todayISO();
+  const needsUpdate=activeJobs.filter(j=>!['Final / Closed','Closed'].includes(j.stage||'') && (!j.dad_acknowledged_at || !j.production_next_update_date || j.production_next_update_date<=today));
+  const needsContact=activeJobs.filter(j=>!['Final / Closed','Closed'].includes(j.stage||'') && (j.client_communication_needed || (j.client_communication_due_date && j.client_communication_due_date<=today)));
+  if($('productionActiveKpi')) $('productionActiveKpi').textContent=activeJobs.filter(j=>!['Final / Closed','Closed'].includes(j.stage||'')).length;
+  if($('productionUpdateKpi')) $('productionUpdateKpi').textContent=needsUpdate.length;
+  if($('productionContactKpi')) $('productionContactKpi').textContent=needsContact.length;
   const rows = activeJobs.map(j => {
     const contact = contactForJob(j);
-    return `<tr><td>${esc(j.customer_name)}</td><td>${esc(j.lead_number || '')}</td><td>${esc(j.job_number || '')}</td><td>${esc(j.property_address || '')}</td><td class="job-stage">${esc(j.stage)}</td><td>${esc(j.confirmed_start_date || j.target_start_date || '')}</td><td>${esc(j.salesperson || '')}</td><td>${contactActionHtml({phone:contact.phone,email:contact.email,kind:'job',id:j.id,name:contact.name})}<details><summary>History</summary>${communicationHistoryHtml('job',j.id)}</details><div class="actions"><button class="btn small" data-edit-job="${esc(j.id)}">View / Edit</button> <button class="btn small" data-record-action="archive" data-record-table="jobs" data-record-id="${esc(j.id)}">Archive</button> <button class="btn small" data-record-action="delete" data-record-table="jobs" data-record-id="${esc(j.id)}">Delete</button></div></td></tr>`;
+    const updateDue=!j.dad_acknowledged_at || !j.production_next_update_date || j.production_next_update_date<=today;
+    const contactDue=j.client_communication_needed || (j.client_communication_due_date && j.client_communication_due_date<=today);
+    return `<div class="production-job-card ${updateDue?'needs-update':''} ${contactDue?'needs-contact':''}">
+      <div class="production-job-head"><div><b>${esc(j.customer_name || 'Unnamed customer')}</b><div class="meta">${j.job_number ? 'Job # '+esc(j.job_number)+' • ' : ''}${esc(j.property_address || 'No address')}</div></div><span class="production-stage">${esc(j.stage || 'Needs Production Review')}</span></div>
+      <div class="production-job-grid">
+        <div><span>START</span><b>${esc(j.confirmed_start_date || j.target_start_date || 'Not scheduled')}</b></div>
+        <div><span>MATERIALS</span><b>${esc([j.material_type,j.material_color].filter(Boolean).join(' • ') || 'Not entered')}</b></div>
+        <div><span>DELIVERY</span><b>${esc(j.material_delivery_date || 'Not scheduled')}</b></div>
+        <div><span>NEXT UPDATE</span><b>${esc(j.production_next_update_date || 'Due now')}</b></div>
+      </div>
+      ${j.production_blocker ? `<div class="production-alert"><b>Waiting on:</b> ${esc(j.production_blocker)}</div>` : ''}
+      ${contactDue ? `<div class="production-alert customer"><b>Customer contact:</b> ${esc(j.client_communication_reason || 'Weekly production check-in is due')}</div>` : ''}
+      <div class="actions">${contactActionHtml({phone:contact.phone,email:contact.email,kind:'job',id:j.id,name:contact.name})}${contactDue?`<button class="btn success small" data-job-contacted="${esc(j.id)}">Mark Customer Contacted</button>`:''}<button class="btn small" data-edit-job="${esc(j.id)}">View / Edit</button><button class="btn small" data-record-action="archive" data-record-table="jobs" data-record-id="${esc(j.id)}">Archive</button><button class="btn small" data-record-action="delete" data-record-table="jobs" data-record-id="${esc(j.id)}">Delete</button></div>
+      <details><summary>Communication history</summary>${communicationHistoryHtml('job',j.id)}</details>
+    </div>`;
   }).join('');
-  $('jobsTable').innerHTML = `<div class="table-wrap"><table class="simple-table"><thead><tr><th>Customer</th><th>Lead #</th><th>Job #</th><th>Address</th><th>Stage</th><th>Start</th><th>Salesperson</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>${rows ? '' : empty('No jobs entered yet.')}`;
+  $('jobsTable').innerHTML = rows || empty('No jobs entered yet.');
   $('allComms').innerHTML = state.communications.map(c => `<div class="task"><b>${esc(c.purpose)}</b><div class="meta ${c.due_date && c.due_date < todayISO() && c.status !== 'Completed' ? 'comm-overdue' : ''}">${esc(c.type)} • ${esc(c.status)} • Due ${esc(c.due_date || '')} ${esc(c.due_time || '')}</div></div>`).join('') || empty('No communication responsibilities yet.');
   const archived = state.jobs.filter(j => !j.deleted_at && j.archived_at);
   $('archivedJobsList').innerHTML = archived.map(j => `<div class="task"><b>${esc(j.customer_name || 'Unnamed customer')}</b><div class="meta">${j.job_number ? 'Job # ' + esc(j.job_number) : ''}${j.property_address ? ' • ' + esc(j.property_address) : ''}</div><div class="actions"><button class="btn small" data-record-action="restore" data-record-table="jobs" data-record-id="${esc(j.id)}">Restore</button><button class="btn small" data-record-action="delete" data-record-table="jobs" data-record-id="${esc(j.id)}">Delete</button></div></div>`).join('') || empty('No archived jobs.');
@@ -3841,9 +3888,51 @@ async function saveLead() {
   } catch(error){msg('Could not save lead: '+(error.message||String(error)),'error');}
 }
 
-function clearJobForm(){ ['jobEditId','jobCustomer','jobLead','jobNumber','jobAddress','jobSalesperson','jobTarget','jobConfirmed','jobNotes'].forEach(id=>{if($(id))$(id).value='';}); $('jobStage').value='Sold'; $('jobDialogTitle').textContent='New Job'; $('saveJobBtn').textContent='Save'; }
-function openJobEdit(id){ const j=state.jobs.find(x=>x.id===id); if(!j)return; clearJobForm(); $('jobEditId').value=j.id; $('jobCustomer').value=j.customer_name||''; $('jobLead').value=j.lead_number||''; $('jobNumber').value=j.job_number||''; $('jobAddress').value=j.property_address||''; $('jobSalesperson').value=j.salesperson||''; $('jobStage').value=j.stage||'Sold'; $('jobTarget').value=j.target_start_date||''; $('jobConfirmed').value=j.confirmed_start_date||''; $('jobNotes').value=j.production_notes||''; $('jobDialogTitle').textContent='Job Details'; $('saveJobBtn').textContent='Save Changes'; $('jobDialog').showModal(); }
-async function saveJob(){ try{ const id=$('jobEditId').value; const customer=$('jobCustomer').value.trim(); if(!customer)return msg('Customer name is required.','error'); const row={customer_name:customer,lead_number:$('jobLead').value.trim(),job_number:$('jobNumber').value.trim(),property_address:$('jobAddress').value.trim(),salesperson:$('jobSalesperson').value.trim(),stage:$('jobStage').value,target_start_date:$('jobTarget').value||null,confirmed_start_date:$('jobConfirmed').value||null,production_notes:$('jobNotes').value.trim()}; if(id){await updateRecord('jobs',id,row,'Job changes undone.');} else {const r=await db.from('jobs').insert(row).select().single(); if(r.error)throw r.error; await db.from('undo_history').insert({action_type:'create',entity_type:'jobs',entity_id:r.data.id,description:'New job removed.',payload:{}});} $('jobDialog').close(); clearJobForm(); await loadAll(); msg(id?'Job updated.':'Job created.','success'); } catch(error){msg(error.message||String(error),'error');} }
+function dateDaysFromToday(days){ const d=new Date(); d.setDate(d.getDate()+days); return d.toLocaleDateString('en-CA',{timeZone:'America/New_York'}); }
+function normalizedProductionStage(stage){ return ({'Sold':'Needs Production Review','Pre-Production':'Production Queue','Complete':'Production Complete'})[stage]||stage||'Needs Production Review'; }
+function clearJobForm(){ ['jobEditId','jobCustomer','jobLead','jobNumber','jobAddress','jobSalesperson','jobContractDate','jobType','jobMaterialType','jobMaterialColor','jobMaterialDelivery','jobExpectedCompletion','jobProductionBlocker','jobTarget','jobConfirmed','jobNotes'].forEach(id=>{if($(id))$(id).value='';}); $('jobStage').value='Needs Production Review'; $('jobNextProductionUpdate').value=dateDaysFromToday(7); $('jobDialogTitle').textContent='New Job'; $('saveJobBtn').textContent='Save'; }
+function openJobEdit(id){ const j=state.jobs.find(x=>x.id===id); if(!j)return; clearJobForm(); $('jobEditId').value=j.id; $('jobCustomer').value=j.customer_name||''; $('jobLead').value=j.lead_number||''; $('jobNumber').value=j.job_number||''; $('jobAddress').value=j.property_address||''; $('jobSalesperson').value=j.salesperson||''; $('jobContractDate').value=j.contract_date||''; $('jobType').value=j.job_type||''; $('jobStage').value=normalizedProductionStage(j.stage); $('jobMaterialType').value=j.material_type||''; $('jobMaterialColor').value=j.material_color||''; $('jobMaterialDelivery').value=j.material_delivery_date||''; $('jobExpectedCompletion').value=j.expected_completion_date||''; $('jobProductionBlocker').value=j.production_blocker||''; $('jobNextProductionUpdate').value=j.production_next_update_date||dateDaysFromToday(7); $('jobTarget').value=j.target_start_date||''; $('jobConfirmed').value=j.confirmed_start_date||''; $('jobNotes').value=j.production_notes||''; $('jobDialogTitle').textContent='Job Details'; $('saveJobBtn').textContent='Save Changes'; $('jobDialog').showModal(); }
+async function saveJob(){
+  try{
+    const id=$('jobEditId').value;
+    const original=id?state.jobs.find(j=>j.id===id):null;
+    const customer=$('jobCustomer').value.trim();
+    if(!customer)return msg('Customer name is required.','error');
+    const materialDelivery=$('jobMaterialDelivery').value||null;
+    const confirmedStart=$('jobConfirmed').value||null;
+    const scheduleChanged=Boolean(original) && (
+      materialDelivery!==(original.material_delivery_date||null) ||
+      confirmedStart!==(original.confirmed_start_date||null)
+    );
+    const changeReason=materialDelivery!==(original?.material_delivery_date||null)
+      ? (materialDelivery?'Materials delivery scheduled or changed for '+materialDelivery:'Materials delivery date removed')
+      : (confirmedStart?'Crew start scheduled or changed for '+confirmedStart:'Crew start date removed');
+    const row={
+      customer_name:customer,lead_number:$('jobLead').value.trim(),job_number:$('jobNumber').value.trim(),
+      property_address:$('jobAddress').value.trim(),salesperson:$('jobSalesperson').value.trim(),
+      contract_date:$('jobContractDate').value||null,job_type:$('jobType').value.trim()||null,
+      stage:$('jobStage').value,material_type:$('jobMaterialType').value.trim()||null,
+      material_color:$('jobMaterialColor').value.trim()||null,material_delivery_date:materialDelivery,
+      expected_completion_date:$('jobExpectedCompletion').value||null,
+      production_blocker:$('jobProductionBlocker').value.trim()||null,
+      production_next_update_date:$('jobNextProductionUpdate').value||dateDaysFromToday(7),
+      target_start_date:$('jobTarget').value||null,confirmed_start_date:confirmedStart,
+      production_notes:$('jobNotes').value.trim(),
+      client_communication_needed:scheduleChanged?true:Boolean(original?.client_communication_needed),
+      client_communication_reason:scheduleChanged?changeReason:(original?.client_communication_reason||null),
+      client_communication_due_date:scheduleChanged?todayISO():(original?.client_communication_due_date||dateDaysFromToday(7))
+    };
+    if(id){
+      await updateRecord('jobs',id,row,'Job changes undone.');
+    }else{
+      const r=await db.from('jobs').insert(row).select().single();
+      if(r.error)throw r.error;
+      await db.from('undo_history').insert({action_type:'create',entity_type:'jobs',entity_id:r.data.id,description:'New job removed.',payload:{}});
+    }
+    $('jobDialog').close();clearJobForm();await loadAll();
+    msg(id?(scheduleChanged?'Job updated; customer notification was added to Communication Due.':'Job updated.'):'Job created and added to Dad’s production check-off.','success');
+  }catch(error){msg(error.message||String(error),'error');}
+}
 
 function openAppointmentEdit(id){ const a=state.appointments.find(x=>x.id===id); if(!a)return; $('appointmentEditId').value=a.id; $('appointmentEditDate').value=datePart(a.appointment_at); $('appointmentEditTime').value=timePart(a.appointment_at); $('appointmentEditStatus').value=a.appointment_status||'Scheduled'; $('appointmentEditAssigned').value=a.assigned_to||''; $('appointmentEditType').value=appointmentTypeLabel(a); $('appointmentEditResult').value=a.appointment_result||''; $('appointmentEditResultNote').value=a.appointment_result_note||''; $('appointmentEditMarketSharp').value=a.marketsharp_status||'Not Needed Yet'; $('appointmentEditCalendar').value=a.google_calendar_status||'Not Added'; $('appointmentEditNotes').value=a.notes||''; $('appointmentDialog').showModal(); }
 async function saveAppointmentEdit(){ try{ const id=$('appointmentEditId').value; if(!id)return; const original=state.appointments.find(x=>x.id===id); const at=$('appointmentEditDate').value?new Date(`${$('appointmentEditDate').value}T${$('appointmentEditTime').value||'12:00'}`).toISOString():null; const result=$('appointmentEditResult').value; const resultChanged=result!==(original?.appointment_result||'')||$('appointmentEditResultNote').value.trim()!==(original?.appointment_result_note||''); const patch={appointment_at:at,appointment_type:$('appointmentEditType').value.trim()||'Measure & Presentation',appointment_status:result?'Completed':$('appointmentEditStatus').value,assigned_to:$('appointmentEditAssigned').value.trim(),appointment_result:result||null,appointment_result_note:$('appointmentEditResultNote').value.trim()||null,appointment_result_at:result?(resultChanged?new Date().toISOString():(original?.appointment_result_at||new Date().toISOString())):null,appointment_result_by:result?(resultChanged?'Eve':(original?.appointment_result_by||'Eve')):null,marketsharp_status:$('appointmentEditMarketSharp').value,google_calendar_status:$('appointmentEditCalendar').value,notes:$('appointmentEditNotes').value.trim()}; await updateRecord('appointments',id,patch,'Appointment changes undone.'); if(result&&original?.lead_id){const leadPatch=leadPatchForAppointmentResult(result);if(Object.keys(leadPatch).length){const leadUpdate=await db.from('leads').update(leadPatch).eq('id',original.lead_id);if(leadUpdate.error)throw leadUpdate.error;}} $('appointmentDialog').close(); await loadAll(); msg('Appointment updated.','success'); }catch(error){msg(error.message||String(error),'error');} }
@@ -3912,6 +4001,42 @@ async function taskAction(id,action){
   await loadAll();
 }
 
+async function createDadProductionLink(){
+  const button=$('createDadProductionLinkBtn');
+  if(!button) return;
+  button.disabled=true;
+  button.textContent='Creating…';
+  try{
+    const {data,error}=await db.rpc('create_dad_production_session');
+    if(error) throw error;
+    const token=Array.isArray(data)?data[0]?.token:(data?.token||data);
+    if(!token) throw new Error('Mission Control did not receive a production check-off token.');
+    const url=new URL('dad-production.html',window.location.href);
+    url.searchParams.set('token',token);
+    try{
+      await navigator.clipboard.writeText(url.toString());
+      alert("Dad's production check-off link was copied.\n\nText it to him whenever you want a production update. The link works for 8 days.");
+    }catch(copyError){
+      prompt('Copy this link and text it to Dad:',url.toString());
+    }
+  }catch(error){
+    msg('Could not create Dad’s production link: '+(error.message||String(error)),'error');
+  }finally{
+    button.disabled=false;
+    button.textContent='Create Dad Production Check-Off';
+  }
+}
+
+async function markJobCustomerContacted(jobId){
+  const job=state.jobs.find(j=>j.id===jobId);
+  if(!job) return;
+  const note=prompt('Optional note about what you told '+(job.customer_name||'the customer')+':','')||'';
+  const {error}=await db.rpc('mark_job_customer_contacted',{p_job_id:jobId,p_note:note});
+  if(error) throw error;
+  await loadAll();
+  msg('Customer contact saved. The next weekly check-in is scheduled.','success');
+}
+
 async function loadAll(){
   const calls=[['tasks','created_at',false],['jobs','updated_at',false],['communications','due_date',true],['incoming','captured_at',false],['phone_messages','created_at',false],['prospects','created_at',false],['leads','created_at',false],['appointments','appointment_at',true],['sales_communications','occurred_at',false],['job_communications','occurred_at',false],['lookup_options','sort_order',true],['sops','title',true],['suggestions','created_at',false],['quick_notes','updated_at',false]];
   const results=await Promise.all(calls.map(([table,order,ascending])=>db.from(table).select('*').order(order,{ascending}).limit(500)));
@@ -3922,6 +4047,13 @@ async function loadAll(){
     console.warn('Roy update history is not available yet:',royResult.error.message);
   }else{
     state.roy_updates=royResult.data||[];
+  }
+  const dadResult=await db.rpc('get_recent_dad_production_updates',{p_days:14});
+  if(dadResult.error){
+    state.dad_updates=[];
+    console.warn('Dad production history is not available yet:',dadResult.error.message);
+  }else{
+    state.dad_updates=dadResult.data||[];
   }
   try { await rollForwardMissedAngiCadence(); } catch (error) { console.warn('Could not roll forward missed Angi cadence windows:', error); }
   setupLeadProspectSelects(); renderDashboard(); renderProspectsLeads(); renderAngiQueue(); applyUrlNavigation();
@@ -3940,6 +4072,7 @@ document.body.addEventListener('click', async event => {
     const selectLead=event.target.closest('[data-lead-select]'); if(selectLead){selectedLeadId=selectLead.dataset.leadSelect;renderProspectsLeads();return;}
     const editLead=event.target.closest('[data-edit-lead]'); if(editLead){openLeadEdit(editLead.dataset.editLead);return;}
     const editJob=event.target.closest('[data-edit-job]'); if(editJob){openJobEdit(editJob.dataset.editJob);return;}
+    const jobContacted=event.target.closest('[data-job-contacted]'); if(jobContacted){await markJobCustomerContacted(jobContacted.dataset.jobContacted);return;}
     const editAppt=event.target.closest('[data-edit-appointment]'); if(editAppt){openAppointmentEdit(editAppt.dataset.editAppointment);return;}
     const mergeAppt=event.target.closest('[data-merge-appointment]'); if(mergeAppt){await mergeDuplicateAppointments(mergeAppt.dataset.mergeAppointment);return;}
     const logComm=event.target.closest('[data-log-communication]'); if(logComm){openCommunicationDialog(logComm.dataset.logCommunication,logComm.dataset.contactId);return;}
@@ -3958,6 +4091,7 @@ if ($('newProspectBtn')) $('newProspectBtn').onclick=()=>openProspectDialog();
 $('newLeadBtn').onclick=()=>{clearLeadForm();openLeadDialog();};
 if ($('leadSearch')) $('leadSearch').oninput=()=>{ selectedLeadId=''; renderProspectsLeads(); };
 $('newJobBtn').onclick=()=>{clearJobForm();$('jobDialog').showModal();};
+if($('createDadProductionLinkBtn')) $('createDadProductionLinkBtn').onclick=createDadProductionLink;
 
 
 // Angi queue interactions.
