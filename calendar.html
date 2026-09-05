@@ -220,6 +220,14 @@
       display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
     }
     .create-lead-copy{font-size:13px;color:var(--muted)}
+    .bulk-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}
+    .bulk-stat{border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center;background:#f8fafd}
+    .bulk-stat b{display:block;font-size:24px;color:var(--blue)}
+    .bulk-stat span{font-size:11px;color:var(--muted)}
+    .bulk-list{max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+    .bulk-row{padding:10px 12px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:105px 1fr;gap:10px}
+    .bulk-row:last-child{border-bottom:0}.bulk-kind{font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted)}
+    .bulk-row b{display:block}.bulk-row .meta{margin-top:3px}.bulk-warning{color:#8a4b00}
 
     @media(max-width:700px){
       .brand{font-size:17px}
@@ -228,6 +236,8 @@
       .detail-grid{grid-template-columns:1fr}
       .detail-label{font-weight:700;margin-top:6px}
       .suggestion,.manual-result{grid-template-columns:1fr}
+      .bulk-summary{grid-template-columns:1fr 1fr}
+      .bulk-row{grid-template-columns:1fr}
     }
   </style>
 </head>
@@ -252,6 +262,7 @@
 
       <div class="sync-status" id="syncStatus"></div>
       <button class="btn primary" id="syncCalendarBtn">Sync Google Calendar</button>
+      <button class="btn primary" id="bulkImportBtn">Import Past Appointments</button>
       <button class="btn" id="backfillAppointmentsBtn">Backfill Missing Appointments</button>
       <button class="btn" id="createRoyLinkBtn">Create Roy Daily Check-Off</button>
       <button class="btn" id="changeSyncUrlBtn">Change Sync URL</button>
@@ -376,6 +387,7 @@
             <option>Appointment Wanted</option>
             <option>Scheduling</option>
             <option selected>Appointment Scheduled</option>
+            <option>Appointment Outcome Needed</option>
             <option>Estimate Pending</option>
             <option>Estimate Sent</option>
             <option>Sold</option>
@@ -411,6 +423,28 @@
     </div>
   </dialog>
 
+  <dialog id="bulkImportDialog">
+    <div class="dialog-card" style="max-width:820px">
+      <h2>Import Past Appointments into Leads</h2>
+      <div class="dialog-sub">Preview first. Mission Control will only automate clear matches and well-formed new leads.</div>
+
+      <div class="lead-form-grid">
+        <div><label>Beginning date</label><input id="bulkStartDate" type="date" value="2026-06-01"></div>
+        <div><label>Ending date</label><input id="bulkEndDate" type="date" value="2026-07-31"></div>
+      </div>
+
+      <div id="bulkImportStatus" class="status-line"></div>
+      <div id="bulkImportSummary"></div>
+      <div id="bulkImportList" class="bulk-list hidden"></div>
+
+      <div class="dialog-actions">
+        <button class="btn" id="closeBulkImportBtn" type="button">Cancel</button>
+        <button class="btn" id="previewBulkImportBtn" type="button">Preview Import</button>
+        <button class="btn primary hidden" id="runBulkImportBtn" type="button">Import Approved Items</button>
+      </div>
+    </div>
+  </dialog>
+
 <script>
 'use strict';
 
@@ -426,6 +460,7 @@ let events = [];
 let leads = [];
 let appointments = [];
 let activeEvent = null;
+let bulkImportPlan = [];
 
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({
@@ -998,6 +1033,282 @@ async function createRoyUpdateLink(){
 }
 
 
+function bulkDateIso(dateValue,endExclusive){
+  const date=new Date(String(dateValue)+'T00:00:00-04:00');
+  if(endExclusive) date.setDate(date.getDate()+1);
+  return date.toISOString();
+}
+
+function bulkLeadFromEvent(row,id){
+  const property=inferPropertyFields(row);
+  const first=String(row.contact_first_name||'').trim()||null;
+  const last=String(row.contact_last_name||'').trim()||null;
+  return {
+    id,
+    homeowner_name:[first,last].filter(Boolean).join(' ')||null,
+    first_name:first,
+    last_name:last,
+    street_address:property.street_address,
+    city:property.city,
+    state:property.state,
+    zip:property.zip,
+    phone:row.phone_primary||null,
+    email:row.email||null,
+    source:inferLeadSource(row),
+    source_reference:row.google_event_id||null,
+    assigned_to:'Roy',
+    lead_status:'Appointment Outcome Needed'
+  };
+}
+
+function bulkCandidates(row,pool){
+  return pool
+    .filter(lead=>!lead.deleted_at)
+    .map(lead=>{
+      const result=scoreLeadForEvent(row,lead);
+      if(row.google_event_id && lead.source_reference===row.google_event_id){
+        result.score+=300;
+        result.reasons.unshift('same Google Calendar event');
+      }
+      return result;
+    })
+    .filter(result=>result.score>=15)
+    .sort((a,b)=>b.score-a.score);
+}
+
+function buildBulkImportPlan(rows){
+  const pool=leads.filter(lead=>!lead.deleted_at).map(lead=>({...lead}));
+  const plan=[];
+  let newCounter=0;
+
+  rows.slice().sort((a,b)=>String(a.start_at).localeCompare(String(b.start_at))).forEach(row=>{
+    if(!isStructuredSalesAppointment(row) || row.calendar_classification==='Not Sales Related'){
+      plan.push({row,action:'ignore',reason:'Not a structured sales appointment'});
+      return;
+    }
+
+    if(row.matched_lead_id){
+      plan.push({row,action:'already',leadId:row.matched_lead_id,reason:'Already connected to a Lead; appointment will be verified'});
+      return;
+    }
+
+    const candidates=bulkCandidates(row,pool);
+    const top=candidates[0];
+    const second=candidates[1];
+    const clearWinner=top && top.score>=100 && (!second || top.score-second.score>=25);
+
+    if(clearWinner){
+      plan.push({
+        row,
+        action:'match',
+        leadId:top.lead.id,
+        leadLabel:leadName(top.lead),
+        score:top.score,
+        reason:top.reasons.join(' • ')||'High-confidence match'
+      });
+      return;
+    }
+
+    if(candidates.length){
+      plan.push({
+        row,
+        action:'review',
+        reason:'Possible match: '+leadName(top.lead)+' ('+top.score+' points)'
+      });
+      return;
+    }
+
+    if(hasEnoughInfoToCreateLead(row)){
+      const provisionalId='bulk:new:'+(++newCounter);
+      const virtualLead=bulkLeadFromEvent(row,provisionalId);
+      pool.push(virtualLead);
+      plan.push({row,action:'create',leadId:provisionalId,leadLabel:leadName(virtualLead),reason:'No existing match found'});
+      return;
+    }
+
+    plan.push({row,action:'review',reason:'Not enough name, address, or contact information to create safely'});
+  });
+
+  return plan;
+}
+
+function bulkActionText(item){
+  if(item.action==='create') return 'Create Lead';
+  if(item.action==='match') return 'Link Match';
+  if(item.action==='already') return 'Already Done';
+  if(item.action==='review') return 'Needs Review';
+  return 'Ignored';
+}
+
+function renderBulkImportPlan(){
+  const counts={create:0,match:0,already:0,review:0,ignore:0};
+  bulkImportPlan.forEach(item=>{counts[item.action]=(counts[item.action]||0)+1;});
+
+  $('bulkImportSummary').innerHTML=`<div class="bulk-summary">
+    <div class="bulk-stat"><b>${counts.match}</b><span>MATCH EXISTING</span></div>
+    <div class="bulk-stat"><b>${counts.create}</b><span>CREATE LEADS</span></div>
+    <div class="bulk-stat"><b>${counts.review}</b><span>NEEDS REVIEW</span></div>
+    <div class="bulk-stat"><b>${counts.already}</b><span>ALREADY CONNECTED</span></div>
+  </div>`;
+
+  const visible=bulkImportPlan.filter(item=>item.action!=='ignore');
+  $('bulkImportList').innerHTML=visible.map(item=>{
+    const warning=item.action==='review'?' bulk-warning':'';
+    const person=inferHomeownerName(item.row)||item.row.summary||'Calendar appointment';
+    return `<div class="bulk-row">
+      <div class="bulk-kind${warning}">${esc(bulkActionText(item))}</div>
+      <div><b>${esc(person)}</b><div class="meta">${esc(displayDate(new Date(item.row.start_at),{month:'short',day:'numeric',year:'numeric'}))} • ${esc(item.row.property_text||'No address')}</div><div class="meta${warning}">${esc(item.reason||'')}</div></div>
+    </div>`;
+  }).join('')||'<div class="bulk-row"><div>No sales appointments were found in this date range.</div></div>';
+  $('bulkImportList').classList.remove('hidden');
+
+  const approved=counts.create+counts.match+counts.already;
+  $('runBulkImportBtn').classList.toggle('hidden',approved===0);
+  $('runBulkImportBtn').textContent='Import '+approved+' Approved Item'+(approved===1?'':'s');
+  $('bulkImportStatus').textContent=counts.review
+    ? counts.review+' appointment'+(counts.review===1?' needs':'s need')+' manual review and will not be changed.'
+    : 'Everything is ready. Nothing uncertain will be changed.';
+}
+
+async function previewBulkImport(){
+  const start=$('bulkStartDate').value;
+  const end=$('bulkEndDate').value;
+  if(!start||!end||start>end){
+    $('bulkImportStatus').textContent='Choose a valid beginning and ending date.';
+    return;
+  }
+
+  const button=$('previewBulkImportBtn');
+  button.disabled=true;
+  button.textContent='Checking…';
+  $('runBulkImportBtn').classList.add('hidden');
+  $('bulkImportList').classList.add('hidden');
+  $('bulkImportSummary').innerHTML='';
+  $('bulkImportStatus').textContent='Comparing calendar appointments with existing Leads…';
+
+  const {data,error}=await db
+    .from('calendar_events')
+    .select('*')
+    .gte('start_at',bulkDateIso(start,false))
+    .lt('start_at',bulkDateIso(end,true))
+    .order('start_at',{ascending:true});
+
+  button.disabled=false;
+  button.textContent='Preview Import';
+
+  if(error){
+    $('bulkImportStatus').textContent='Could not read past appointments: '+error.message;
+    return;
+  }
+
+  bulkImportPlan=buildBulkImportPlan(data||[]);
+  renderBulkImportPlan();
+}
+
+async function createBulkLead(row){
+  const lead=bulkLeadFromEvent(row,null);
+  const secondary=row.phone_secondary ? '\nSecondary phone: '+row.phone_secondary : '';
+  const payload={
+    ...lead,
+    id:undefined,
+    lead_number:null,
+    source_reference:row.google_event_id||null,
+    work_category:inferWorkCategory(row),
+    estimate_status:'Not Known',
+    import_source:'Google Calendar Bulk Import',
+    notes:'Created from a past Google Calendar appointment on '+displayDate(new Date(row.start_at),{month:'long',day:'numeric',year:'numeric'})+'.'+secondary
+  };
+  delete payload.id;
+
+  const {data,error}=await db.from('leads').insert(payload).select().single();
+  if(error) throw error;
+  leads.push(data);
+  return data;
+}
+
+async function linkBulkEvent(row,lead,score,reason){
+  const patch={
+    matched_lead_id:lead.id,
+    matched_lead_number:lead.lead_number||null,
+    match_confidence:Math.min(100,Math.max(0,Math.round(Number(score||100)))),
+    match_reason:reason||'Bulk import',
+    calendar_classification:'Sales Appointment',
+    updated_at:new Date().toISOString()
+  };
+  const {data,error}=await db.from('calendar_events').update(patch).eq('id',row.id).select().single();
+  if(error) throw error;
+  events=events.map(event=>event.id===data.id?data:event);
+  await ensureMissionControlAppointment(data,lead);
+  return data;
+}
+
+async function runBulkImport(){
+  const approved=bulkImportPlan.filter(item=>['create','match','already'].includes(item.action));
+  const reviewItem=bulkImportPlan.find(item=>item.action==='review');
+  if(!approved.length) return;
+  if(!confirm('Import '+approved.length+' approved appointment'+(approved.length===1?'':'s')+'?\n\nItems marked Needs Review will remain unchanged.')) return;
+
+  const button=$('runBulkImportBtn');
+  button.disabled=true;
+  button.textContent='Importing…';
+  const createdLeadIds={};
+  let created=0;
+  let matched=0;
+  let verified=0;
+  const failures=[];
+
+  for(let i=0;i<approved.length;i++){
+    const item=approved[i];
+    $('bulkImportStatus').textContent='Importing '+(i+1)+' of '+approved.length+'…';
+    try{
+      let lead;
+      if(item.action==='already'){
+        lead=leads.find(candidate=>candidate.id===item.leadId);
+        if(!lead) throw new Error('The connected Lead could not be found.');
+        await ensureMissionControlAppointment(item.row,lead);
+        verified++;
+        continue;
+      }else if(item.action==='create'){
+        lead=await createBulkLead(item.row);
+        createdLeadIds[item.leadId]=lead.id;
+        created++;
+      }else{
+        const realId=createdLeadIds[item.leadId]||item.leadId;
+        lead=leads.find(candidate=>candidate.id===realId);
+        if(!lead) throw new Error('The approved Lead match could not be found.');
+      }
+      await linkBulkEvent(item.row,lead,item.score,item.reason);
+      if(item.action==='match') matched++;
+    }catch(error){
+      failures.push((item.row.summary||'Appointment')+': '+(error.message||String(error)));
+    }
+  }
+
+  button.disabled=false;
+  button.classList.add('hidden');
+  bulkImportPlan=[];
+
+  let result='Import complete: '+created+' Lead'+(created===1?'':'s')+' created, '+matched+' existing Lead match'+(matched===1?'':'es')+' connected, and '+verified+' previously connected appointment'+(verified===1?'':'s')+' verified.';
+  if(failures.length) result+=' '+failures.length+' item'+(failures.length===1?' needs':'s need')+' attention.';
+  $('bulkImportStatus').textContent=result;
+
+  if(reviewItem){
+    weekStart=startOfWeek(new Date(reviewItem.row.start_at));
+  }
+  await loadWeek();
+}
+
+function openBulkImportDialog(){
+  bulkImportPlan=[];
+  $('bulkImportStatus').textContent='Click Preview Import to see exactly what Mission Control will do.';
+  $('bulkImportSummary').innerHTML='';
+  $('bulkImportList').innerHTML='';
+  $('bulkImportList').classList.add('hidden');
+  $('runBulkImportBtn').classList.add('hidden');
+  $('bulkImportDialog').showModal();
+}
+
+
 async function backfillMissingMissionControlAppointments(){
   const button = $('backfillAppointmentsBtn');
   button.disabled = true;
@@ -1441,11 +1752,14 @@ async function ensureMissionControlAppointment(row,lead){
   if(!row || !lead || !isStructuredSalesAppointment(row)) return null;
 
   const externalKey = appointmentExternalKey(row);
+  const desiredStatus = localDateKey(new Date(row.start_at)) < localDateKey(new Date())
+    ? 'Outcome Needed'
+    : 'Scheduled';
 
   const appointmentPayload = {
     lead_id: lead.id,
     appointment_at: row.start_at,
-    appointment_status: 'Scheduled',
+    appointment_status: desiredStatus,
     assigned_to: lead.assigned_to || 'Roy',
     notes:
       'Google Calendar: ' + (row.summary || 'Sales appointment') +
@@ -1469,10 +1783,16 @@ async function ensureMissionControlAppointment(row,lead){
 
   if(existing.data && existing.data.length){
     const current = existing.data[0];
+    const safePayload = {
+      ...appointmentPayload,
+      appointment_status: ['Completed','Cancelled'].includes(current.appointment_status)
+        ? current.appointment_status
+        : desiredStatus
+    };
 
     const update = await db
       .from('appointments')
-      .update(appointmentPayload)
+      .update(safePayload)
       .eq('id',current.id)
       .select()
       .single();
@@ -1640,6 +1960,10 @@ $('nextBtn').onclick=async()=>{
   await loadWeek();
 };
 $('syncCalendarBtn').onclick=syncGoogleCalendarNow;
+$('bulkImportBtn').onclick=openBulkImportDialog;
+$('previewBulkImportBtn').onclick=previewBulkImport;
+$('runBulkImportBtn').onclick=runBulkImport;
+$('closeBulkImportBtn').onclick=()=>$('bulkImportDialog').close();
 $('backfillAppointmentsBtn').onclick=backfillMissingMissionControlAppointments;
 $('createRoyLinkBtn').onclick=createRoyUpdateLink;
 $('changeSyncUrlBtn').onclick=changeCalendarSyncUrl;
