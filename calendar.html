@@ -1943,7 +1943,10 @@ function renderReview(event){
       ? '<div class="suggestion"><div><b>No matching Lead found.</b><div class="suggestion-meta">If this is a new opportunity, use Create New Lead below.</div></div></div>'
       : '<div class="suggestion"><div><b>No strong automatic suggestion yet.</b><div class="suggestion-meta">Search the Leads list below.</div></div></div>';
 
-  $('createLeadBtn').classList.toggle('hidden',salesMatchCandidate && !hasEnoughInfoToCreateLead(event));
+  // Always offer the form. Some calendar titles contain enough useful name and
+  // address information even when a phone/email is not present in the event.
+  // Eve can review and complete any missing fields before saving.
+  $('createLeadBtn').classList.remove('hidden');
 }
 
 function openDetails(row){
