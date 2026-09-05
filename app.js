@@ -24,6 +24,7 @@ let state = {
 };
 
 let selectedLeadId = '';
+let urlNavigationApplied = false;
 
 const $ = id => document.getElementById(id);
 
@@ -118,6 +119,29 @@ function setView(name) {
   if (name === 'suggestions') {
     renderSuggestions();
   }
+}
+
+function applyUrlNavigation(){
+  if(urlNavigationApplied) return;
+  const params=new URLSearchParams(window.location.search);
+  const requestedView=params.get('view');
+  const requestedLead=params.get('lead');
+
+  if(requestedLead){
+    const lead=state.leads.find(item=>item.id===requestedLead);
+    if(lead){
+      selectedLeadId=lead.id;
+      setView('leads');
+      renderProspectsLeads();
+      urlNavigationApplied=true;
+      if(params.get('edit')==='1') setTimeout(()=>openLeadEdit(lead.id),0);
+      return;
+    }
+  }
+
+  const allowedViews=['today','phone','incoming','angi','leads','jobs','playbook','suggestions'];
+  if(requestedView&&allowedViews.includes(requestedView)) setView(requestedView);
+  urlNavigationApplied=true;
 }
 
 
@@ -957,7 +981,7 @@ async function importAngiHistoricalPackage() {
       }
       const ar = await db.from('appointments').insert({
         lead_id:lead.id, prospect_id:p.id, appointment_at:sanitizeHistoricalTimestamp(a.appointment_at), appointment_status:a.appointment_status || 'Scheduled',
-        assigned_to:a.assigned_to, notes:a.notes, marketsharp_status:a.marketsharp_status || 'Not Needed Yet',
+        appointment_type:a.appointment_type || 'Measure & Presentation', assigned_to:a.assigned_to, notes:a.notes, marketsharp_status:a.marketsharp_status || 'Not Needed Yet',
         marketsharp_action:a.marketsharp_action, import_source:'Angi Historical Tracker', external_import_key:a.external_import_key,
         created_at:sanitizeHistoricalTimestamp(a.created_at) || undefined, updated_at:sanitizeHistoricalTimestamp(a.updated_at) || undefined
       });
@@ -1227,6 +1251,7 @@ async function saveLead() {
       lead_id: data.id,
       prospect_id: prospectId,
       appointment_at: appointmentAt,
+      appointment_type: 'Measure & Presentation',
       appointment_status: 'Scheduled',
       assigned_to: $('leadAssignedTo').value,
       marketsharp_status: $('leadMarketSharpStatus').value,
@@ -3547,14 +3572,36 @@ function leadUpcomingAppointments(leadId) {
     .sort((a,b) => new Date(a.appointment_at) - new Date(b.appointment_at));
 }
 
+function leadAppointments(leadId) {
+  return state.appointments
+    .filter(a => activeRow(a) && a.lead_id === leadId && a.appointment_at)
+    .sort((a,b) => new Date(b.appointment_at) - new Date(a.appointment_at));
+}
+
+function appointmentTypeLabel(appointment) {
+  if (appointment.appointment_type) return appointment.appointment_type;
+  const match = String(appointment.notes || '').match(/Appointment type:\s*([^\n]+)/i);
+  return match ? match[1].trim() : 'Measure & Presentation';
+}
+
+function leadPatchForAppointmentResult(result) {
+  if(result==='Estimate needed'||result==='Another professional needs to look at the work') return {lead_status:'Estimate Pending',estimate_status:'Expected'};
+  if(result==='Estimate sent / given') return {lead_status:'Estimate Sent',estimate_status:'Sent'};
+  if(result==='Another appointment needed'||result==='Reschedule') return {lead_status:'Scheduling'};
+  if(result==='Contract signed') return {lead_status:'Sold'};
+  if(result==='Not interested') return {lead_status:'Not Moving Forward'};
+  return {};
+}
+
 function renderLeadDetail() {
   const detail = $('leadDetail');
   if (!detail) return;
 
   const activeLeads = state.leads.filter(l => visibleLead(l) && !['Sold','Not Moving Forward'].includes(l.lead_status));
+  const selectedVisibleLead = state.leads.find(l => visibleLead(l) && l.id === selectedLeadId);
   const query = $('leadSearch') ? $('leadSearch').value : '';
   const matching = activeLeads.filter(l => leadMatchesSearch(l, query));
-  let lead = matching.find(l => l.id === selectedLeadId) || activeLeads.find(l => l.id === selectedLeadId);
+  let lead = matching.find(l => l.id === selectedLeadId) || selectedVisibleLead || activeLeads.find(l => l.id === selectedLeadId);
 
   if (!lead && matching.length) {
     selectedLeadId = matching[0].id;
@@ -3567,10 +3614,18 @@ function renderLeadDetail() {
     return;
   }
 
-  const appts = leadUpcomingAppointments(lead.id);
+  const appts = leadAppointments(lead.id);
   const sourceLine = [lead.lead_number ? 'Lead # ' + lead.lead_number : 'Lead # not entered', lead.source, lead.assigned_to].filter(Boolean).join(' • ');
   const address = [lead.street_address, lead.city, lead.state, lead.zip].filter(Boolean).join(lead.street_address && lead.city ? ', ' : ' ');
-  const apptHtml = appts.length ? appts.map(a => `<div class="lead-detail-appt"><b>${esc(formatWhen(a.appointment_at))}</b><span>${esc(a.appointment_status || 'Scheduled')}${a.assigned_to ? ' • ' + esc(a.assigned_to) : ''}</span><button class="btn small" data-edit-appointment="${esc(a.id)}">Edit</button></div>`).join('') : '<div class="meta">No upcoming appointments.</div>';
+  const apptHtml = appts.length ? `
+    <div class="lead-detail-appt header"><span>Date / Time</span><span>Type</span><span>Salesperson</span><span>Result / Reason</span><span></span></div>
+    ${appts.map(a => `<div class="lead-detail-appt">
+      <b>${esc(formatWhen(a.appointment_at))}</b>
+      <span>${esc(appointmentTypeLabel(a))}</span>
+      <span>${esc(a.assigned_to || '—')}</span>
+      <span><b>${esc(a.appointment_result || a.appointment_status || 'Scheduled')}</b>${a.appointment_result_note ? `<small class="appointment-result-note">${esc(a.appointment_result_note)}</small>` : ''}</span>
+      <button class="btn small" data-edit-appointment="${esc(a.id)}">Edit</button>
+    </div>`).join('')}` : '<div class="meta">No appointments entered yet.</div>';
 
   detail.innerHTML = `
     <div class="lead-detail-head">
@@ -3592,7 +3647,7 @@ function renderLeadDetail() {
     ${lead.estimate_note ? `<div class="lead-detail-note"><span>ESTIMATE NOTE</span>${esc(lead.estimate_note)}</div>` : ''}
     ${lead.notes ? `<div class="lead-detail-note"><span>LEAD NOTES</span>${esc(lead.notes)}</div>` : ''}
 
-    <div class="lead-detail-section-title">Upcoming Appointments</div>
+    <div class="lead-detail-section-title">Appointments</div>
     <div class="lead-detail-appointments">${apptHtml}</div>
 
     <details class="comm-history-details" open>
@@ -3624,7 +3679,7 @@ function renderProspectsLeads() {
     .slice()
     .sort((a,b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
 
-  if (!selectedLeadId || !activeLeads.some(l => l.id === selectedLeadId)) {
+  if (!selectedLeadId || !state.leads.some(l => visibleLead(l) && l.id === selectedLeadId)) {
     selectedLeadId = matchingLeads.length ? matchingLeads[0].id : '';
   }
 
@@ -3717,7 +3772,7 @@ async function saveLead() {
     const row={prospect_id:prospectId,lead_number:leadNumber||null,source:$('leadSource').value,source_account:$('leadSource').value==='Angi'?($('leadSourceAccount').value||null):null,source_reference:$('leadSourceRef').value.trim()||null,import_source:'Manual',homeowner_name:[first,last].filter(Boolean).join(' '),first_name:first,last_name:last,street_address:$('leadStreet').value.trim(),city:$('leadCity').value.trim(),state:$('leadState').value.trim(),zip:$('leadZip').value.trim(),phone:$('leadPhone').value.trim(),email:$('leadEmail').value.trim(),work_category:$('leadWorkCategory').value,lead_status:$('leadStatus').value,assigned_to:$('leadAssignedTo').value,estimate_status:$('leadEstimateStatus').value,estimate_issue_note:$('leadEstimateNote').value.trim(),notes:$('leadNotes').value.trim()};
     const r=await db.from('leads').insert(row).select().single(); if(r.error)throw r.error; let appointmentId=null; let prospectBefore=null;
     if(prospectId){ prospectBefore=state.prospects.find(p=>p.id===prospectId)||null; const u=await db.from('prospects').update({converted_to_lead_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',prospectId).select().single(); if(u.error)throw u.error; }
-    if($('leadAppointmentDate').value){ const at=new Date(`${$('leadAppointmentDate').value}T${$('leadAppointmentTime').value||'12:00'}`).toISOString(); const a=await db.from('appointments').insert({lead_id:r.data.id,prospect_id:prospectId,appointment_at:at,appointment_status:'Scheduled',assigned_to:$('leadAssignedTo').value,marketsharp_status:$('leadMarketSharpStatus').value,google_calendar_status:'Not Added'}).select().single(); if(a.error)throw a.error; appointmentId=a.data.id; }
+    if($('leadAppointmentDate').value){ const at=new Date(`${$('leadAppointmentDate').value}T${$('leadAppointmentTime').value||'12:00'}`).toISOString(); const a=await db.from('appointments').insert({lead_id:r.data.id,prospect_id:prospectId,appointment_at:at,appointment_type:'Measure & Presentation',appointment_status:'Scheduled',assigned_to:$('leadAssignedTo').value,marketsharp_status:$('leadMarketSharpStatus').value,google_calendar_status:'Not Added'}).select().single(); if(a.error)throw a.error; appointmentId=a.data.id; }
     if(prospectId){ await db.from('undo_history').insert({action_type:'promote_prospect',entity_type:'prospects',entity_id:prospectId,description:'Prospect promotion undone.',payload:{prospect_before:prospectBefore,lead_id:r.data.id,appointment_id:appointmentId}}); } else { await db.from('undo_history').insert({action_type:'create',entity_type:'leads',entity_id:r.data.id,description:'New lead removed.',payload:{}}); }
     $('leadDialog').close(); await loadAll(); msg('Lead saved.','success');
   } catch(error){msg('Could not save lead: '+(error.message||String(error)),'error');}
@@ -3727,8 +3782,8 @@ function clearJobForm(){ ['jobEditId','jobCustomer','jobLead','jobNumber','jobAd
 function openJobEdit(id){ const j=state.jobs.find(x=>x.id===id); if(!j)return; clearJobForm(); $('jobEditId').value=j.id; $('jobCustomer').value=j.customer_name||''; $('jobLead').value=j.lead_number||''; $('jobNumber').value=j.job_number||''; $('jobAddress').value=j.property_address||''; $('jobSalesperson').value=j.salesperson||''; $('jobStage').value=j.stage||'Sold'; $('jobTarget').value=j.target_start_date||''; $('jobConfirmed').value=j.confirmed_start_date||''; $('jobNotes').value=j.production_notes||''; $('jobDialogTitle').textContent='Job Details'; $('saveJobBtn').textContent='Save Changes'; $('jobDialog').showModal(); }
 async function saveJob(){ try{ const id=$('jobEditId').value; const customer=$('jobCustomer').value.trim(); if(!customer)return msg('Customer name is required.','error'); const row={customer_name:customer,lead_number:$('jobLead').value.trim(),job_number:$('jobNumber').value.trim(),property_address:$('jobAddress').value.trim(),salesperson:$('jobSalesperson').value.trim(),stage:$('jobStage').value,target_start_date:$('jobTarget').value||null,confirmed_start_date:$('jobConfirmed').value||null,production_notes:$('jobNotes').value.trim()}; if(id){await updateRecord('jobs',id,row,'Job changes undone.');} else {const r=await db.from('jobs').insert(row).select().single(); if(r.error)throw r.error; await db.from('undo_history').insert({action_type:'create',entity_type:'jobs',entity_id:r.data.id,description:'New job removed.',payload:{}});} $('jobDialog').close(); clearJobForm(); await loadAll(); msg(id?'Job updated.':'Job created.','success'); } catch(error){msg(error.message||String(error),'error');} }
 
-function openAppointmentEdit(id){ const a=state.appointments.find(x=>x.id===id); if(!a)return; $('appointmentEditId').value=a.id; $('appointmentEditDate').value=datePart(a.appointment_at); $('appointmentEditTime').value=timePart(a.appointment_at); $('appointmentEditStatus').value=a.appointment_status||'Scheduled'; $('appointmentEditAssigned').value=a.assigned_to||''; $('appointmentEditMarketSharp').value=a.marketsharp_status||'Not Needed Yet'; $('appointmentEditCalendar').value=a.google_calendar_status||'Not Added'; $('appointmentEditNotes').value=a.notes||''; $('appointmentDialog').showModal(); }
-async function saveAppointmentEdit(){ try{ const id=$('appointmentEditId').value; if(!id)return; const at=$('appointmentEditDate').value?new Date(`${$('appointmentEditDate').value}T${$('appointmentEditTime').value||'12:00'}`).toISOString():null; await updateRecord('appointments',id,{appointment_at:at,appointment_status:$('appointmentEditStatus').value,assigned_to:$('appointmentEditAssigned').value.trim(),marketsharp_status:$('appointmentEditMarketSharp').value,google_calendar_status:$('appointmentEditCalendar').value,notes:$('appointmentEditNotes').value.trim()},'Appointment changes undone.'); $('appointmentDialog').close(); await loadAll(); msg('Appointment updated.','success'); }catch(error){msg(error.message||String(error),'error');} }
+function openAppointmentEdit(id){ const a=state.appointments.find(x=>x.id===id); if(!a)return; $('appointmentEditId').value=a.id; $('appointmentEditDate').value=datePart(a.appointment_at); $('appointmentEditTime').value=timePart(a.appointment_at); $('appointmentEditStatus').value=a.appointment_status||'Scheduled'; $('appointmentEditAssigned').value=a.assigned_to||''; $('appointmentEditType').value=appointmentTypeLabel(a); $('appointmentEditResult').value=a.appointment_result||''; $('appointmentEditResultNote').value=a.appointment_result_note||''; $('appointmentEditMarketSharp').value=a.marketsharp_status||'Not Needed Yet'; $('appointmentEditCalendar').value=a.google_calendar_status||'Not Added'; $('appointmentEditNotes').value=a.notes||''; $('appointmentDialog').showModal(); }
+async function saveAppointmentEdit(){ try{ const id=$('appointmentEditId').value; if(!id)return; const original=state.appointments.find(x=>x.id===id); const at=$('appointmentEditDate').value?new Date(`${$('appointmentEditDate').value}T${$('appointmentEditTime').value||'12:00'}`).toISOString():null; const result=$('appointmentEditResult').value; const resultChanged=result!==(original?.appointment_result||'')||$('appointmentEditResultNote').value.trim()!==(original?.appointment_result_note||''); const patch={appointment_at:at,appointment_type:$('appointmentEditType').value.trim()||'Measure & Presentation',appointment_status:result?'Completed':$('appointmentEditStatus').value,assigned_to:$('appointmentEditAssigned').value.trim(),appointment_result:result||null,appointment_result_note:$('appointmentEditResultNote').value.trim()||null,appointment_result_at:result?(resultChanged?new Date().toISOString():(original?.appointment_result_at||new Date().toISOString())):null,appointment_result_by:result?(resultChanged?'Eve':(original?.appointment_result_by||'Eve')):null,marketsharp_status:$('appointmentEditMarketSharp').value,google_calendar_status:$('appointmentEditCalendar').value,notes:$('appointmentEditNotes').value.trim()}; await updateRecord('appointments',id,patch,'Appointment changes undone.'); if(result&&original?.lead_id){const leadPatch=leadPatchForAppointmentResult(result);if(Object.keys(leadPatch).length){const leadUpdate=await db.from('leads').update(leadPatch).eq('id',original.lead_id);if(leadUpdate.error)throw leadUpdate.error;}} $('appointmentDialog').close(); await loadAll(); msg('Appointment updated.','success'); }catch(error){msg(error.message||String(error),'error');} }
 
 function openCommunicationDialog(kind, id) {
   let record = null, name = '';
@@ -3806,7 +3861,7 @@ async function loadAll(){
     state.roy_updates=royResult.data||[];
   }
   try { await rollForwardMissedAngiCadence(); } catch (error) { console.warn('Could not roll forward missed Angi cadence windows:', error); }
-  setupLeadProspectSelects(); renderDashboard(); renderProspectsLeads(); renderAngiQueue();
+  setupLeadProspectSelects(); renderDashboard(); renderProspectsLeads(); renderAngiQueue(); applyUrlNavigation();
 }
 
 // Additional click handling for editing and record safety actions.
