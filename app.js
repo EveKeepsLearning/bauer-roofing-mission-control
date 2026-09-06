@@ -141,7 +141,7 @@ function applyUrlNavigation(){
     }
   }
 
-  const allowedViews=['today','phone','incoming','angi','leads','jobs','playbook','suggestions'];
+  const allowedViews=['today','phone','angi','leads','jobs','playbook','suggestions'];
   if(requestedView&&allowedViews.includes(requestedView)) setView(requestedView);
   urlNavigationApplied=true;
 }
@@ -671,7 +671,6 @@ function renderDashboard() {
   $('kpiWeekJobs').textContent =
     jw.length;
 
-  renderIncoming();
   renderPhone();
   renderJobs();
 }
@@ -1411,6 +1410,8 @@ function renderSops() {
   const select =
     $('sopSelect');
 
+  const previouslySelected = select.value;
+
   select.innerHTML =
     state.sops
       .map(s => `
@@ -1419,6 +1420,10 @@ function renderSops() {
         </option>
       `)
       .join('');
+
+  if (state.sops.some(s => String(s.id) === String(previouslySelected))) {
+    select.value = previouslySelected;
+  }
 
   const show = () => {
 
@@ -1472,6 +1477,8 @@ function renderSops() {
         : empty(
             'No SOP selected.'
           );
+
+    if ($('editSopBtn')) $('editSopBtn').disabled = !s;
   };
 
   select.onchange =
@@ -2480,9 +2487,6 @@ document.body.addEventListener(
 $('savePhoneBtn').onclick =
   savePhone;
 
-$('saveIncomingBtn').onclick =
-  saveIncoming;
-
 $('newTaskBtn').onclick =
   () =>
     $('taskDialog')
@@ -2618,6 +2622,8 @@ function taskCard(t) {
         <button class="btn small" data-action="complete">Complete</button>
         ${skipButton}
         <button class="btn small" data-action="block">Block</button>
+        ${state.sops.length ? `<button class="btn small" data-open-sop-task="${esc(t.id)}">Open Instructions</button>` : ''}
+        <button class="btn small" data-duplicate-task="${esc(t.id)}">Duplicate</button>
         <button class="btn small" data-edit-task="${esc(t.id)}">Edit</button>
         <button class="btn small" data-record-action="delete" data-record-table="tasks" data-record-id="${esc(t.id)}">Delete</button>
       </div>
@@ -2725,7 +2731,7 @@ function renderDashboard() {
   $('kpiDue').textContent = state.tasks.filter(t => isOpen(t) && t.due_date === td).length;
   $('kpiComms').textContent = comms.length;
   $('kpiWeekJobs').textContent = jw.length;
-  renderIncoming(); renderPhone(); renderJobs();
+  renderPhone(); renderJobs();
 }
 
 function renderRoyUpdates(){
@@ -3916,6 +3922,55 @@ function openTaskEdit(id) {
   const t=state.tasks.find(x=>x.id===id); if(!t)return; clearTaskForm();
   $('taskEditId').value=t.id; $('taskName').value=t.task||''; $('taskCategory').value=taskPlacement(t); $('taskPriority').value=t.base_priority||'Normal'; $('taskDueDate').value=t.due_date||''; $('taskDueTime').value=t.due_time||''; $('taskRepeat').value=t.repeat_pattern||'None'; $('taskRelatedNumber').value=t.related_number||t.job_number||t.lead_number||''; $('taskDescription').value=t.description||''; $('taskNext').value=t.next_action||''; $('taskNotes').value=t.notes||''; $('taskSubtasks').value=(state.task_subtasks||[]).filter(s=>s.task_id===t.id&&!s.deleted_at).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(s=>s.title).join('\n'); $('taskDialogTitle').textContent='Edit Task'; $('saveTaskBtn').textContent='Save Changes'; $('taskDialog').showModal();
 }
+function duplicateTask(id) {
+  const t=state.tasks.find(x=>x.id===id); if(!t)return; clearTaskForm();
+  $('taskName').value=t.task||''; $('taskCategory').value=taskPlacement(t); $('taskPriority').value=t.base_priority||'Normal'; $('taskDueDate').value=t.due_date||''; $('taskDueTime').value=t.due_time||''; $('taskRepeat').value=t.repeat_pattern||'None'; $('taskRelatedNumber').value=t.related_number||t.job_number||t.lead_number||''; $('taskDescription').value=t.description||''; $('taskNext').value=t.next_action||''; $('taskNotes').value=t.notes||''; $('taskSubtasks').value=(state.task_subtasks||[]).filter(s=>s.task_id===t.id&&!s.deleted_at).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(s=>s.title).join('\n'); $('taskDialogTitle').textContent='Duplicate Task'; $('saveTaskBtn').textContent='Create Duplicate'; $('taskDialog').showModal();
+}
+
+function clearSopForm() {
+  ['sopEditId','sopTitle','sopPurpose','sopWhen','sopPrerequisites','sopInstructions','sopVerify'].forEach(id=>{if($(id))$(id).value='';});
+  $('sopDialogTitle').textContent='Add SOP';
+  $('saveSopBtn').textContent='Save SOP';
+}
+
+function openSopEditor(id='') {
+  clearSopForm();
+  const s=id?state.sops.find(x=>String(x.id)===String(id)):null;
+  if(s){
+    $('sopEditId').value=s.id; $('sopTitle').value=s.title||''; $('sopPurpose').value=s.purpose||''; $('sopWhen').value=s.when_to_use||''; $('sopPrerequisites').value=s.prerequisites||''; $('sopInstructions').value=s.instructions||''; $('sopVerify').value=s.how_to_verify||''; $('sopDialogTitle').textContent='Edit SOP'; $('saveSopBtn').textContent='Save Changes';
+  }
+  $('sopDialog').showModal();
+}
+
+async function saveSop() {
+  try{
+    const id=$('sopEditId').value;
+    const row={title:$('sopTitle').value.trim(),purpose:$('sopPurpose').value.trim(),when_to_use:$('sopWhen').value.trim(),prerequisites:$('sopPrerequisites').value.trim(),instructions:$('sopInstructions').value.trim(),how_to_verify:$('sopVerify').value.trim()};
+    if(!row.title)return msg('SOP title is required.','error');
+    if(id){const result=await db.from('sops').update(row).eq('id',id).select().single();if(result.error)throw result.error;}
+    else{
+      const createRow={...row,owner_id:user?.id||undefined};
+      let result=await db.from('sops').insert(createRow).select().single();
+      if(result.error&&/owner_id|schema cache/i.test(result.error.message||'')){delete createRow.owner_id;result=await db.from('sops').insert(createRow).select().single();}
+      if(result.error)throw result.error;
+    }
+    $('sopDialog').close(); clearSopForm(); await loadAll(); setView('playbook'); msg(id?'SOP updated.':'SOP created.','success');
+  }catch(error){msg('Could not save SOP: '+(error.message||String(error)),'error');}
+}
+
+function openInstructionsForTask(id) {
+  const task=state.tasks.find(x=>x.id===id); if(!task)return;
+  setView('playbook');
+  if(!state.sops.length)return msg('Add an SOP to the Playbook first.','error');
+  const ignored=new Set(['the','and','for','with','from','into','your','this','that','task','complete','check']);
+  const words=value=>new Set(String(value||'').toLowerCase().match(/[a-z0-9]+/g)?.filter(w=>w.length>2&&!ignored.has(w))||[]);
+  const taskSteps=(state.task_subtasks||[]).filter(s=>s.task_id===id&&!s.deleted_at).map(s=>s.title).join(' ');
+  const taskWords=words([task.task,task.description,task.next_action,taskSteps].filter(Boolean).join(' '));
+  const ranked=state.sops.map(s=>{const titleWords=words(s.title);const detailWords=words([s.purpose,s.when_to_use].join(' '));let score=0;taskWords.forEach(w=>{if(titleWords.has(w))score+=3;else if(detailWords.has(w))score+=1;});return {s,score};}).sort((a,b)=>b.score-a.score);
+  const best=ranked[0];
+  if(best){$('sopSelect').value=best.s.id;$('sopSelect').dispatchEvent(new Event('change'));if(!best.score)msg('Choose the SOP that applies to this task.','success');}
+}
+
 async function saveTask() {
   try {
     const id=$('taskEditId').value,task=$('taskName').value.trim(),repeat=$('taskRepeat').value;
@@ -3927,7 +3982,7 @@ async function saveTask() {
     const patch={task,description:$('taskDescription').value.trim(),category:$('taskCategory').value,base_priority:$('taskPriority').value,due_date:chosenDate,due_time:$('taskDueTime').value||null,next_action:$('taskNext').value.trim(),notes:$('taskNotes').value.trim(),related_number:related.related_number,lead_number:related.lead_number,job_number:related.job_number,repeat_pattern:repeat,repeat_weekdays_only:true,recurrence_series_id:repeat==='None'?null:(current?.recurrence_series_id||crypto.randomUUID()),recurrence_anchor_date:repeat==='None'?null:(chosenDate!==current?.due_date?chosenDate:(current?.recurrence_anchor_date||chosenDate))};
     let taskId=id;
     if(id){await updateRecord('tasks',id,patch,'Task changes undone.');}
-    else{const r=await db.from('tasks').insert({...patch,task_type:repeat==='None'?'One-Time':'Recurring',status:'Not Started'}).select().single();if(r.error)throw r.error;taskId=r.data.id;await db.from('undo_history').insert({action_type:'create',entity_type:'tasks',entity_id:r.data.id,description:'New task removed.',payload:{}});}
+    else{const r=await db.from('tasks').insert({...patch,owner_id:user?.id||undefined,task_type:repeat==='None'?'One-Time':'Recurring',status:'Not Started'}).select().single();if(r.error)throw r.error;taskId=r.data.id;await db.from('undo_history').insert({action_type:'create',entity_type:'tasks',entity_id:r.data.id,description:'New task removed.',payload:{}});}
     await syncTaskSubtasks(taskId,taskSubtaskLines());
     $('taskDialog').close();clearTaskForm();await loadAll();msg(id?'Task updated.':'Task created.','success');
   }catch(error){msg('Could not save task: '+(error.message||String(error)),'error');}
@@ -4181,7 +4236,7 @@ async function markJobCustomerContacted(jobId){
 }
 
 async function loadAll(){
-  const calls=[['tasks','created_at',false],['jobs','updated_at',false],['communications','due_date',true],['incoming','captured_at',false],['phone_messages','created_at',false],['prospects','created_at',false],['leads','created_at',false],['appointments','appointment_at',true],['sales_communications','occurred_at',false],['job_communications','occurred_at',false],['lookup_options','sort_order',true],['sops','title',true],['suggestions','created_at',false],['quick_notes','updated_at',false]];
+  const calls=[['tasks','created_at',false],['jobs','updated_at',false],['communications','due_date',true],['phone_messages','created_at',false],['prospects','created_at',false],['leads','created_at',false],['appointments','appointment_at',true],['sales_communications','occurred_at',false],['job_communications','occurred_at',false],['lookup_options','sort_order',true],['sops','title',true],['suggestions','created_at',false],['quick_notes','updated_at',false]];
   const results=await Promise.all(calls.map(([table,order,ascending])=>db.from(table).select('*').order(order,{ascending}).limit(500)));
   for(let i=0;i<results.length;i++){ if(results[i].error)throw results[i].error; let stateName=calls[i][0]==='phone_messages'?'phone':calls[i][0]; if(stateName==='lookup_options')stateName='lookups'; state[stateName]=results[i].data||[]; }
   const subtaskResult=await db.from('task_subtasks').select('*').order('sort_order',{ascending:true}).limit(2000);
@@ -4223,9 +4278,10 @@ document.body.addEventListener('click', async event => {
     const editNote=event.target.closest('[data-edit-quick-note]'); if(editNote){const n=(state.quick_notes||[]).find(x=>x.id===editNote.dataset.editQuickNote);if(n){$('quickNoteEditId').value=n.id;$('quickNoteText').value=n.note||'';$('saveQuickNoteBtn').textContent='Save Changes';$('cancelQuickNoteEditBtn').classList.remove('hidden');$('quickNoteText').focus();}return;}
     const deleteNote=event.target.closest('[data-delete-quick-note]'); if(deleteNote){await deleteQuickNote(deleteNote.dataset.deleteQuickNote);return;}
     const noteToTask=event.target.closest('[data-note-to-task]'); if(noteToTask){convertQuickNoteToTask(noteToTask.dataset.noteToTask);return;}
+    const openSopTask=event.target.closest('[data-open-sop-task]'); if(openSopTask){openInstructionsForTask(openSopTask.dataset.openSopTask);return;}
+    const duplicateTaskButton=event.target.closest('[data-duplicate-task]'); if(duplicateTaskButton){duplicateTask(duplicateTaskButton.dataset.duplicateTask);return;}
     const editTask=event.target.closest('[data-edit-task]'); if(editTask){openTaskEdit(editTask.dataset.editTask);return;}
     const editPhone=event.target.closest('[data-edit-phone]'); if(editPhone){openPhoneEdit(editPhone.dataset.editPhone);return;}
-    const editIncoming=event.target.closest('[data-edit-incoming]'); if(editIncoming){openIncomingEdit(editIncoming.dataset.editIncoming);return;}
     const editProspect=event.target.closest('[data-edit-prospect]'); if(editProspect){openProspectDialog(state.prospects.find(p=>p.id===editProspect.dataset.editProspect));return;}
     const selectLead=event.target.closest('[data-lead-select]'); if(selectLead){selectedLeadId=selectLead.dataset.leadSelect;renderProspectsLeads();return;}
     const editLead=event.target.closest('[data-edit-lead]'); if(editLead){openLeadEdit(editLead.dataset.editLead);return;}
@@ -4241,10 +4297,13 @@ document.body.addEventListener('click', async event => {
 
 $('undoBtn').onclick=undoLastAction;
 $('cancelPhoneEditBtn').onclick=clearPhoneForm;
-$('cancelIncomingEditBtn').onclick=clearIncomingForm;
 $('saveAppointmentEditBtn').onclick=saveAppointmentEdit;
 $('saveCommunicationBtn').onclick=saveCommunication;
 $('newTaskBtn').onclick=()=>{clearTaskForm();$('taskDialog').showModal();};
+if($('newSopBtn')) $('newSopBtn').onclick=()=>openSopEditor();
+if($('editSopBtn')) $('editSopBtn').onclick=()=>openSopEditor($('sopSelect').value);
+if($('saveSopBtn')) $('saveSopBtn').onclick=saveSop;
+if($('cancelSopBtn')) $('cancelSopBtn').onclick=()=>{$('sopDialog').close();clearSopForm();};
 if ($('newProspectBtn')) $('newProspectBtn').onclick=()=>openProspectDialog();
 $('newLeadBtn').onclick=()=>{clearLeadForm();openLeadDialog();};
 if ($('leadSearch')) $('leadSearch').oninput=()=>{ selectedLeadId=''; renderProspectsLeads(); };
