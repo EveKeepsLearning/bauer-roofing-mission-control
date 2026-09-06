@@ -3592,6 +3592,13 @@ function leadStatusTone(status) {
   return 'tone-active';
 }
 
+function leadDateLabel(lead) {
+  const source = String(lead?.source || '').toLowerCase();
+  return source.includes('angi') || source.includes('homeadvisor')
+    ? 'ANGI LEAD DATE'
+    : 'FIRST APPOINTMENT DATE';
+}
+
 function leadUpcomingAppointments(leadId) {
   const now = new Date();
   return state.appointments
@@ -3730,7 +3737,7 @@ function renderLeadDetail() {
       <div class="info-tile"><span>PHONE</span><b>${esc(lead.phone || '—')}</b></div>
       <div class="info-tile"><span>OTHER PHONE</span><b>${esc(lead.phone_secondary || '—')}</b></div>
       <div class="info-tile"><span>EMAIL</span><b>${esc(lead.email || '—')}</b></div>
-      <div class="info-tile"><span>LEAD DATE</span><b>${esc(lead.lead_date || '—')}</b></div>
+      <div class="info-tile"><span>${leadDateLabel(lead)}</span><b>${esc(lead.lead_date || '—')}</b></div>
       <div class="info-tile wide"><span>PROPERTY</span><b>${esc(address || '—')}</b></div>
       <div class="info-tile"><span>ESTIMATE</span><b>${esc(lead.estimate_status || 'Not Known')}</b></div>
       <div class="info-tile"><span>SOURCE</span><b>${esc(lead.source || '—')}</b></div>
