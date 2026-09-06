@@ -131,10 +131,6 @@
           Phone Message
         </button>
 
-        <button data-view="incoming">
-          Incoming
-        </button>
-
         <button data-view="angi">
           Angi Queue
         </button>
@@ -446,62 +442,6 @@
       </section>
 
 
-      <!-- INCOMING -->
-
-      <section
-        id="view-incoming"
-        class="hidden">
-
-        <div class="card">
-
-          <h2 id="incomingFormTitle">
-            Capture Incoming Work
-          </h2>
-          <input id="incomingEditId" type="hidden">
-
-          <label>
-            What just came in?
-          </label>
-
-          <textarea id="incomingDesc"></textarea>
-
-
-          <label>
-            Source
-          </label>
-
-          <input
-            id="incomingSource"
-            placeholder="Phone, Roy, Dad, email…"
-          >
-
-
-          <div class="toolbar">
-            <button
-              class="btn primary"
-              id="saveIncomingBtn">
-              Capture
-            </button>
-            <button class="btn hidden" type="button" id="cancelIncomingEditBtn">Cancel Edit</button>
-          </div>
-
-        </div>
-
-
-        <div class="card">
-
-          <h3>
-            Recent Incoming
-          </h3>
-
-          <div id="incomingList"></div>
-
-        </div>
-
-      </section>
-
-
-
       <!-- ANGI WORK QUEUE -->
       <section id="view-angi" class="hidden">
         <div class="kpi-row angi-kpis">
@@ -701,9 +641,14 @@
 
         <div class="card">
 
-          <h2>
-            Playbook / SOPs
-          </h2>
+          <div class="toolbar">
+            <h2>
+              Playbook / SOPs
+            </h2>
+            <div class="spacer"></div>
+            <button class="btn small" type="button" id="editSopBtn">Edit SOP</button>
+            <button class="btn primary small" type="button" id="newSopBtn">+ Add SOP</button>
+          </div>
 
           <select id="sopSelect"></select>
 
@@ -751,6 +696,39 @@
         </div>
 
       </section>
+
+
+      <!-- ADD / EDIT SOP -->
+
+      <dialog id="sopDialog">
+        <form method="dialog" class="card" style="min-width:min(720px,90vw);margin:0">
+          <h2 id="sopDialogTitle">Add SOP</h2>
+          <input id="sopEditId" type="hidden">
+
+          <label>Title</label>
+          <input id="sopTitle" placeholder="Example: Create a New Job">
+
+          <label>Purpose</label>
+          <textarea id="sopPurpose" placeholder="What this procedure accomplishes"></textarea>
+
+          <label>When to use it</label>
+          <textarea id="sopWhen" placeholder="What should trigger this procedure"></textarea>
+
+          <label>Prerequisites</label>
+          <textarea id="sopPrerequisites" placeholder="Information, documents, or access needed before starting"></textarea>
+
+          <label>Steps</label>
+          <textarea id="sopInstructions" rows="10" placeholder="Enter the detailed instructions in order"></textarea>
+
+          <label>How to verify completion</label>
+          <textarea id="sopVerify" placeholder="What should be checked before considering this finished"></textarea>
+
+          <div class="actions">
+            <button class="btn primary" type="button" id="saveSopBtn">Save SOP</button>
+            <button class="btn" type="button" id="cancelSopBtn">Cancel</button>
+          </div>
+        </form>
+      </dialog>
 
 
       <!-- NEW TASK -->
