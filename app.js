@@ -161,6 +161,23 @@ function dueStamp(t) {
     .join(' ');
 }
 
+function formatDueDateTime(dateValue,timeValue) {
+  const date=String(dateValue||'').trim();
+  const time=String(timeValue||'').trim();
+  let formattedDate='';
+  let formattedTime='';
+  const dateParts=date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(dateParts)formattedDate=`${dateParts[2]}/${dateParts[3]}/${dateParts[1]}`;
+  else if(date)formattedDate=date;
+  const timeParts=time.match(/^(\d{1,2}):(\d{2})/);
+  if(timeParts){
+    const hour=Number(timeParts[1]);
+    formattedTime=`${hour%12||12}:${timeParts[2]} ${hour>=12?'pm':'am'}`;
+  }else if(time)formattedTime=time;
+  if(formattedTime&&formattedDate)return `${formattedTime} on ${formattedDate}`;
+  return formattedTime||formattedDate;
+}
+
 
 function priorityRank(p) {
   return p === 'Critical'
@@ -2603,13 +2620,11 @@ async function undoLastAction() {
 
 function taskCard(t) {
   const subtasks=(state.task_subtasks||[]).filter(s=>s.task_id===t.id&&!s.deleted_at).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
-  const completeCount=subtasks.filter(s=>s.completed_at).length;
-  const progress = subtasks.length ? ` • <b>${completeCount} of ${subtasks.length} steps</b>` : (t.progress_total ? ` • <b>${esc(t.progress_current || 0)} of ${esc(t.progress_total)}</b>` : '');
-  const repeats=t.repeat_pattern&&t.repeat_pattern!=='None';
   const skipButton = (t.recurring_rule_id||t.repeat_pattern==='Weekdays') ? '<button class="btn small" data-action="skip">Skip</button>' : '';
-  const repeatLabel=repeats?`<span class="task-repeat-label">${esc(t.repeat_pattern==='Weekdays'?'Every weekday':t.repeat_pattern)}</span>`:'';
   const subtaskHtml=subtasks.length?`<div class="task-subtasks">${subtasks.map(s=>`<label class="task-subtask ${s.completed_at?'done':''}"><input type="checkbox" data-subtask-toggle="${esc(s.id)}" ${s.completed_at?'checked':''}><span>${esc(s.title)}</span></label>`).join('')}</div>`:'';
   const status=String(t.status||'Not Started');
+  const categoryClass=taskPlacement(t)==='Communication Due'?'task-category-communication':taskPlacement(t)==='Financial / QuickBooks'?'task-category-financial':'task-category-routine';
+  const dueText=formatDueDateTime(t.due_date,t.due_time);
   const mainAction=status==='In Progress'
     ? '<button class="btn small" data-action="pause">Pause</button>'
     : ['Paused','Blocked','Waiting'].includes(status)
@@ -2617,9 +2632,9 @@ function taskCard(t) {
       : '<button class="btn primary small" data-action="start">Start</button>';
   const blockButton=['Blocked','Waiting'].includes(status)?'':'<button class="btn small" data-action="block">Block</button>';
   return `
-    <div class="task" data-task-id="${esc(t.id)}">
-      <div class="task-title"><b>${esc(t.task)}</b><span class="badge ${esc(t.base_priority)}">${esc(t.base_priority)}</span>${repeatLabel}</div>
-      <div class="meta">${esc(t.status)}${progress}${t.next_action ? ' • Next: ' + esc(t.next_action) : ''}${dueStamp(t) ? ' • Due ' + esc(dueStamp(t)) : ''}${relatedLabel(t) ? ' • ' + relatedLabel(t) : ''}</div>
+    <div class="task ${categoryClass}" data-task-id="${esc(t.id)}">
+      <div class="task-title"><b>${esc(t.task)}</b></div>
+      ${dueText?`<div class="task-due">${esc(dueText)}</div>`:''}
       ${t.description ? `<div>${esc(t.description)}</div>` : ''}
       ${subtaskHtml}
       <div class="actions">
@@ -2696,10 +2711,12 @@ function communicationDueCard(entry) {
   if (entry.kind === 'task') return taskCard(entry.item);
   if (entry.kind === 'job') {
     const j=entry.item;
-    return `<div class="task production-communication"><b>${esc(j.customer_name || 'Job customer')}</b><div>${esc(j.client_communication_reason || 'Weekly production check-in is due')}</div><div class="meta ${j.client_communication_due_date && j.client_communication_due_date < todayISO() ? 'comm-overdue' : ''}">${j.job_number ? 'Job # '+esc(j.job_number)+' • ' : ''}Due ${esc(j.client_communication_due_date || 'today')}${j.stage ? ' • '+esc(j.stage) : ''}</div><div class="actions">${contactActionHtml({...contactForJob(j),kind:'job',id:j.id,name:j.customer_name})}<button class="btn success small" data-job-contacted="${esc(j.id)}">Mark Customer Contacted</button></div></div>`;
+    const dueText=formatDueDateTime(j.client_communication_due_date,'');
+    return `<div class="task task-category-communication"><b>${esc(j.customer_name || 'Job customer')}</b>${dueText?`<div class="task-due">${esc(dueText)}</div>`:''}<div>${esc(j.client_communication_reason || 'Weekly production check-in is due')}</div><div class="actions">${contactActionHtml({...contactForJob(j),kind:'job',id:j.id,name:j.customer_name})}<button class="btn success small" data-job-contacted="${esc(j.id)}">Mark Customer Contacted</button></div></div>`;
   }
   const c = entry.item;
-  return `<div class="task"><b>${esc(c.purpose || c.type || 'Customer communication')}</b><div class="meta ${c.due_date && c.due_date < todayISO() ? 'comm-overdue' : ''}">${esc(c.type || 'Communication')} • ${esc(c.status || 'Due')} • Due ${esc([c.due_date,c.due_time].filter(Boolean).join(' '))}${c.job_id ? ' • Job ' + esc(c.job_id) : ''}</div></div>`;
+  const dueText=formatDueDateTime(c.due_date,c.due_time);
+  return `<div class="task task-category-communication"><b>${esc(c.purpose || c.type || 'Customer communication')}</b>${dueText?`<div class="task-due">${esc(dueText)}</div>`:''}</div>`;
 }
 
 function actionableTasks() {
@@ -2727,9 +2744,9 @@ function nextUpTask(candidates) {
     const aOverdue=a.due_date&&a.due_date<td?1:0;
     const bOverdue=b.due_date&&b.due_date<td?1:0;
     if(aOverdue!==bOverdue)return bOverdue-aOverdue;
-    const priority=priorityRank(b.base_priority)-priorityRank(a.base_priority);
-    if(priority)return priority;
-    return `${a.due_date||'9999'} ${a.due_time||'23:59:59'}`.localeCompare(`${b.due_date||'9999'} ${b.due_time||'23:59:59'}`);
+    const dueOrder=`${a.due_date||'9999'} ${a.due_time||'23:59:59'}`.localeCompare(`${b.due_date||'9999'} ${b.due_time||'23:59:59'}`);
+    if(dueOrder)return dueOrder;
+    return priorityRank(b.base_priority)-priorityRank(a.base_priority);
   })[0]||null;
 }
 
@@ -2740,8 +2757,21 @@ function renderNextUp(task){
   const inProgress=task.status==='In Progress';
   const action=inProgress?'resume':(['Paused','Blocked','Waiting'].includes(task.status)?'resume':'start');
   const label=inProgress?'Continue':(['Paused','Blocked','Waiting'].includes(task.status)?'Resume':'Start');
-  const meta=[inProgress?'In progress':task.status,dueStamp(task)?`Due ${dueStamp(task)}`:'',task.next_action?`Next: ${task.next_action}`:''].filter(Boolean).join(' • ');
-  target.innerHTML=`<div class="next-up-card" data-task-id="${esc(task.id)}"><div><div class="next-label">${inProgress?'CURRENT TASK':'NEXT UP'}</div><div class="next-title">${esc(task.task)}</div><div class="next-meta">${esc(meta)}</div></div><button class="btn next-action" data-action="${action}">${label}</button></div>`;
+  const dueText=formatDueDateTime(task.due_date,task.due_time);
+  target.innerHTML=`<div class="next-up-card" data-task-id="${esc(task.id)}"><div><div class="next-label">${inProgress?'CURRENT TASK':'NEXT UP'}</div><div class="next-title">${esc(task.task)}</div>${dueText?`<div class="next-meta">${esc(dueText)}</div>`:''}</div><button class="btn next-action" data-action="${action}">${label}</button></div>`;
+}
+
+function todayEntrySort(a,b){
+  const aStamp=`${a.dueDate||'9999'} ${a.dueTime||'23:59:59'}`;
+  const bStamp=`${b.dueDate||'9999'} ${b.dueTime||'23:59:59'}`;
+  if(aStamp!==bStamp)return aStamp.localeCompare(bStamp);
+  const aPriority=a.kind==='task'?priorityRank(a.item.base_priority):0;
+  const bPriority=b.kind==='task'?priorityRank(b.item.base_priority):0;
+  return bPriority-aPriority;
+}
+
+function todayEntryCard(entry){
+  return entry.kind==='task'?taskCard(entry.item):communicationDueCard(entry);
 }
 
 function setSectionVisible(id,visible){
@@ -2756,21 +2786,17 @@ function renderDashboard() {
   $('weekJobs').innerHTML = jw.map(j => `<div class="task"><b>${esc(j.customer_name || 'Unnamed customer')}</b><div class="meta">${esc(j.property_address || '')} • ${esc(j.stage)} • Start ${esc(j.confirmed_start_date || j.target_start_date || 'Not set')}</div></div>`).join('') || empty('No jobs entered for this week yet.');
   const comms = communicationDueItems();
   const finances=financialTasks();
-  const next=nextUpTask([...acts,...finances,...comms.filter(x=>x.kind==='task').map(x=>x.item)]);
-  const withoutNext=rows=>rows.filter(row=>(row.item||row).id!==next?.id);
-  const shownActs=withoutNext(acts),shownFinances=withoutNext(finances),shownComms=withoutNext(comms);
+  const entries=[
+    ...comms,
+    ...finances.map(item=>({kind:'task',dueDate:item.due_date||'',dueTime:item.due_time||'',item})),
+    ...acts.map(item=>({kind:'task',dueDate:item.due_date||'',dueTime:item.due_time||'',item}))
+  ].sort(todayEntrySort);
+  const next=nextUpTask(entries.filter(x=>x.kind==='task').map(x=>x.item));
+  const shownEntries=entries.filter(entry=>entry.kind!=='task'||entry.item.id!==next?.id);
   renderNextUp(next);
-  $('taskList').innerHTML = shownActs.map(taskCard).join('');
   $('blockedList').innerHTML = blocked.map(taskCard).join('');
-  $('commList').innerHTML = shownComms.map(communicationDueCard).join('');
-  if ($('financialList')) $('financialList').innerHTML = shownFinances.map(taskCard).join('');
-  setSectionVisible('communicationGroup',shownComms.length>0);
-  setSectionVisible('financialGroup',shownFinances.length>0);
-  setSectionVisible('attentionTaskGroup',shownActs.length>0);
-  if($('communicationCount'))$('communicationCount').textContent=shownComms.length;
-  if($('financialCount'))$('financialCount').textContent=shownFinances.length;
-  if($('taskCount'))$('taskCount').textContent=shownActs.length;
-  const remainingTaskCount=shownComms.length+shownFinances.length+shownActs.length;
+  if($('todayTaskList'))$('todayTaskList').innerHTML=shownEntries.map(todayEntryCard).join('');
+  const remainingTaskCount=shownEntries.length;
   if($('todayTasksEmpty')){
     $('todayTasksEmpty').textContent=next?'✓ Everything else is clear.':"✓ Today's task list is clear.";
     $('todayTasksEmpty').classList.toggle('hidden',remainingTaskCount>0);

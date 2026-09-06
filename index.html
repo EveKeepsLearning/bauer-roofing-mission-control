@@ -205,31 +205,14 @@
                   <div class="today-eyebrow">YOUR WORK</div>
                   <h2>Today's Tasks</h2>
                 </div>
+                <div class="task-color-key" aria-label="Task category colors">
+                  <span><i class="color-dot communication-dot"></i>Communication</span>
+                  <span><i class="color-dot financial-dot"></i>Financial</span>
+                  <span><i class="color-dot routine-dot"></i>Routine / Other</span>
+                </div>
               </div>
 
-              <section class="today-task-group" id="communicationGroup">
-                <div class="task-group-heading communication-heading">
-                  <h3>Communication</h3>
-                  <span id="communicationCount" class="group-count"></span>
-                </div>
-                <div id="commList"></div>
-              </section>
-
-              <section class="today-task-group" id="financialGroup">
-                <div class="task-group-heading financial-heading">
-                  <h3>Financial / QuickBooks</h3>
-                  <span id="financialCount" class="group-count"></span>
-                </div>
-                <div id="financialList"></div>
-              </section>
-
-              <section class="today-task-group" id="attentionTaskGroup">
-                <div class="task-group-heading attention-heading">
-                  <h3>Routine &amp; Other Tasks</h3>
-                  <span id="taskCount" class="group-count"></span>
-                </div>
-                <div id="taskList"></div>
-              </section>
+              <div id="todayTaskList" class="today-ordered-list"></div>
 
               <div id="todayTasksEmpty" class="today-all-clear hidden">✓ Today's task list is clear.</div>
             </div>
