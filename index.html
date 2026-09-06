@@ -178,6 +178,14 @@
 
       <section id="view-today">
 
+        <div class="today-task-bar">
+          <div>
+            <h2>Today</h2>
+            <div class="meta">Work from grouped tasks and check off the smaller steps inside each one.</div>
+          </div>
+          <button class="btn primary" id="newTaskBtn">+ Add Task</button>
+        </div>
+
         <div class="kpi-row">
 
           <div class="kpi">
@@ -254,11 +262,7 @@
             </div>
 
             <div class="card section-card section-attention">
-              <div class="toolbar">
-                <h2>Needs Your Attention</h2>
-                <div class="spacer"></div>
-                <button class="btn small primary" id="newTaskBtn">+ Task</button>
-              </div>
+              <h2>Needs Your Attention</h2>
               <div id="taskList"></div>
             </div>
 
@@ -775,11 +779,13 @@
 
             <div>
 
-              <label>
-                Category
-              </label>
+              <label>Place task in</label>
 
-              <input id="taskCategory">
+              <select id="taskCategory">
+                <option>Needs Your Attention</option>
+                <option>Communication Due</option>
+                <option>Financial / QuickBooks</option>
+              </select>
 
             </div>
 
@@ -824,6 +830,23 @@
                 type="time"
               >
 
+            </div>
+
+            <div>
+              <label>Repeat</label>
+              <select id="taskRepeat">
+                <option value="None">Does not repeat</option>
+                <option value="Weekdays">Every weekday</option>
+                <option value="Weekly">Weekly</option>
+                <option value="Monthly">Monthly</option>
+              </select>
+              <div class="meta">Weekday tasks skip missed occurrences. Weekly and monthly tasks carry forward until completed. Nothing repeats on weekends.</div>
+            </div>
+
+            <div class="wide">
+              <label>Subtasks</label>
+              <textarea id="taskSubtasks" placeholder="Enter one subtask per line&#10;Check both Angi accounts for new prospects&#10;Check voicemails and emails&#10;Call leads"></textarea>
+              <div class="meta">Each line becomes a separate checkbox inside the main task.</div>
             </div>
 
 
