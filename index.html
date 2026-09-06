@@ -174,121 +174,99 @@
 
       <section id="view-today">
 
-        <div class="today-task-bar">
+        <div class="today-hero">
           <div>
-            <h2>Today</h2>
-            <div class="meta">Work from grouped tasks and check off the smaller steps inside each one.</div>
+            <div class="today-eyebrow">TODAY</div>
+            <h2 id="todayGreeting">Good morning, Eve</h2>
+            <div class="today-date" id="todayDate"></div>
           </div>
           <button class="btn primary" id="newTaskBtn">+ Add Task</button>
         </div>
 
-        <div class="kpi-row">
-
-          <div class="kpi">
-            <div
-              class="n"
-              id="kpiCritical">
-              0
-            </div>
-
-            <div class="l">
-              Critical / overdue
-            </div>
+        <div class="today-status-strip">
+          <div class="day-summary" id="daySummary">Loading your day…</div>
+          <div class="today-kpis" aria-label="Today's summary">
+            <span class="today-kpi critical-kpi"><b id="kpiCritical">0</b> Critical</span>
+            <span class="today-kpi"><b id="kpiDue">0</b> Today</span>
+            <span class="today-kpi communication-kpi"><b id="kpiComms">0</b> Comms</span>
+            <span class="today-kpi jobs-kpi"><b id="kpiWeekJobs">0</b> Jobs this week</span>
           </div>
-
-
-          <div class="kpi">
-            <div
-              class="n"
-              id="kpiDue">
-              0
-            </div>
-
-            <div class="l">
-              Due today
-            </div>
-          </div>
-
-
-          <div class="kpi">
-            <div
-              class="n"
-              id="kpiComms">
-              0
-            </div>
-
-            <div class="l">
-              Client communications due
-            </div>
-          </div>
-
-
-          <div class="kpi">
-            <div
-              class="n"
-              id="kpiWeekJobs">
-              0
-            </div>
-
-            <div class="l">
-              Jobs starting this week
-            </div>
-          </div>
-
         </div>
 
+        <div id="currentTask" class="next-up-wrap"></div>
 
-        <div id="currentTask"></div>
+        <div class="today-layout">
 
+          <div class="today-main">
 
-        <div class="grid">
+            <div class="card today-work-card">
+              <div class="today-section-heading">
+                <div>
+                  <div class="today-eyebrow">YOUR WORK</div>
+                  <h2>Today's Tasks</h2>
+                </div>
+              </div>
 
-          <div>
+              <section class="today-task-group" id="communicationGroup">
+                <div class="task-group-heading communication-heading">
+                  <h3>Communication</h3>
+                  <span id="communicationCount" class="group-count"></span>
+                </div>
+                <div id="commList"></div>
+              </section>
 
-            <div class="card section-card section-communication">
-              <h2>Communication Due</h2>
-              <div class="meta" style="margin-bottom:12px">Customer calls, texts, emails, and follow-ups due today or overdue.</div>
-              <div id="commList"></div>
-            </div>
+              <section class="today-task-group" id="financialGroup">
+                <div class="task-group-heading financial-heading">
+                  <h3>Financial / QuickBooks</h3>
+                  <span id="financialCount" class="group-count"></span>
+                </div>
+                <div id="financialList"></div>
+              </section>
 
-            <div class="card section-card section-financial">
-              <h2>Financial / QuickBooks</h2>
-              <div class="meta" style="margin-bottom:12px">QuickBooks, payroll, taxes, bills, credit cards, deposits, and accounting work.</div>
-              <div id="financialList"></div>
-            </div>
+              <section class="today-task-group" id="attentionTaskGroup">
+                <div class="task-group-heading attention-heading">
+                  <h3>Routine &amp; Other Tasks</h3>
+                  <span id="taskCount" class="group-count"></span>
+                </div>
+                <div id="taskList"></div>
+              </section>
 
-            <div class="card section-card section-attention">
-              <h2>Needs Your Attention</h2>
-              <div id="taskList"></div>
+              <div id="todayTasksEmpty" class="today-all-clear hidden">✓ Today's task list is clear.</div>
             </div>
 
           </div>
 
-          <div>
+          <aside class="today-sidebar">
 
-            <div class="card section-card section-communication">
-              <h3>Roy's Daily Check-Off</h3>
-              <div class="meta" style="margin-bottom:10px">Appointment results and later estimate updates submitted by Roy.</div>
-              <div id="royUpdateList"></div>
+            <div class="card today-awareness-card" id="attentionCard">
+              <div class="sidebar-card-heading">
+                <h3>Needs Attention</h3>
+                <span class="attention-count" id="attentionCount">0</span>
+              </div>
+              <div id="attentionEmpty" class="today-all-clear hidden">✓ Nothing needs your attention.</div>
+
+              <section class="awareness-section" id="royUpdateSection">
+                <h4>Roy's Check-Off</h4>
+                <div id="royUpdateList"></div>
+              </section>
+
+              <section class="awareness-section" id="dadUpdateSection">
+                <h4>Dad's Production Updates</h4>
+                <div id="dadUpdateList"></div>
+              </section>
+
+              <section class="awareness-section blocked-awareness" id="blockedSection">
+                <h4>Blocked / Waiting</h4>
+                <div id="blockedList"></div>
+              </section>
             </div>
 
-            <div class="card section-card section-production">
-              <h3>Dad's Production Updates</h3>
-              <div class="meta" style="margin-bottom:10px">Production changes, schedule notices, and customer-contact handoffs from Dad.</div>
-              <div id="dadUpdateList"></div>
-            </div>
-
-            <div class="card blocked-card section-card section-blocked">
-              <h3>Blocked / Waiting</h3>
-              <div id="blockedList"></div>
-            </div>
-
-            <div class="card section-card section-jobs">
+            <div class="card section-card section-jobs sidebar-quiet-card" id="weekJobsCard">
               <h3>Jobs Starting This Week</h3>
               <div id="weekJobs"></div>
             </div>
 
-            <div class="card section-card section-notes">
+            <div class="card section-card section-notes quick-notes-card">
               <h3>Quick Notes</h3>
               <div class="meta" style="margin-bottom:10px">A scratchpad for things worth remembering that are not tasks.</div>
               <input id="quickNoteEditId" type="hidden">
@@ -300,7 +278,7 @@
               <div id="quickNotesList" style="margin-top:12px"></div>
             </div>
 
-          </div>
+          </aside>
 
         </div>
 

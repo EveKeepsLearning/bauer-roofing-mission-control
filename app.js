@@ -2609,6 +2609,13 @@ function taskCard(t) {
   const skipButton = (t.recurring_rule_id||t.repeat_pattern==='Weekdays') ? '<button class="btn small" data-action="skip">Skip</button>' : '';
   const repeatLabel=repeats?`<span class="task-repeat-label">${esc(t.repeat_pattern==='Weekdays'?'Every weekday':t.repeat_pattern)}</span>`:'';
   const subtaskHtml=subtasks.length?`<div class="task-subtasks">${subtasks.map(s=>`<label class="task-subtask ${s.completed_at?'done':''}"><input type="checkbox" data-subtask-toggle="${esc(s.id)}" ${s.completed_at?'checked':''}><span>${esc(s.title)}</span></label>`).join('')}</div>`:'';
+  const status=String(t.status||'Not Started');
+  const mainAction=status==='In Progress'
+    ? '<button class="btn small" data-action="pause">Pause</button>'
+    : ['Paused','Blocked','Waiting'].includes(status)
+      ? '<button class="btn primary small" data-action="resume">Resume</button>'
+      : '<button class="btn primary small" data-action="start">Start</button>';
+  const blockButton=['Blocked','Waiting'].includes(status)?'':'<button class="btn small" data-action="block">Block</button>';
   return `
     <div class="task" data-task-id="${esc(t.id)}">
       <div class="task-title"><b>${esc(t.task)}</b><span class="badge ${esc(t.base_priority)}">${esc(t.base_priority)}</span>${repeatLabel}</div>
@@ -2616,16 +2623,19 @@ function taskCard(t) {
       ${t.description ? `<div>${esc(t.description)}</div>` : ''}
       ${subtaskHtml}
       <div class="actions">
-        <button class="btn primary small" data-action="start">Start</button>
-        <button class="btn small" data-action="pause">Pause</button>
-        <button class="btn small" data-action="resume">Resume</button>
+        ${mainAction}
         <button class="btn small" data-action="complete">Complete</button>
-        ${skipButton}
-        <button class="btn small" data-action="block">Block</button>
-        ${state.sops.length ? `<button class="btn small" data-open-sop-task="${esc(t.id)}">Open Instructions</button>` : ''}
-        <button class="btn small" data-duplicate-task="${esc(t.id)}">Duplicate</button>
-        <button class="btn small" data-edit-task="${esc(t.id)}">Edit</button>
-        <button class="btn small" data-record-action="delete" data-record-table="tasks" data-record-id="${esc(t.id)}">Delete</button>
+        <details class="task-more">
+          <summary title="More task actions" aria-label="More task actions">•••</summary>
+          <div class="task-more-menu">
+            ${skipButton}
+            ${blockButton}
+            ${state.sops.length ? `<button class="btn small" data-open-sop-task="${esc(t.id)}">Open Instructions</button>` : ''}
+            <button class="btn small" data-duplicate-task="${esc(t.id)}">Duplicate</button>
+            <button class="btn small" data-edit-task="${esc(t.id)}">Edit</button>
+            <button class="btn small danger-link" data-record-action="delete" data-record-table="tasks" data-record-id="${esc(t.id)}">Delete</button>
+          </div>
+        </details>
       </div>
     </div>`;
 }
@@ -2709,28 +2719,89 @@ function currentTask() {
   return state.tasks.find(t => activeRow(t) && t.status === 'In Progress') || null;
 }
 
+function nextUpTask(candidates) {
+  const current=currentTask();
+  if(current) return current;
+  const td=todayISO();
+  return [...new Map(candidates.filter(Boolean).map(t=>[t.id,t])).values()].sort((a,b)=>{
+    const aOverdue=a.due_date&&a.due_date<td?1:0;
+    const bOverdue=b.due_date&&b.due_date<td?1:0;
+    if(aOverdue!==bOverdue)return bOverdue-aOverdue;
+    const priority=priorityRank(b.base_priority)-priorityRank(a.base_priority);
+    if(priority)return priority;
+    return `${a.due_date||'9999'} ${a.due_time||'23:59:59'}`.localeCompare(`${b.due_date||'9999'} ${b.due_time||'23:59:59'}`);
+  })[0]||null;
+}
+
+function renderNextUp(task){
+  const target=$('currentTask');
+  if(!target)return;
+  if(!task){target.innerHTML='';return;}
+  const inProgress=task.status==='In Progress';
+  const action=inProgress?'resume':(['Paused','Blocked','Waiting'].includes(task.status)?'resume':'start');
+  const label=inProgress?'Continue':(['Paused','Blocked','Waiting'].includes(task.status)?'Resume':'Start');
+  const meta=[inProgress?'In progress':task.status,dueStamp(task)?`Due ${dueStamp(task)}`:'',task.next_action?`Next: ${task.next_action}`:''].filter(Boolean).join(' • ');
+  target.innerHTML=`<div class="next-up-card" data-task-id="${esc(task.id)}"><div><div class="next-label">${inProgress?'CURRENT TASK':'NEXT UP'}</div><div class="next-title">${esc(task.task)}</div><div class="next-meta">${esc(meta)}</div></div><button class="btn next-action" data-action="${action}">${label}</button></div>`;
+}
+
+function setSectionVisible(id,visible){
+  const section=$(id);if(section)section.classList.toggle('hidden',!visible);
+}
+
 function renderDashboard() {
   $('nowText').textContent = localNow();
-  const cur = currentTask();
-  $('currentTask').innerHTML = cur ? `<div class="card critical"><h2>Current / Resume</h2>${taskCard(cur)}</div>` : '';
   const acts = actionableTasks();
-  $('taskList').innerHTML = acts.map(taskCard).join('') || empty('Nothing urgent right now.');
   const blocked = state.tasks.filter(t => activeRow(t) && ['Blocked','Waiting'].includes(t.status));
-  $('blockedList').innerHTML = blocked.map(taskCard).join('') || empty('None.');
   const jw = jobsThisWeek().filter(activeRow);
   $('weekJobs').innerHTML = jw.map(j => `<div class="task"><b>${esc(j.customer_name || 'Unnamed customer')}</b><div class="meta">${esc(j.property_address || '')} • ${esc(j.stage)} • Start ${esc(j.confirmed_start_date || j.target_start_date || 'Not set')}</div></div>`).join('') || empty('No jobs entered for this week yet.');
   const comms = communicationDueItems();
-  $('commList').innerHTML = comms.map(communicationDueCard).join('') || empty('No customer communication due today.');
-  if ($('financialList')) $('financialList').innerHTML = financialTasks().map(taskCard).join('') || empty('No financial or QuickBooks tasks due.');
+  const finances=financialTasks();
+  const next=nextUpTask([...acts,...finances,...comms.filter(x=>x.kind==='task').map(x=>x.item)]);
+  const withoutNext=rows=>rows.filter(row=>(row.item||row).id!==next?.id);
+  const shownActs=withoutNext(acts),shownFinances=withoutNext(finances),shownComms=withoutNext(comms);
+  renderNextUp(next);
+  $('taskList').innerHTML = shownActs.map(taskCard).join('');
+  $('blockedList').innerHTML = blocked.map(taskCard).join('');
+  $('commList').innerHTML = shownComms.map(communicationDueCard).join('');
+  if ($('financialList')) $('financialList').innerHTML = shownFinances.map(taskCard).join('');
+  setSectionVisible('communicationGroup',shownComms.length>0);
+  setSectionVisible('financialGroup',shownFinances.length>0);
+  setSectionVisible('attentionTaskGroup',shownActs.length>0);
+  if($('communicationCount'))$('communicationCount').textContent=shownComms.length;
+  if($('financialCount'))$('financialCount').textContent=shownFinances.length;
+  if($('taskCount'))$('taskCount').textContent=shownActs.length;
+  const remainingTaskCount=shownComms.length+shownFinances.length+shownActs.length;
+  if($('todayTasksEmpty')){
+    $('todayTasksEmpty').textContent=next?'✓ Everything else is clear.':"✓ Today's task list is clear.";
+    $('todayTasksEmpty').classList.toggle('hidden',remainingTaskCount>0);
+  }
   renderRoyUpdates();
   renderDadUpdates();
   renderQuickNotes();
   const td = todayISO();
   const isOpen = t => activeRow(t) && !['Completed','Cancelled','Skipped'].includes(t.status);
-  $('kpiCritical').textContent = state.tasks.filter(t => isOpen(t) && (t.base_priority === 'Critical' || (t.due_date && t.due_date < td))).length;
-  $('kpiDue').textContent = state.tasks.filter(t => isOpen(t) && t.due_date === td).length;
+  const criticalCount=state.tasks.filter(t => isOpen(t) && (t.base_priority === 'Critical' || (t.due_date && t.due_date < td))).length;
+  const dueCount=state.tasks.filter(t => isOpen(t) && t.due_date === td).length;
+  $('kpiCritical').textContent = criticalCount;
+  $('kpiDue').textContent = dueCount;
   $('kpiComms').textContent = comms.length;
   $('kpiWeekJobs').textContent = jw.length;
+  const hour=Number(new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',hourCycle:'h23'}).format(new Date()));
+  if($('todayGreeting'))$('todayGreeting').textContent=`Good ${hour<12?'morning':hour<17?'afternoon':'evening'}, Eve`;
+  if($('todayDate'))$('todayDate').textContent=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'long',month:'long',day:'numeric'}).format(new Date());
+  const beforeNoon=state.tasks.filter(t=>isOpen(t)&&t.due_date===td&&t.due_time&&t.due_time<'12:00').length;
+  if($('daySummary'))$('daySummary').textContent=criticalCount
+    ? `${criticalCount} ${criticalCount===1?'thing needs':'things need'} your attention${beforeNoon?` — ${beforeNoon} before noon`:''}.`
+    : dueCount
+      ? `Today is looking manageable — ${dueCount} ${dueCount===1?'task is':'tasks are'} due.`
+      : comms.length
+        ? `${comms.length} ${comms.length===1?'communication is':'communications are'} ready for follow-up.`
+        : `You're caught up. Nothing urgent is waiting.`;
+  const attentionTotal=blocked.length+(state.roy_updates||[]).length+(state.dad_updates||[]).length;
+  if($('attentionCount'))$('attentionCount').textContent=attentionTotal;
+  if($('attentionEmpty'))$('attentionEmpty').classList.toggle('hidden',attentionTotal>0);
+  setSectionVisible('blockedSection',blocked.length>0);
+  if($('weekJobsCard'))$('weekJobsCard').classList.toggle('compact-empty',jw.length===0);
   renderPhone(); renderJobs();
 }
 
@@ -2738,7 +2809,8 @@ function renderRoyUpdates(){
   const target=$('royUpdateList');
   if(!target) return;
   const rows=(state.roy_updates||[]).slice(0,20);
-  target.innerHTML=rows.map(row=>{
+  setSectionVisible('royUpdateSection',rows.length>0);
+  const cards=rows.map(row=>{
     const when=row.submitted_at ? formatWhen(row.submitted_at) : '';
     const label=row.item_type==='estimate' ? 'Past estimate' : 'Appointment';
     return `<div class="task">
@@ -2747,14 +2819,16 @@ function renderRoyUpdates(){
       <div class="meta">${esc(label)}${row.lead_number ? ' • Lead # '+esc(row.lead_number) : ''}${row.street_address ? ' • '+esc(row.street_address) : ''}${when ? ' • '+esc(when) : ''}</div>
       ${row.note ? `<div class="lead-detail-note"><span>ROY'S NOTE</span>${esc(row.note)}</div>` : ''}
     </div>`;
-  }).join('') || empty('No Roy updates have been submitted yet.');
+  });
+  target.innerHTML=cards.slice(0,3).join('')+(cards.length>3?`<details class="updates-more"><summary>View ${cards.length-3} more</summary><div>${cards.slice(3).join('')}</div></details>`:'');
 }
 
 function renderDadUpdates(){
   const target=$('dadUpdateList');
   if(!target) return;
   const rows=(state.dad_updates||[]).slice(0,20);
-  target.innerHTML=rows.map(row=>{
+  setSectionVisible('dadUpdateSection',rows.length>0);
+  const cards=rows.map(row=>{
     const when=row.submitted_at ? formatWhen(row.submitted_at) : '';
     return `<div class="task">
       <b>${esc(row.customer_name || 'Job')}</b>
@@ -2763,7 +2837,8 @@ function renderDadUpdates(){
       ${row.blocker ? `<div class="lead-detail-note"><span>BLOCKER</span>${esc(row.blocker)}</div>` : ''}
       ${row.note ? `<div class="lead-detail-note"><span>${esc((row.submitted_by || 'Dad').toUpperCase())}'S NOTE</span>${esc(row.note)}</div>` : ''}
     </div>`;
-  }).join('') || empty('No production updates have been submitted yet.');
+  });
+  target.innerHTML=cards.slice(0,3).join('')+(cards.length>3?`<details class="updates-more"><summary>View ${cards.length-3} more</summary><div>${cards.slice(3).join('')}</div></details>`:'');
 }
 
 function renderIncoming() {
