@@ -7,6 +7,7 @@ let user = null;
 
 let state = {
   tasks: [],
+  task_subtasks: [],
   jobs: [],
   communications: [],
   incoming: [],
@@ -364,6 +365,8 @@ function taskCard(t) {
 
 function isFinancialTask(t) {
   if (!t || !activeRow(t) || isCommunicationTask(t)) return false;
+  if(t.category==='Financial / QuickBooks') return true;
+  if(t.category==='Needs Your Attention') return false;
   const allText = [t.task, t.description, t.category, t.next_action].filter(Boolean).join(' ').toLowerCase();
   return /\b(quickbooks|payroll|withholding|tax(?:es)?|credit card|bill(?:s)?|invoice|deposit|bank|expense|reconcil|accounting|bookkeep|payment processing)\b/.test(allText);
 }
@@ -2595,13 +2598,19 @@ async function undoLastAction() {
 }
 
 function taskCard(t) {
-  const progress = t.progress_total ? ` • <b>${esc(t.progress_current || 0)} of ${esc(t.progress_total)}</b>` : '';
-  const skipButton = t.recurring_rule_id ? '<button class="btn small" data-action="skip">Skip</button>' : '';
+  const subtasks=(state.task_subtasks||[]).filter(s=>s.task_id===t.id&&!s.deleted_at).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+  const completeCount=subtasks.filter(s=>s.completed_at).length;
+  const progress = subtasks.length ? ` • <b>${completeCount} of ${subtasks.length} steps</b>` : (t.progress_total ? ` • <b>${esc(t.progress_current || 0)} of ${esc(t.progress_total)}</b>` : '');
+  const repeats=t.repeat_pattern&&t.repeat_pattern!=='None';
+  const skipButton = (t.recurring_rule_id||t.repeat_pattern==='Weekdays') ? '<button class="btn small" data-action="skip">Skip</button>' : '';
+  const repeatLabel=repeats?`<span class="task-repeat-label">${esc(t.repeat_pattern==='Weekdays'?'Every weekday':t.repeat_pattern)}</span>`:'';
+  const subtaskHtml=subtasks.length?`<div class="task-subtasks">${subtasks.map(s=>`<label class="task-subtask ${s.completed_at?'done':''}"><input type="checkbox" data-subtask-toggle="${esc(s.id)}" ${s.completed_at?'checked':''}><span>${esc(s.title)}</span></label>`).join('')}</div>`:'';
   return `
     <div class="task" data-task-id="${esc(t.id)}">
-      <div class="task-title"><b>${esc(t.task)}</b><span class="badge ${esc(t.base_priority)}">${esc(t.base_priority)}</span></div>
+      <div class="task-title"><b>${esc(t.task)}</b><span class="badge ${esc(t.base_priority)}">${esc(t.base_priority)}</span>${repeatLabel}</div>
       <div class="meta">${esc(t.status)}${progress}${t.next_action ? ' • Next: ' + esc(t.next_action) : ''}${dueStamp(t) ? ' • Due ' + esc(dueStamp(t)) : ''}${relatedLabel(t) ? ' • ' + relatedLabel(t) : ''}</div>
       ${t.description ? `<div>${esc(t.description)}</div>` : ''}
+      ${subtaskHtml}
       <div class="actions">
         <button class="btn primary small" data-action="start">Start</button>
         <button class="btn small" data-action="pause">Pause</button>
@@ -2617,6 +2626,9 @@ function taskCard(t) {
 
 function isCommunicationTask(t) {
   if (!t || !activeRow(t)) return false;
+
+  if(t.category==='Communication Due') return true;
+  if(['Needs Your Attention','Financial / QuickBooks'].includes(t.category)) return false;
 
   const linkedToCustomer = !!(t.prospect_id || t.lead_id || t.job_id || t.lead_number || t.job_number || t.related_number);
   const taskText = String(t.task || '').trim().toLowerCase();
@@ -2639,8 +2651,7 @@ function isCommunicationTask(t) {
 function communicationTaskDue(t) {
   const finished = new Set(['Completed','Cancelled','Skipped']);
   if (!isCommunicationTask(t) || finished.has(t.status) || ['Blocked','Waiting'].includes(t.status)) return false;
-  if (!t.due_date) return false;
-  return t.due_date <= todayISO();
+  return true;
 }
 
 function communicationDueItems() {
@@ -2678,7 +2689,7 @@ function communicationDueCard(entry) {
 function actionableTasks() {
   const finished = new Set(['Completed','Cancelled','Skipped']);
   return state.tasks
-    .filter(t => activeRow(t) && !finished.has(t.status) && t.status !== 'In Progress' && !['Blocked','Waiting'].includes(t.status) && !communicationTaskDue(t) && !isFinancialTask(t))
+    .filter(t => activeRow(t) && !finished.has(t.status) && t.status !== 'In Progress' && !['Blocked','Waiting'].includes(t.status) && !isCommunicationTask(t) && !isFinancialTask(t))
     .sort((a,b) => {
       const p = priorityRank(b.base_priority) - priorityRank(a.base_priority);
       if (p) return p;
@@ -3866,9 +3877,61 @@ function clearIncomingForm() { $('incomingEditId').value=''; $('incomingDesc').v
 function openIncomingEdit(id) { const x=state.incoming.find(i=>i.id===id); if(!x)return; $('incomingEditId').value=x.id; $('incomingDesc').value=x.description||''; $('incomingSource').value=x.source||''; $('incomingFormTitle').textContent='Edit Incoming Work'; $('saveIncomingBtn').textContent='Save Changes'; $('cancelIncomingEditBtn').classList.remove('hidden'); setView('incoming'); window.scrollTo({top:0,behavior:'smooth'}); }
 async function saveIncoming() { try { const id=$('incomingEditId').value; const description=$('incomingDesc').value.trim(); if(!description)return msg('Enter what came in first.','error'); const patch={description,source:$('incomingSource').value.trim(),status:id?(state.incoming.find(x=>x.id===id)?.status||'Open'):'Open'}; if(id){await updateRecord('incoming',id,patch,'Incoming work changes undone.');} else {const r=await db.from('incoming').insert(patch).select().single(); if(r.error)throw r.error; await db.from('undo_history').insert({action_type:'create',entity_type:'incoming',entity_id:r.data.id,description:'New incoming item removed.',payload:{}});} clearIncomingForm(); await loadAll(); msg(id?'Incoming work updated.':'Incoming work captured.','success'); } catch(error){msg(error.message||String(error),'error');} }
 
-function clearTaskForm() { ['taskEditId','taskName','taskCategory','taskDueDate','taskDueTime','taskRelatedNumber','taskDescription','taskNext','taskNotes'].forEach(id=>{if($(id))$(id).value='';}); $('taskPriority').value='Normal'; $('taskDialogTitle').textContent='New Task'; $('saveTaskBtn').textContent='Save'; }
-function openTaskEdit(id) { const t=state.tasks.find(x=>x.id===id); if(!t)return; $('taskEditId').value=t.id; $('taskName').value=t.task||''; $('taskCategory').value=t.category||''; $('taskPriority').value=t.base_priority||'Normal'; $('taskDueDate').value=t.due_date||''; $('taskDueTime').value=t.due_time||''; $('taskRelatedNumber').value=t.related_number||t.job_number||t.lead_number||''; $('taskDescription').value=t.description||''; $('taskNext').value=t.next_action||''; $('taskNotes').value=t.notes||''; $('taskDialogTitle').textContent='Edit Task'; $('saveTaskBtn').textContent='Save Changes'; $('taskDialog').showModal(); }
-async function saveTask() { try { const id=$('taskEditId').value; const task=$('taskName').value.trim(); if(!task)return msg('Task name is required.','error'); const related=resolveRelatedNumber($('taskRelatedNumber').value); const patch={task,description:$('taskDescription').value.trim(),category:$('taskCategory').value.trim(),base_priority:$('taskPriority').value,due_date:$('taskDueDate').value||null,due_time:$('taskDueTime').value||null,next_action:$('taskNext').value.trim(),notes:$('taskNotes').value.trim(),related_number:related.related_number,lead_number:related.lead_number,job_number:related.job_number}; if(id){await updateRecord('tasks',id,patch,'Task changes undone.');} else {const r=await db.from('tasks').insert({...patch,task_type:'One-Time',status:'Not Started'}).select().single(); if(r.error)throw r.error; await db.from('undo_history').insert({action_type:'create',entity_type:'tasks',entity_id:r.data.id,description:'New task removed.',payload:{}});} $('taskDialog').close(); clearTaskForm(); await loadAll(); msg(id?'Task updated.':'Task created.','success'); } catch(error){msg(error.message||String(error),'error');} }
+function taskPlacement(t){
+  if(['Needs Your Attention','Communication Due','Financial / QuickBooks'].includes(t?.category)) return t.category;
+  if(isCommunicationTask(t)) return 'Communication Due';
+  if(isFinancialTask(t)) return 'Financial / QuickBooks';
+  return 'Needs Your Attention';
+}
+
+function taskSubtaskLines(){
+  return [...new Set(String($('taskSubtasks')?.value||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean))];
+}
+
+async function syncTaskSubtasks(taskId,titles){
+  const existing=(state.task_subtasks||[]).filter(s=>s.task_id===taskId&&!s.deleted_at);
+  const wanted=new Set(titles.map(x=>x.toLowerCase()));
+  for(const old of existing){
+    if(!wanted.has(String(old.title||'').toLowerCase())){
+      const removed=await db.from('task_subtasks').update({deleted_at:new Date().toISOString()}).eq('id',old.id);
+      if(removed.error) throw removed.error;
+    }
+  }
+  const additions=[];
+  for(let i=0;i<titles.length;i++){
+    const found=existing.find(s=>String(s.title||'').toLowerCase()===titles[i].toLowerCase());
+    if(found){
+      const updated=await db.from('task_subtasks').update({title:titles[i],sort_order:i,deleted_at:null}).eq('id',found.id);
+      if(updated.error) throw updated.error;
+    }else additions.push({task_id:taskId,title:titles[i],sort_order:i});
+  }
+  if(additions.length){const inserted=await db.from('task_subtasks').insert(additions);if(inserted.error)throw inserted.error;}
+}
+
+function clearTaskForm() {
+  ['taskEditId','taskName','taskDueDate','taskDueTime','taskRelatedNumber','taskDescription','taskNext','taskNotes','taskSubtasks'].forEach(id=>{if($(id))$(id).value='';});
+  $('taskCategory').value='Needs Your Attention'; $('taskPriority').value='Normal'; $('taskRepeat').value='None'; $('taskDialogTitle').textContent='New Task'; $('saveTaskBtn').textContent='Save';
+}
+function openTaskEdit(id) {
+  const t=state.tasks.find(x=>x.id===id); if(!t)return; clearTaskForm();
+  $('taskEditId').value=t.id; $('taskName').value=t.task||''; $('taskCategory').value=taskPlacement(t); $('taskPriority').value=t.base_priority||'Normal'; $('taskDueDate').value=t.due_date||''; $('taskDueTime').value=t.due_time||''; $('taskRepeat').value=t.repeat_pattern||'None'; $('taskRelatedNumber').value=t.related_number||t.job_number||t.lead_number||''; $('taskDescription').value=t.description||''; $('taskNext').value=t.next_action||''; $('taskNotes').value=t.notes||''; $('taskSubtasks').value=(state.task_subtasks||[]).filter(s=>s.task_id===t.id&&!s.deleted_at).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(s=>s.title).join('\n'); $('taskDialogTitle').textContent='Edit Task'; $('saveTaskBtn').textContent='Save Changes'; $('taskDialog').showModal();
+}
+async function saveTask() {
+  try {
+    const id=$('taskEditId').value,task=$('taskName').value.trim(),repeat=$('taskRepeat').value;
+    if(!task)return msg('Task name is required.','error');
+    if(repeat!=='None'&&!$('taskDueDate').value)return msg('Choose the first due date for a repeating task.','error');
+    const related=resolveRelatedNumber($('taskRelatedNumber').value);
+    const current=id?state.tasks.find(x=>x.id===id):null;
+    const chosenDate=$('taskDueDate').value||null;
+    const patch={task,description:$('taskDescription').value.trim(),category:$('taskCategory').value,base_priority:$('taskPriority').value,due_date:chosenDate,due_time:$('taskDueTime').value||null,next_action:$('taskNext').value.trim(),notes:$('taskNotes').value.trim(),related_number:related.related_number,lead_number:related.lead_number,job_number:related.job_number,repeat_pattern:repeat,repeat_weekdays_only:true,recurrence_series_id:repeat==='None'?null:(current?.recurrence_series_id||crypto.randomUUID()),recurrence_anchor_date:repeat==='None'?null:(chosenDate!==current?.due_date?chosenDate:(current?.recurrence_anchor_date||chosenDate))};
+    let taskId=id;
+    if(id){await updateRecord('tasks',id,patch,'Task changes undone.');}
+    else{const r=await db.from('tasks').insert({...patch,task_type:repeat==='None'?'One-Time':'Recurring',status:'Not Started'}).select().single();if(r.error)throw r.error;taskId=r.data.id;await db.from('undo_history').insert({action_type:'create',entity_type:'tasks',entity_id:r.data.id,description:'New task removed.',payload:{}});}
+    await syncTaskSubtasks(taskId,taskSubtaskLines());
+    $('taskDialog').close();clearTaskForm();await loadAll();msg(id?'Task updated.':'Task created.','success');
+  }catch(error){msg('Could not save task: '+(error.message||String(error)),'error');}
+}
 
 function clearProspectForm() { ['prospectEditId','prospectSourceRef','prospectFirstName','prospectLastName','prospectStreet','prospectCity','prospectZip','prospectPhone','prospectEmail','prospectNextFollow','prospectNextAction','prospectNotes'].forEach(id=>{if($(id))$(id).value='';}); $('prospectState').value='SC'; $('prospectWorkCategory').value='Roofing'; $('prospectDialogTitle').textContent='New Prospect'; $('saveProspectBtn').textContent='Save Prospect'; setupLeadProspectSelects(); }
 function openProspectDialog(prospect=null) { clearProspectForm(); if(prospect){$('prospectEditId').value=prospect.id; $('prospectDialogTitle').textContent='Prospect Details'; $('saveProspectBtn').textContent='Save Changes'; $('prospectSource').value=prospect.source||'Other'; toggleAngiFields('prospect'); $('prospectSourceAccount').value=prospect.source_account||''; $('prospectSourceRef').value=prospect.source_reference||''; $('prospectStatus').value=prospect.current_status||'New'; $('prospectFirstName').value=prospect.first_name||''; $('prospectLastName').value=prospect.last_name||''; $('prospectStreet').value=prospect.street_address||''; $('prospectCity').value=prospect.city||''; $('prospectState').value=prospect.state||'SC'; $('prospectZip').value=prospect.zip||''; $('prospectPhone').value=prospect.phone||''; $('prospectEmail').value=prospect.email||''; $('prospectWorkCategory').value=prospect.work_category||'Roofing'; $('prospectAssignedTo').value=prospect.assigned_to||'Roy'; $('prospectNextFollow').value=dateTimeLocalValue(prospect.next_follow_up_at); $('prospectNextAction').value=prospect.next_action||''; $('prospectNotes').value=prospect.notes||'';} $('prospectDialog').showModal(); }
@@ -4000,15 +4063,84 @@ async function saveCommunication() {
   }
 }
 
+function nextRecurringDueDate(task){
+  const pattern=task.repeat_pattern||'None';
+  if(pattern==='None')return null;
+  const today=todayISO();
+  const base=(pattern==='Weekly'||pattern==='Monthly')?(task.recurrence_anchor_date||task.due_date||today):(task.due_date&&task.due_date>today?task.due_date:today);
+  const d=new Date(`${base}T12:00:00`);
+  if(pattern==='Monthly')d.setMonth(d.getMonth()+1);
+  else if(pattern==='Weekly')d.setDate(d.getDate()+7);
+  else d.setDate(d.getDate()+1);
+  while([0,6].includes(d.getDay()))d.setDate(d.getDate()+1);
+  if(pattern==='Weekly'||pattern==='Monthly'){
+    while(d.toLocaleDateString('en-CA',{timeZone:'America/New_York'})<=today){
+      if(pattern==='Monthly')d.setMonth(d.getMonth()+1);else d.setDate(d.getDate()+7);
+      while([0,6].includes(d.getDay()))d.setDate(d.getDate()+1);
+    }
+  }
+  return d.toLocaleDateString('en-CA',{timeZone:'America/New_York'});
+}
+
+async function createNextRecurringTask(task){
+  const nextDate=nextRecurringDueDate(task);if(!nextDate)return;
+  const series=task.recurrence_series_id||crypto.randomUUID();
+  const duplicate=await db.from('tasks').select('id').eq('recurrence_series_id',series).eq('due_date',nextDate).is('deleted_at',null).limit(1);
+  if(duplicate.error)throw duplicate.error;if(duplicate.data?.length)return;
+  const row={task:task.task,description:task.description||'',category:taskPlacement(task),task_type:'Recurring',status:'Not Started',base_priority:task.base_priority||'Normal',due_date:nextDate,due_time:task.due_time||null,next_action:task.next_action||'',notes:task.notes||'',related_number:task.related_number||null,lead_number:task.lead_number||null,job_number:task.job_number||null,prospect_id:task.prospect_id||null,lead_id:task.lead_id||null,job_id:task.job_id||null,repeat_pattern:task.repeat_pattern,repeat_weekdays_only:true,recurrence_series_id:series,recurrence_anchor_date:nextDate};
+  const created=await db.from('tasks').insert(row).select().single();if(created.error)throw created.error;
+  const subtasks=(state.task_subtasks||[]).filter(s=>s.task_id===task.id&&!s.deleted_at).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+  if(subtasks.length){const copied=await db.from('task_subtasks').insert(subtasks.map((s,i)=>({task_id:created.data.id,title:s.title,sort_order:i})));if(copied.error)throw copied.error;}
+}
+
+async function toggleTaskSubtask(id){
+  const subtask=(state.task_subtasks||[]).find(s=>s.id===id);if(!subtask)return;
+  const completed_at=subtask.completed_at?null:new Date().toISOString();
+  const result=await db.from('task_subtasks').update({completed_at}).eq('id',id);if(result.error)throw result.error;
+  subtask.completed_at=completed_at;renderDashboard();
+}
+
+function nextBusinessDateOnOrAfter(value){
+  const d=new Date(`${value}T12:00:00`);while([0,6].includes(d.getDay()))d.setDate(d.getDate()+1);return d.toLocaleDateString('en-CA',{timeZone:'America/New_York'});
+}
+
+async function rollForwardGroupedTasks(){
+  const today=todayISO(),target=nextBusinessDateOnOrAfter(today);
+  const open=(state.tasks||[]).filter(t=>activeRow(t)&&!['Completed','Cancelled','Skipped'].includes(t.status)&&t.due_date&&t.due_date<today&&t.repeat_pattern&&t.repeat_pattern!=='None');
+  for(const task of open){
+    if(task.repeat_pattern==='Weekdays'){
+      const skipped=await db.from('tasks').update({status:'Skipped'}).eq('id',task.id);if(skipped.error)throw skipped.error;
+      const series=task.recurrence_series_id||crypto.randomUUID();
+      const duplicate=await db.from('tasks').select('id').eq('recurrence_series_id',series).eq('due_date',target).is('deleted_at',null).limit(1);if(duplicate.error)throw duplicate.error;
+      if(!duplicate.data?.length){
+        const row={task:task.task,description:task.description||'',category:taskPlacement(task),task_type:'Recurring',status:'Not Started',base_priority:task.base_priority||'Normal',due_date:target,due_time:task.due_time||null,next_action:task.next_action||'',notes:task.notes||'',related_number:task.related_number||null,lead_number:task.lead_number||null,job_number:task.job_number||null,prospect_id:task.prospect_id||null,lead_id:task.lead_id||null,job_id:task.job_id||null,repeat_pattern:'Weekdays',repeat_weekdays_only:true,recurrence_series_id:series,recurrence_anchor_date:target};
+        const made=await db.from('tasks').insert(row).select().single();if(made.error)throw made.error;
+        const subtasks=(state.task_subtasks||[]).filter(s=>s.task_id===task.id&&!s.deleted_at).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+        if(subtasks.length){const copied=await db.from('task_subtasks').insert(subtasks.map((s,i)=>({task_id:made.data.id,title:s.title,sort_order:i})));if(copied.error)throw copied.error;}
+      }
+    }else{
+      const carried=await db.from('tasks').update({due_date:target}).eq('id',task.id);if(carried.error)throw carried.error;
+    }
+  }
+  return open.length>0;
+}
+
 async function taskAction(id,action){
   const task=state.tasks.find(x=>x.id===id); if(!task)return; let note='';
   if(action==='block') note=prompt('Why is this task blocked?')||'';
-  if(action==='skip'){ if(!task.recurring_rule_id){msg('Only recurring task occurrences can be skipped.','error');return;} note=prompt('Optional: why are you skipping this occurrence?')||''; }
+  const newRepeat=task.repeat_pattern&&task.repeat_pattern!=='None';
+  if(action==='skip'){ if(!task.recurring_rule_id&&task.repeat_pattern!=='Weekdays'){msg('Weekly and monthly tasks carry forward until completed.','error');return;} note=prompt('Optional: why are you skipping this occurrence?')||''; }
   const other=currentTask();
   const snapshot={...task}; const otherSnapshot=(other&&other.id!==id&&(action==='start'||action==='resume'))?{...other}:null;
-  const {data,error}=await db.rpc('task_action',{p_task_id:id,p_action:action,p_note:note});
+  let error=null;
+  if(action==='skip'&&newRepeat&&!task.recurring_rule_id){
+    const result=await db.from('tasks').update({status:'Skipped',notes:[task.notes,note].filter(Boolean).join('\n')}).eq('id',id);error=result.error;
+  }else{
+    const result=await db.rpc('task_action',{p_task_id:id,p_action:action,p_note:note});error=result.error;
+  }
   if(error){msg('Could not save task change: '+error.message,'error');await loadAll();return;}
   await db.from('undo_history').insert({action_type:'task_action',entity_type:'tasks',entity_id:id,description:`Task ${action} undone.`,payload:{before:snapshot,other_task_before:otherSnapshot}});
+  if(newRepeat&&['complete','skip'].includes(action))await createNextRecurringTask(task);
   await loadAll();
 }
 
@@ -4052,6 +4184,20 @@ async function loadAll(){
   const calls=[['tasks','created_at',false],['jobs','updated_at',false],['communications','due_date',true],['incoming','captured_at',false],['phone_messages','created_at',false],['prospects','created_at',false],['leads','created_at',false],['appointments','appointment_at',true],['sales_communications','occurred_at',false],['job_communications','occurred_at',false],['lookup_options','sort_order',true],['sops','title',true],['suggestions','created_at',false],['quick_notes','updated_at',false]];
   const results=await Promise.all(calls.map(([table,order,ascending])=>db.from(table).select('*').order(order,{ascending}).limit(500)));
   for(let i=0;i<results.length;i++){ if(results[i].error)throw results[i].error; let stateName=calls[i][0]==='phone_messages'?'phone':calls[i][0]; if(stateName==='lookup_options')stateName='lookups'; state[stateName]=results[i].data||[]; }
+  const subtaskResult=await db.from('task_subtasks').select('*').order('sort_order',{ascending:true}).limit(2000);
+  if(subtaskResult.error){state.task_subtasks=[];console.warn('Task subtasks are not available until the task-group SQL is installed:',subtaskResult.error.message);}else state.task_subtasks=subtaskResult.data||[];
+  if(!subtaskResult.error){
+    try{
+      const moved=await rollForwardGroupedTasks();
+      const normalized=await db.rpc('normalize_recurring_tasks_to_weekdays');
+      if(moved||!normalized.error){
+        const refreshedTasks=await db.from('tasks').select('*').order('created_at',{ascending:false}).limit(500);
+        const refreshedSubtasks=await db.from('task_subtasks').select('*').order('sort_order',{ascending:true}).limit(2000);
+        if(!refreshedTasks.error)state.tasks=refreshedTasks.data||[];
+        if(!refreshedSubtasks.error)state.task_subtasks=refreshedSubtasks.data||[];
+      }
+    }catch(error){console.warn('Could not roll repeating tasks forward:',error.message||error);}
+  }
   const royResult=await db.rpc('get_recent_roy_updates',{p_days:7});
   if(royResult.error){
     state.roy_updates=[];
@@ -4073,6 +4219,7 @@ async function loadAll(){
 // Additional click handling for editing and record safety actions.
 document.body.addEventListener('click', async event => {
   try {
+    const subtaskToggle=event.target.closest('[data-subtask-toggle]');if(subtaskToggle){await toggleTaskSubtask(subtaskToggle.dataset.subtaskToggle);return;}
     const editNote=event.target.closest('[data-edit-quick-note]'); if(editNote){const n=(state.quick_notes||[]).find(x=>x.id===editNote.dataset.editQuickNote);if(n){$('quickNoteEditId').value=n.id;$('quickNoteText').value=n.note||'';$('saveQuickNoteBtn').textContent='Save Changes';$('cancelQuickNoteEditBtn').classList.remove('hidden');$('quickNoteText').focus();}return;}
     const deleteNote=event.target.closest('[data-delete-quick-note]'); if(deleteNote){await deleteQuickNote(deleteNote.dataset.deleteQuickNote);return;}
     const noteToTask=event.target.closest('[data-note-to-task]'); if(noteToTask){convertQuickNoteToTask(noteToTask.dataset.noteToTask);return;}
