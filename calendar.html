@@ -727,6 +727,47 @@ function normalizePhone(value){
   return digits.length===10 ? digits : digits;
 }
 
+function isLikelyCityName(value){
+  const text=String(value||'').trim().replace(/,\s*$/,'');
+  if(!text||/\d|@/.test(text))return false;
+  if(text.split(/\s+/).length>4)return false;
+  return !/\b(st|street|rd|road|dr|drive|ct|court|ln|lane|ave|avenue|blvd|boulevard|way|cir|circle|trl|trail|hwy|highway)\b/i.test(text);
+}
+
+function eventPlaceHints(row){
+  const parsed=parseCalendarTitle(row?.summary);
+  const combined=[row?.property_text,row?.location_raw,row?.description,row?.summary].filter(Boolean).join(' ');
+  const zip=(parsed?.zip||combined.match(/\b\d{5}(?:-\d{4})?\b/)?.[0]||'').slice(0,5);
+  let city='';
+
+  if(parsed&&isLikelyCityName(parsed.streetAddress)){
+    city=parsed.streetAddress;
+  }else{
+    const title=String(row?.summary||'')
+      .replace(/^(?:Resch|CANC)\s*-\s*/i,'')
+      .replace(/,?\s*\d{5}(?:-\d{4})?\s*$/,'')
+      .trim();
+    if(isLikelyCityName(title))city=title;
+  }
+
+  return {city,zip};
+}
+
+function leadZipCode(lead){
+  return String(lead?.zip||'').match(/\d{5}/)?.[0]||'';
+}
+
+function zipCodesKnownForCity(cityName){
+  const city=normalizeText(cityName);
+  if(!city)return new Set();
+  return new Set(
+    leads
+      .filter(lead=>!lead.deleted_at&&normalizeText(lead.city)===city)
+      .map(leadZipCode)
+      .filter(Boolean)
+  );
+}
+
 function tokens(value){
   const stop = new Set([
     'st','street','rd','road','dr','drive','ct','court','ln','lane','ave','avenue',
@@ -783,6 +824,29 @@ function scoreLeadForEvent(event,lead){
   const leadPhone = normalizePhone(lead.phone);
   const eventEmail = String(event.email || '').trim().toLowerCase();
   const leadEmail = String(lead.email || '').trim().toLowerCase();
+  const placeHints=eventPlaceHints(event);
+  const leadZip=leadZipCode(lead);
+  const cityOnlyMatch=Boolean(placeHints.city&&normalizeText(placeHints.city)===normalizeText(lead.city));
+  const zipMatch=Boolean(placeHints.zip&&leadZip&&placeHints.zip===leadZip);
+  const cityZipMatch=Boolean(
+    placeHints.city&&
+    !placeHints.zip&&
+    leadZip&&
+    zipCodesKnownForCity(placeHints.city).has(leadZip)
+  );
+
+  if(cityOnlyMatch){
+    score += 45;
+    reasons.push('city name matches');
+  }
+  if(zipMatch){
+    score += 30;
+    reasons.push('ZIP matches');
+  }
+  if(cityZipMatch){
+    score += 35;
+    reasons.push('lead ZIP is associated with '+placeHints.city);
+  }
 
   const source = String(lead.source || '').toLowerCase();
   // Leads.xlsx uses this date as the appointment date except for Angi/HomeAdvisor,
@@ -845,7 +909,7 @@ function scoreLeadForEvent(event,lead){
   }
 
   const city = normalizeText(lead.city);
-  if(city && eventNorm.split(' ').includes(city)){
+  if(!cityOnlyMatch && city && eventNorm.includes(city)){
     score += 8;
     reasons.push('city matches');
   }
@@ -900,16 +964,26 @@ function inferHomeownerName(row){
 function inferPropertyFields(row){
   const parsed=parseCalendarTitle(row.summary);
   if(parsed){
+    const cityOnly=isLikelyCityName(parsed.streetAddress);
     return {
-      street_address:parsed.streetAddress,
-      city:null,
+      street_address:cityOnly?null:parsed.streetAddress,
+      city:cityOnly?parsed.streetAddress:null,
       state:'SC',
       zip:parsed.zip||null
     };
   }
 
   const raw = String(row.property_text || '').trim();
-  if(!raw) return {street_address:null,city:null,state:'SC',zip:null};
+  if(!raw){
+    const hints=eventPlaceHints(row);
+    const knownCity=Boolean(hints.city&&zipCodesKnownForCity(hints.city).size);
+    return {
+      street_address:null,
+      city:knownCity?hints.city:null,
+      state:'SC',
+      zip:null
+    };
+  }
 
   const zipMatch = raw.match(/(?:,\s*)?(\d{5})(?:-\d{4})?\s*$/);
   const zip = zipMatch ? zipMatch[1] : null;
@@ -919,9 +993,11 @@ function inferPropertyFields(row){
     street = raw.substring(0,zipMatch.index).replace(/,\s*$/,'').trim();
   }
 
+  const cityOnly=isLikelyCityName(street);
+
   return {
-    street_address: street || raw,
-    city: null,
+    street_address:cityOnly?null:(street||raw),
+    city:cityOnly?street:null,
     state: 'SC',
     zip: zip
   };
