@@ -578,8 +578,9 @@ function monthRangeTitle(){
 }
 
 function eventClass(row){
-  if(row.appointment_code === 'F' || row.appointment_type === 'Repair') return 'repair';
-  if(['M','P'].includes(row.appointment_code)) return 'reroof';
+  const jobType=String(row.appointment_code||parseCalendarTitle(row.summary)?.jobType||'').toUpperCase();
+  if(jobType === 'F' || row.appointment_type === 'Repair') return 'repair';
+  if(['M','P'].includes(jobType)) return 'reroof';
   return 'other';
 }
 
@@ -594,12 +595,79 @@ function calendarTitleStatus(row){
   return '';
 }
 
+function parseCalendarTitle(summary){
+  let title=String(summary||'').trim();
+  const statusMatch=title.match(/^(Resch|CANC)\s*-\s*/i);
+  const calendarStatus=statusMatch
+    ? (/^CANC$/i.test(statusMatch[1])?'Cancelled':'Rescheduled')
+    : '';
+  if(statusMatch)title=title.slice(statusMatch[0].length).trim();
+
+  const firstHyphen=title.indexOf('-');
+  const secondHyphen=firstHyphen<0?-1:title.indexOf('-',firstHyphen+1);
+  if(firstHyphen<1||secondHyphen<firstHyphen+2)return null;
+
+  const source=title.slice(0,firstHyphen).trim();
+  const jobType=title.slice(firstHyphen+1,secondHyphen).trim();
+  const addressPart=title.slice(secondHyphen+1).trim();
+  if(!source||!jobType||!addressPart)return null;
+
+  const zipMatch=addressPart.match(/,\s*(\d{5}(?:-\d{4})?)\s*$/);
+  const zip=zipMatch?zipMatch[1]:'';
+  const streetAddress=(zipMatch
+    ? addressPart.slice(0,zipMatch.index)
+    : addressPart
+  ).replace(/,\s*$/,'').trim();
+  if(!streetAddress)return null;
+
+  return {
+    source,
+    jobType,
+    streetAddress,
+    zip,
+    propertyText:streetAddress+(zip?', '+zip:''),
+    calendarStatus
+  };
+}
+
+function enrichCalendarEvent(row){
+  const parsed=parseCalendarTitle(row?.summary);
+  if(!parsed)return row;
+  return {
+    ...row,
+    source_code:parsed.source,
+    appointment_code:parsed.jobType,
+    property_text:parsed.propertyText,
+    is_sales_appointment:true
+  };
+}
+
+async function persistParsedCalendarFields(rawRows){
+  const changes=(rawRows||[]).map(row=>{
+    const parsed=parseCalendarTitle(row.summary);
+    if(!parsed)return null;
+    const patch={
+      source_code:parsed.source,
+      appointment_code:parsed.jobType,
+      property_text:parsed.propertyText,
+      is_sales_appointment:true
+    };
+    const changed=Object.entries(patch).some(([key,value])=>row[key]!==value);
+    return changed?{id:row.id,patch}:null;
+  }).filter(Boolean);
+
+  for(const change of changes){
+    const {error}=await db.from('calendar_events').update(change.patch).eq('id',change.id);
+    if(error){
+      console.warn('Calendar title was parsed for this view but could not be saved:',error.message);
+    }
+  }
+}
+
 function isStructuredSalesAppointment(row){
   if(row.is_detailed || row.is_sales_appointment) return true;
   if(row.source_code && row.appointment_code && row.property_text) return true;
-
-  const title = String(row.summary || '').trim();
-  return /^(?:(?:Resch|CANC)\s*-\s*)?(Mail|HA|INT|RB|Ref|SI|YP|HS|Y|WF|AA)\s*-\s*[FMP]\s*-\s*.+$/i.test(title);
+  return Boolean(parseCalendarTitle(row.summary));
 }
 
 function isReturnVisitCandidate(row){
@@ -819,7 +887,7 @@ function leadMatchesSearch(lead,query){
 
 
 function inferLeadSource(row){
-  return row.source_label || row.source_code || 'Other';
+  return row.source_label || row.source_code || parseCalendarTitle(row.summary)?.source || 'Other';
 }
 
 function inferHomeownerName(row){
@@ -830,6 +898,16 @@ function inferHomeownerName(row){
 }
 
 function inferPropertyFields(row){
+  const parsed=parseCalendarTitle(row.summary);
+  if(parsed){
+    return {
+      street_address:parsed.streetAddress,
+      city:null,
+      state:'SC',
+      zip:parsed.zip||null
+    };
+  }
+
   const raw = String(row.property_text || '').trim();
   if(!raw) return {street_address:null,city:null,state:'SC',zip:null};
 
@@ -850,8 +928,9 @@ function inferPropertyFields(row){
 }
 
 function inferWorkCategory(row){
-  if(row.appointment_code === 'F' || row.appointment_type === 'Repair') return 'Roofing';
-  if(row.appointment_code === 'M' || row.appointment_code === 'P') return 'Roofing';
+  const jobType=String(row.appointment_code||parseCalendarTitle(row.summary)?.jobType||'').toUpperCase();
+  if(jobType === 'F' || row.appointment_type === 'Repair') return 'Roofing';
+  if(jobType === 'M' || jobType === 'P') return 'Roofing';
   return 'Roofing';
 }
 
@@ -1288,7 +1367,7 @@ async function previewBulkImport(){
     return;
   }
 
-  bulkImportPlan=buildBulkImportPlan(data||[]);
+  bulkImportPlan=buildBulkImportPlan((data||[]).map(enrichCalendarEvent));
   renderBulkImportPlan();
 }
 
@@ -1488,7 +1567,7 @@ async function loadPastReviewQueue(){
     return;
   }
 
-  pastReviewEvents=(data||[]).filter(row=>
+  pastReviewEvents=(data||[]).map(enrichCalendarEvent).filter(row=>
     !row.matched_lead_id &&
     row.calendar_classification!=='Not Sales Related' &&
     (isStructuredSalesAppointment(row)||row.calendar_classification==='Needs Review')
@@ -1583,7 +1662,7 @@ async function backfillMissingMissionControlAppointments(){
 
     if(eventError) throw eventError;
 
-    const salesEvents = (matchedEvents || []).filter(isStructuredSalesAppointment);
+    const salesEvents = (matchedEvents || []).map(enrichCalendarEvent).filter(isStructuredSalesAppointment);
 
     if(!salesEvents.length){
       alert('No matched sales appointments were found to backfill.');
@@ -1762,7 +1841,9 @@ async function loadWeek(){
   }
 
   $('authMessage').classList.add('hidden');
-  events = data || [];
+  const rawEvents=data||[];
+  events=rawEvents.map(enrichCalendarEvent);
+  await persistParsedCalendarFields(rawEvents);
   renderCalendar();
 
   requestAnimationFrame(()=>{
@@ -2108,7 +2189,7 @@ async function saveCalendarAppointmentResult(){
 }
 
 function calendarMarketSharpStatus(row){
-  const source = String(row.source_code || '').toUpperCase();
+  const source = String(row.source_code || parseCalendarTitle(row.summary)?.source || '').toUpperCase();
 
   if(source === 'HA') return 'Automatic';
   if(source === 'AA') return 'Needs Entry';
@@ -2130,12 +2211,13 @@ async function ensureMissionControlAppointment(row,lead){
   const appointmentPayload = {
     lead_id: lead.id,
     appointment_at: row.start_at,
-    appointment_type: row.appointment_type || 'Measure & Presentation',
+    appointment_type: row.appointment_type || row.appointment_code || parseCalendarTitle(row.summary)?.jobType || 'Measure & Presentation',
     appointment_status: desiredStatus,
     assigned_to: lead.assigned_to || 'Roy',
     notes:
       'Google Calendar: ' + (row.summary || 'Sales appointment') +
-      (row.appointment_type ? '\nAppointment type: ' + row.appointment_type : ''),
+      (row.appointment_type ? '\nAppointment type: ' + row.appointment_type : '')+
+      (titleStatus ? '\nCalendar status: ' + titleStatus : ''),
     marketsharp_status: calendarMarketSharpStatus(row),
     google_calendar_status: 'Added',
     import_source: 'Google Calendar',
