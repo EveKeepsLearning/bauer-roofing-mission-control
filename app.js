@@ -619,7 +619,7 @@ function setView(name) {
   }
 }
 
-function applyUrlNavigation(){
+async function applyUrlNavigation(){
   if(urlNavigationApplied) return;
   const params=new URLSearchParams(window.location.search);
   const requestedView=params.get('view');
@@ -627,19 +627,30 @@ function applyUrlNavigation(){
   const requestedJob=params.get('job');
 
   if(requestedLead){
-    const lead=state.leads.find(item=>item.id===requestedLead);
+    let lead=state.leads.find(item=>item.id===requestedLead);
+    if(!lead){
+      const result=await db.from('leads').select('*').eq('id',requestedLead).maybeSingle();
+      if(!result.error&&result.data){lead=result.data;state.leads.push(lead);}
+    }
     if(lead){
       selectedLeadId=lead.id;
       setView('leads');
       renderProspectsLeads();
       urlNavigationApplied=true;
-      if(params.get('edit')==='1') setTimeout(()=>openLeadEdit(lead.id),0);
+      setTimeout(()=>{
+        $('leadDetail')?.scrollIntoView({behavior:'smooth',block:'start'});
+        if(params.get('edit')==='1')openLeadEdit(lead.id);
+      },0);
       return;
     }
   }
 
   if(requestedJob){
-    const job=state.jobs.find(item=>item.id===requestedJob);
+    let job=state.jobs.find(item=>item.id===requestedJob);
+    if(!job){
+      const result=await db.from('jobs').select('*').eq('id',requestedJob).maybeSingle();
+      if(!result.error&&result.data){job=result.data;state.jobs.push(job);}
+    }
     if(job){
       setView('jobs');
       renderJobs();
@@ -5053,7 +5064,7 @@ async function markJobCustomerContacted(jobId){
 
 async function loadAll(){
   const calls=[['tasks','created_at',false],['jobs','updated_at',false],['communications','due_date',true],['phone_messages','created_at',false],['prospects','created_at',false],['leads','created_at',false],['appointments','appointment_at',true],['sales_communications','occurred_at',false],['job_communications','occurred_at',false],['lookup_options','sort_order',true],['sops','title',true],['suggestions','created_at',false],['quick_notes','updated_at',false]];
-  const results=await Promise.all(calls.map(([table,order,ascending])=>db.from(table).select('*').order(order,{ascending}).limit(500)));
+  const results=await Promise.all(calls.map(([table,order,ascending])=>db.from(table).select('*').order(order,{ascending}).limit(['leads','jobs','prospects','appointments'].includes(table)?5000:500)));
   for(let i=0;i<results.length;i++){ if(results[i].error)throw results[i].error; let stateName=calls[i][0]==='phone_messages'?'phone':calls[i][0]; if(stateName==='lookup_options')stateName='lookups'; state[stateName]=results[i].data||[]; }
   const subtaskResult=await db.from('task_subtasks').select('*').order('sort_order',{ascending:true}).limit(2000);
   if(subtaskResult.error){state.task_subtasks=[];console.warn('Task subtasks are not available until the task-group SQL is installed:',subtaskResult.error.message);}else state.task_subtasks=subtaskResult.data||[];
@@ -5084,7 +5095,7 @@ async function loadAll(){
     state.dad_updates=dadResult.data||[];
   }
   try { await rollForwardMissedAngiCadence(); } catch (error) { console.warn('Could not roll forward missed Angi cadence windows:', error); }
-  setupLeadProspectSelects(); renderDashboard(); renderProspectsLeads(); renderAngiQueue(); applyUrlNavigation();
+  setupLeadProspectSelects(); renderDashboard(); renderProspectsLeads(); renderAngiQueue(); await applyUrlNavigation();
 }
 
 // Additional click handling for editing and record safety actions.
