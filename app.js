@@ -208,7 +208,7 @@ async function ensureLatestRelease() {
     window.location.replace(url.toString());
     return true;
   } catch (error) {
-    console.warn('Mission Control could not check for a newer release:', error);
+    console.warn('Bauer Roofing Operations could not check for a newer release:', error);
     return false;
   }
 }
@@ -486,7 +486,7 @@ function excelRowsForReport(rows,columns) {
 }
 
 function exportCurrentReport() {
-  if(typeof XLSX==='undefined')return msg('Excel export could not load. Refresh Mission Control and try again.','error');
+  if(typeof XLSX==='undefined')return msg('Excel export could not load. Refresh Bauer Roofing Operations and try again.','error');
   previewCurrentReport();
   const columns=selectedReportColumns();
   if(!reportRows.length||!columns.length)return;
@@ -1420,7 +1420,7 @@ async function importAngiHistoricalPackage() {
         // The earlier migration created these prospect rows, but some operational
         // Angi fields were not reconciled. Refresh only tracker-derived fields so
         // the work queue can correctly recognize active calls while preserving
-        // Mission Control notes and other user-entered history.
+        // Bauer Roofing Operations notes and other user-entered history.
         const sync = {
           source: raw.source || existing.source || 'Angi',
           source_account: raw.source_account || existing.source_account || null,
@@ -2872,7 +2872,7 @@ async function loginWithPassword() {
   const email=$('loginEmail').value.trim();
   const password=$('loginPassword').value;
   if(!email||!password){
-    authMsg('Enter your email and Mission Control password.','error');
+    authMsg('Enter your email and Bauer Roofing Operations password.','error');
     return;
   }
   const {error}=await db.auth.signInWithPassword({email,password});
@@ -2913,7 +2913,7 @@ $('savePasswordBtn').onclick=async()=>{
   $('passwordDialog').close();
   $('newPassword').value='';
   $('confirmPassword').value='';
-  msg('Your Mission Control password is ready.','success');
+  msg('Your Bauer Roofing Operations password is ready.','success');
 };
 
 
@@ -4098,7 +4098,7 @@ async function importAngiExport() {
 
         // If a CURRENT export says Initial, and this row only exists because of
         // the one-time historical migration, treat it as a real current untouched
-        // prospect when Mission Control has no actual contact history for it.
+        // prospect when Bauer Roofing Operations has no actual contact history for it.
         // This is what lets newly-arrived Angi people move from the historical
         // store into the live Angi Queue without creating a duplicate row.
         if (
@@ -4137,7 +4137,7 @@ async function importAngiExport() {
         }
 
         // Match the old importer: Angi may move a record FORWARD, but never
-        // erase Mission Control calls, notes, callbacks, or later workflow.
+        // erase Bauer Roofing Operations calls, notes, callbacks, or later workflow.
         if (sourceKind === 'selling' && !closed) {
           Object.assign(patch,{
             current_status:'Appointment Set', cadence_phase:'Paused',
@@ -4209,7 +4209,7 @@ async function importAngiExport() {
     $('angiImportFile').value='';
     status.textContent=`${account} detected. Imported ${inserts.length} new prospect${inserts.length===1?'':'s'}; reviewed ${existing} existing Angi record${existing===1?'':'s'}; moved ${reactivatedCurrentInitial} current untouched prospect${reactivatedCurrentInitial===1?'':'s'} into the Angi Queue; advanced ${statusAdvanced} workflow status${statusAdvanced===1?'':'es'}.`;
     renderAngiQueue();
-    msg(`Angi import complete. ${sellingRemovedFromQueue ? sellingRemovedFromQueue+' Selling record'+(sellingRemovedFromQueue===1?' was':'s were')+' removed from the call queue. ' : ''}Existing Mission Control history was preserved.`,'success');
+    msg(`Angi import complete. ${sellingRemovedFromQueue ? sellingRemovedFromQueue+' Selling record'+(sellingRemovedFromQueue===1?' was':'s were')+' removed from the call queue. ' : ''}Existing Bauer Roofing Operations history was preserved.`,'success');
   } catch(error) { status.textContent=''; msg('Could not import Angi export: '+(error.message||String(error)),'error'); }
 }
 
@@ -4900,7 +4900,7 @@ async function createDadProductionLink(){
     const {data,error}=await db.rpc('create_dad_production_session');
     if(error) throw error;
     const token=Array.isArray(data)?data[0]?.token:(data?.token||data);
-    if(!token) throw new Error('Mission Control did not receive a production check-off token.');
+    if(!token) throw new Error('Bauer Roofing Operations did not receive a production check-off token.');
     const url=new URL('dad-production.html',window.location.href);
     url.searchParams.set('token',token);
     try{

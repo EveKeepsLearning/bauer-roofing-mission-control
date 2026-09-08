@@ -81,7 +81,7 @@ async function submit(noChanges){
 async function init(){
   $('stage').innerHTML=stages.map(s=>`<option>${esc(s)}</option>`).join('');
   if(!token){showError('This production link is missing its secure token. Ask Eve for a new link.');return;}
-  if(!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY){showError('Mission Control is not configured.');return;}
+  if(!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY){showError('Bauer Roofing Operations is not configured.');return;}
   const {data,error}=await db.rpc('get_dad_production_jobs',{p_token:token});
   if(error){showError(error.message||'This production link is invalid or expired.');return;}
   jobs=data||[];$('loadingCard').classList.add('hidden');if(!jobs.length){$('doneCard').classList.remove('hidden');$('doneCard').innerHTML='<h2>Nothing needs an update.</h2><div>All active production jobs are complete.</div>';return;}$('appCard').classList.remove('hidden');render();

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Bauer Roofing Mission Control - Calendar</title>
+  <title>Bauer Roofing Operations - Calendar</title>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
@@ -258,10 +258,10 @@
 
   <div id="calendarApp" class="hidden">
     <div class="topbar">
-      <div class="brand">Bauer Roofing Mission Control</div>
+      <div class="brand">Bauer Roofing Operations</div>
 
       <div class="top-actions">
-        <a class="btn" href="https://evekeepslearning.github.io/bauer-roofing-mission-control/">Mission Control</a>
+        <a class="btn" href="https://evekeepslearning.github.io/bauer-roofing-mission-control/">Bauer Roofing Operations</a>
         <button class="btn" id="todayBtn">Today</button>
         <button class="btn icon" id="prevBtn" aria-label="Previous week">‹</button>
         <button class="btn icon" id="nextBtn" aria-label="Next week">›</button>
@@ -371,7 +371,7 @@
     <div class="dialog-card">
       <h2>Add Lead from Calendar</h2>
       <div class="dialog-sub">
-        Review and edit the information before it is added to Mission Control.
+        Review and edit the information before it is added to Bauer Roofing Operations.
       </div>
 
       <div class="lead-form-grid">
@@ -475,7 +475,7 @@
   <dialog id="bulkImportDialog">
     <div class="dialog-card" style="max-width:820px">
       <h2>Import Past Appointments into Leads</h2>
-      <div class="dialog-sub">Preview first. Mission Control will only automate clear matches and well-formed new leads.</div>
+      <div class="dialog-sub">Preview first. Bauer Roofing Operations will only automate clear matches and well-formed new leads.</div>
 
       <div class="lead-form-grid">
         <div><label>Beginning date</label><input id="bulkStartDate" type="date" value="2026-06-01"></div>
@@ -1186,7 +1186,7 @@ async function saveLeadFromCalendarDialog(){
       await ensureMissionControlAppointment(eventRow,lead);
     }catch(appointmentError){
       $('newLeadSaveStatus').textContent =
-        'Lead was created and linked, but the Mission Control appointment could not be saved: ' +
+        'Lead was created and linked, but the Bauer Roofing Operations appointment could not be saved: ' +
         (appointmentError.message || String(appointmentError));
       saveBtn.disabled = false;
       saveBtn.textContent = 'Add Lead';
@@ -1260,7 +1260,7 @@ function runCalendarSyncJsonp_(webAppUrl){
     script.onerror = ()=>{
       clearTimeout(timer);
       cleanup();
-      reject(new Error('Mission Control could not reach the Google Calendar sync web app.'));
+      reject(new Error('Bauer Roofing Operations could not reach the Google Calendar sync web app.'));
     };
 
     document.head.appendChild(script);
@@ -1315,7 +1315,7 @@ async function createRoyUpdateLink(){
     if(error) throw error;
 
     const token = Array.isArray(data) ? data[0]?.token : data?.token || data;
-    if(!token) throw new Error('Mission Control did not receive a daily check-off token.');
+    if(!token) throw new Error('Bauer Roofing Operations did not receive a daily check-off token.');
 
     const url = new URL('roy-update.html',window.location.href);
     url.searchParams.set('token',token);
@@ -1609,7 +1609,7 @@ async function runBulkImport(){
 
 function openBulkImportDialog(){
   bulkImportPlan=[];
-  $('bulkImportStatus').textContent='Click Preview Import to see exactly what Mission Control will do.';
+  $('bulkImportStatus').textContent='Click Preview Import to see exactly what Bauer Roofing Operations will do.';
   $('bulkImportSummary').innerHTML='';
   $('bulkImportList').innerHTML='';
   $('bulkImportList').classList.add('hidden');
@@ -1851,7 +1851,7 @@ async function backfillMissingMissionControlAppointments(){
       }
     }
 
-    // Reload appointments so Mission Control reflects the backfill immediately in this page.
+    // Reload appointments so Bauer Roofing Operations reflects the backfill immediately in this page.
     const refreshed = await db
       .from('appointments')
       .select('*')
@@ -1931,7 +1931,7 @@ async function syncGoogleCalendarNow(){
 
 async function init(){
   if(!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY){
-    showMessage('Mission Control config.js could not be found.');
+    showMessage('Bauer Roofing Operations config.js could not be found.');
     return;
   }
 
@@ -1940,7 +1940,7 @@ async function init(){
   const {data:{session}} = await db.auth.getSession();
 
   if(!session?.user){
-    showMessage('Please sign in to Mission Control first, then open Calendar again.');
+    showMessage('Please sign in to Bauer Roofing Operations first, then open Calendar again.');
     return;
   }
 
@@ -1952,7 +1952,7 @@ async function init(){
   ]);
 
   if(leadResult.error){
-    showMessage('Calendar loaded, but Mission Control leads could not be read: '+leadResult.error.message);
+    showMessage('Calendar loaded, but Bauer Roofing Operations leads could not be read: '+leadResult.error.message);
     return;
   }
   if(appointmentResult.error){
@@ -2132,7 +2132,7 @@ function renderReview(event){
   if(event.matched_lead_id){
     const lead=leads.find(l=>l.id===event.matched_lead_id);
     const label=isStructuredSalesAppointment(event) ? 'Matched sales appointment:' : 'Matched return visit:';
-    const openLeadLink='<div style="margin-top:10px"><a class="btn primary small" href="index.html?view=leads&lead='+encodeURIComponent(event.matched_lead_id)+'">Open Lead in Mission Control</a></div>';
+    const openLeadLink='<div style="margin-top:10px"><a class="btn primary small" href="index.html?view=leads&lead='+encodeURIComponent(event.matched_lead_id)+'">Open Lead in Bauer Roofing Operations</a></div>';
     $('matchBanner').innerHTML = lead
       ? '<b>'+esc(label)+'</b> '+esc(leadName(lead))+
         (lead.lead_number ? ' • Lead # '+esc(lead.lead_number) : '')+
@@ -2160,14 +2160,14 @@ function renderReview(event){
   }
 
   if(salesMatchCandidate){
-    $('reviewTitle').textContent='Sales appointment — connect it to a Mission Control Lead';
+    $('reviewTitle').textContent='Sales appointment — connect it to a Bauer Roofing Operations Lead';
     $('reviewSub').textContent=
-      'This event has the normal Bauer sales appointment format. Mission Control checks existing Leads first. ' +
+      'This event has the normal Bauer sales appointment format. Bauer Roofing Operations checks existing Leads first. ' +
       'If none is correct, you can create a new Lead from the calendar information with one click.';
   }else{
     $('reviewTitle').textContent='Likely return visit — match it to the existing Lead';
     $('reviewSub').textContent=
-      'This event does not follow the normal Source-Type-Address sales appointment format, so Mission Control is treating it as a likely return visit. ' +
+      'This event does not follow the normal Source-Type-Address sales appointment format, so Bauer Roofing Operations is treating it as a likely return visit. ' +
       'Choose the existing Lead it belongs to, or create a new Lead only if this is actually a new opportunity.';
   }
 
@@ -2327,7 +2327,7 @@ async function saveCalendarAppointmentResult(){
     }
 
     renderAppointmentResult(activeEvent);
-    $('calendarAppointmentResultStatus').textContent='Appointment result saved in Mission Control.';
+    $('calendarAppointmentResultStatus').textContent='Appointment result saved in Bauer Roofing Operations.';
   }catch(error){
     $('calendarAppointmentResultStatus').textContent='Could not save the result: '+(error.message||String(error));
   }finally{
@@ -2499,7 +2499,7 @@ async function matchEventToLead(leadId,score,reason){
       renderCalendar();
       renderReview(data);
       $('matchStatus').textContent =
-        'Lead was matched, but the Mission Control appointment could not be saved: ' +
+        'Lead was matched, but the Bauer Roofing Operations appointment could not be saved: ' +
         (appointmentError.message || String(appointmentError));
       return;
     }

@@ -1,4 +1,4 @@
--- Bauer Roofing Mission Control - structured residential lead intake fields
+-- Bauer Roofing Operations - structured residential lead intake fields
 -- Run once in the Supabase SQL Editor before publishing the matching website release.
 
 alter table public.leads add column if not exists taken_by text;
