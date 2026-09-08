@@ -27,8 +27,491 @@ let state = {
 
 let selectedLeadId = '';
 let urlNavigationApplied = false;
+let leadAddressSessionToken = null;
+let leadAddressPredictions = [];
+let leadAddressActiveIndex = -1;
+let leadAddressDebounce = null;
+let placesLibraryPromise = null;
+let reportContext = 'leads';
+let reportData = { leads:[], prospects:[], jobs:[], appointments:[] };
+let reportRows = [];
+let reportDetailRows = [];
 
 const $ = id => document.getElementById(id);
+
+function loadGooglePlacesLibrary() {
+  const key = String(cfg.GOOGLE_MAPS_API_KEY || '').trim();
+  if (!key) return Promise.resolve(null);
+  if (placesLibraryPromise) return placesLibraryPromise;
+
+  placesLibraryPromise = new Promise((resolve, reject) => {
+    const callbackName = '__bauerGoogleMapsReady';
+    window[callbackName] = async () => {
+      try {
+        const library = await google.maps.importLibrary('places');
+        resolve(library);
+      } catch (error) {
+        reject(error);
+      } finally {
+        delete window[callbackName];
+      }
+    };
+
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&loading=async&libraries=places&v=weekly&callback=${callbackName}`;
+    script.async = true;
+    script.onerror = () => reject(new Error('Google address suggestions could not be loaded.'));
+    document.head.appendChild(script);
+  });
+
+  return placesLibraryPromise;
+}
+
+function clearLeadAddressSuggestions() {
+  leadAddressPredictions = [];
+  leadAddressActiveIndex = -1;
+  const list = $('leadAddressSuggestions');
+  if (list) {
+    list.innerHTML = '';
+    list.classList.add('hidden');
+  }
+  $('leadStreet')?.setAttribute('aria-expanded', 'false');
+}
+
+function addressComponent(place, type, short = false) {
+  const component = (place.addressComponents || []).find(item => item.types?.includes(type));
+  return component ? String(short ? component.shortText : component.longText || '').trim() : '';
+}
+
+async function chooseLeadAddress(index) {
+  const prediction = leadAddressPredictions[index];
+  if (!prediction) return;
+
+  try {
+    const place = prediction.toPlace();
+    await place.fetchFields({ fields: ['addressComponents', 'formattedAddress'] });
+    const number = addressComponent(place, 'street_number');
+    const route = addressComponent(place, 'route');
+    const city = addressComponent(place, 'locality') || addressComponent(place, 'postal_town') || addressComponent(place, 'sublocality_level_1');
+    const region = addressComponent(place, 'administrative_area_level_1', true);
+    const zip = addressComponent(place, 'postal_code');
+    const street = [number, route].filter(Boolean).join(' ') || String(place.formattedAddress || '').split(',')[0].trim();
+
+    $('leadStreet').value = street;
+    if (city) $('leadCity').value = city;
+    if (region) $('leadState').value = region;
+    if (zip) $('leadZip').value = zip;
+    clearLeadAddressSuggestions();
+    leadAddressSessionToken = null;
+    $('leadCity').focus();
+  } catch (error) {
+    console.warn('Could not fill the selected address:', error);
+    msg('The address could not be filled automatically. You can still enter it manually.', 'error');
+  }
+}
+
+function renderLeadAddressSuggestions(suggestions) {
+  const list = $('leadAddressSuggestions');
+  if (!list) return;
+  leadAddressPredictions = suggestions.map(item => item.placePrediction).filter(Boolean);
+  leadAddressActiveIndex = -1;
+  list.innerHTML = leadAddressPredictions.map((prediction, index) => {
+    const main = prediction.mainText?.toString() || prediction.text?.toString() || '';
+    const secondary = prediction.secondaryText?.toString() || '';
+    return `<button type="button" class="address-suggestion" role="option" data-lead-address-index="${index}"><span class="address-suggestion-main">${esc(main)}</span>${secondary ? `<span class="address-suggestion-secondary">${esc(secondary)}</span>` : ''}</button>`;
+  }).join('');
+  list.classList.toggle('hidden', !leadAddressPredictions.length);
+  $('leadStreet')?.setAttribute('aria-expanded', leadAddressPredictions.length ? 'true' : 'false');
+}
+
+async function requestLeadAddressSuggestions() {
+  const input = $('leadStreet');
+  const value = String(input?.value || '').trim();
+  if (value.length < 3) return clearLeadAddressSuggestions();
+
+  try {
+    const library = await loadGooglePlacesLibrary();
+    if (!library?.AutocompleteSuggestion) return;
+    if (!leadAddressSessionToken) leadAddressSessionToken = new library.AutocompleteSessionToken();
+    const response = await library.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+      input: value,
+      sessionToken: leadAddressSessionToken,
+      includedRegionCodes: ['us'],
+      language: 'en',
+      region: 'us'
+    });
+    if (String(input.value || '').trim() !== value) return;
+    renderLeadAddressSuggestions(response.suggestions || []);
+  } catch (error) {
+    clearLeadAddressSuggestions();
+    console.warn('Google address suggestions are unavailable:', error);
+  }
+}
+
+function setupLeadAddressAutocomplete() {
+  const input = $('leadStreet');
+  const list = $('leadAddressSuggestions');
+  if (!input || !list) return;
+
+  if (String(cfg.GOOGLE_MAPS_API_KEY || '').trim()) $('leadAddressHelp')?.classList.remove('hidden');
+  input.addEventListener('input', () => {
+    clearTimeout(leadAddressDebounce);
+    leadAddressDebounce = setTimeout(requestLeadAddressSuggestions, 250);
+  });
+  input.addEventListener('keydown', event => {
+    const options = [...list.querySelectorAll('.address-suggestion')];
+    if (!options.length) return;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      leadAddressActiveIndex = event.key === 'ArrowDown'
+        ? (leadAddressActiveIndex + 1) % options.length
+        : (leadAddressActiveIndex - 1 + options.length) % options.length;
+      options.forEach((option, index) => option.classList.toggle('active', index === leadAddressActiveIndex));
+    } else if (event.key === 'Enter' && leadAddressActiveIndex >= 0) {
+      event.preventDefault();
+      chooseLeadAddress(leadAddressActiveIndex);
+    } else if (event.key === 'Escape') {
+      clearLeadAddressSuggestions();
+    }
+  });
+  list.addEventListener('mousedown', event => event.preventDefault());
+  list.addEventListener('click', event => {
+    const option = event.target.closest('[data-lead-address-index]');
+    if (option) chooseLeadAddress(Number(option.dataset.leadAddressIndex));
+  });
+  input.addEventListener('blur', () => setTimeout(clearLeadAddressSuggestions, 150));
+}
+
+async function ensureLatestRelease() {
+  try {
+    const response = await fetch(`release.json?t=${Date.now()}`, { cache:'no-store' });
+    if (!response.ok) return false;
+    const release = await response.json();
+    const latest = String(release.version || '').trim();
+    const current = String(cfg.APP_VERSION || '').trim();
+    if (!latest || !current || latest === current) return false;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('release') === latest) return false;
+    url.searchParams.set('release', latest);
+    window.location.replace(url.toString());
+    return true;
+  } catch (error) {
+    console.warn('Mission Control could not check for a newer release:', error);
+    return false;
+  }
+}
+
+async function fetchEveryReportRow(table, orderColumn) {
+  const rows = [];
+  const pageSize = 1000;
+  for (let start=0; start<50000; start+=pageSize) {
+    const result = await db.from(table).select('*').order(orderColumn,{ascending:false}).range(start,start+pageSize-1);
+    if (result.error) throw result.error;
+    rows.push(...(result.data||[]));
+    if ((result.data||[]).length < pageSize) break;
+  }
+  return rows;
+}
+
+function reportDateOnly(value) {
+  const text=String(value||'').slice(0,10);
+  const match=text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match?`${match[2]}/${match[3]}/${match[1]}`:text;
+}
+
+function reportMoney(value) {
+  const amount=Number(value||0);
+  return amount.toLocaleString('en-US',{style:'currency',currency:'USD'});
+}
+
+function reportJobAmount(job) {
+  const value=job.contract_amount??job.job_amount??job.amount??job.contract_price??job.price??0;
+  const number=Number(String(value||0).replace(/[$,]/g,''));
+  return Number.isFinite(number)?number:0;
+}
+
+function reportZip(record) {
+  const direct=String(record.zip||record.postal_code||record.mailing_zip||'').match(/\b\d{5}\b/)?.[0];
+  if(direct)return direct;
+  return String(record.property_address||record.street_address||record.mailing_address||'').match(/\b\d{5}\b/)?.[0]||'';
+}
+
+function reportJobForLead(lead) {
+  return reportData.jobs.find(job=>
+    (job.lead_id&&job.lead_id===lead.id)||
+    (job.lead_number&&lead.lead_number&&String(job.lead_number)===String(lead.lead_number))
+  )||null;
+}
+
+function reportLatestAppointment(leadId) {
+  return reportData.appointments
+    .filter(item=>item.lead_id===leadId&&!item.deleted_at)
+    .sort((a,b)=>String(b.appointment_at||'').localeCompare(String(a.appointment_at||'')))[0]||null;
+}
+
+function reportRecordDate(row) {
+  return String(row.report_date||row.lead_date||row.contract_date||row.created_at||'').slice(0,10);
+}
+
+function reportAddressParts(record) {
+  return {
+    street:record.mailing_street_address||record.mailing_address||record.street_address||record.property_address||'',
+    city:record.mailing_city||record.city||'',
+    state:record.mailing_state||record.state||'',
+    zip:record.mailing_zip||record.zip||reportZip(record)
+  };
+}
+
+function reportLeadRows() {
+  return reportData.leads.filter(row=>!row.deleted_at).map(lead=>{
+    const appointment=reportLatestAppointment(lead.id);
+    const job=reportJobForLead(lead);
+    return {...lead,
+      report_name:leadName(lead),
+      report_date:String(lead.lead_date||lead.created_at||'').slice(0,10),
+      report_zip:reportZip(lead),
+      report_type:lead.work_category||lead.lead_type||'',
+      report_status:lead.lead_status||'',
+      report_appointment_date:String(appointment?.appointment_at||'').slice(0,10),
+      report_appointment_result:appointment?.appointment_result||'',
+      report_job_number:job?.job_number||''
+    };
+  });
+}
+
+function directMailRows() {
+  const badStatuses=new Set(['Bad/Invalid Lead','Duplicate/Existing Customer','No Longer Needs Service']);
+  const prospects=reportData.prospects
+    .filter(row=>!row.deleted_at&&!row.converted_to_lead_at&&!badStatuses.has(row.current_status)&&!row.do_not_mail)
+    .map(row=>{
+      const address=reportAddressParts(row);
+      return {...row,...address,report_audience:'Prospect',report_name:prospectName(row),report_date:String(row.created_at||'').slice(0,10),report_type:row.work_category||'',report_status:row.current_status||'',spouse_name:row.spouse_name||''};
+    });
+  const pastLeads=reportData.leads
+    .filter(row=>!row.deleted_at&&!row.do_not_mail&&!reportJobForLead(row)&&row.lead_status!=='Sold')
+    .map(row=>{
+      const address=reportAddressParts(row);
+      return {...row,...address,report_audience:'Past Lead',report_name:leadName(row),report_date:String(row.lead_date||row.created_at||'').slice(0,10),report_type:row.work_category||row.lead_type||'',report_status:row.lead_status||''};
+    });
+  const deduped=new Map();
+  [...prospects,...pastLeads].forEach(row=>{
+    if(!row.street||!row.city||!row.state||!row.zip)return;
+    const key=[row.street,row.city,row.state,row.zip].map(value=>String(value||'').toLowerCase().replace(/[^a-z0-9]/g,'')).join('|');
+    const existing=deduped.get(key);
+    if(!existing||row.report_audience==='Past Lead')deduped.set(key,row);
+  });
+  return [...deduped.values()].map(row=>({...row,
+    greeting:row.spouse_name
+      ? `${row.first_name||row.report_name} and ${row.spouse_name}`
+      : (row.first_name||row.report_name)
+  }));
+}
+
+function reportJobRows() {
+  return reportData.jobs.filter(row=>!row.deleted_at).map(job=>({...job,
+    report_name:job.customer_name||'',
+    report_date:String(job.contract_date||job.created_at||'').slice(0,10),
+    report_zip:reportZip(job),
+    report_type:job.primary_job_type||job.job_type||'',
+    report_status:job.stage||'',
+    report_amount:reportJobAmount(job)
+  }));
+}
+
+const REPORT_COLUMN_SETS={
+  lead_list:[
+    ['lead_number','Lead #'],['report_name','Homeowner'],['spouse_name','Spouse'],['street_address','Street Address'],['city','City'],['state','State'],['report_zip','ZIP'],['phone','Phone'],['phone_secondary','Other Phone'],['email','Email'],['source','Source'],['report_type','Lead Type'],['report_status','Status'],['assigned_to','Salesperson'],['report_date','Lead Date'],['report_appointment_date','Appointment Date'],['report_appointment_result','Appointment Result'],['estimate_status','Estimate Status'],['report_job_number','Job #']
+  ],
+  direct_mail:[
+    ['report_audience','Record Type'],['first_name','First Name'],['last_name','Last Name'],['spouse_name','Spouse'],['greeting','Greeting'],['street','Street Address'],['city','City'],['state','State'],['zip','ZIP'],['source','Source'],['report_type','Lead Type'],['report_date','Inquiry Date']
+  ],
+  job_list:[
+    ['job_number','Job #'],['lead_number','Lead #'],['report_name','Customer'],['property_address','Property Address'],['report_zip','ZIP'],['report_type','Job Type'],['report_status','Stage'],['salesperson','Salesperson'],['contract_date','Contract Date'],['report_amount','Contract Amount'],['material_type','Material'],['material_color','Color'],['target_start_date','Target Start'],['confirmed_start_date','Confirmed Start'],['expected_completion_date','Expected Completion']
+  ],
+  sales_by_type:[
+    ['year','Year'],['job_type','Job Type'],['job_count','Jobs Sold'],['total_sales','Total Sales'],['average_sale','Average Job']
+  ]
+};
+
+function reportColumnValue(row,key,forExcel=false) {
+  const value=row[key]??'';
+  if(['report_date','lead_date','contract_date','report_appointment_date','target_start_date','confirmed_start_date','expected_completion_date'].includes(key))return reportDateOnly(value);
+  if(['report_amount','total_sales','average_sale'].includes(key))return forExcel?Number(value||0):reportMoney(value);
+  return value;
+}
+
+function uniqueReportValues(rows,key) {
+  return [...new Set(rows.map(row=>String(row[key]||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+}
+
+function setReportSelect(id,values,allLabel='All') {
+  const control=$(id);
+  control.innerHTML=`<option value="">${esc(allLabel)}</option>`+values.map(value=>`<option value="${esc(value)}">${esc(value)}</option>`).join('');
+}
+
+function reportTypeRows(type) {
+  if(type==='lead_list')return reportLeadRows();
+  if(type==='direct_mail')return directMailRows();
+  return reportJobRows();
+}
+
+function configureReportControls() {
+  const type=$('reportType').value;
+  const base=reportTypeRows(type);
+  const filterOne=$('reportFilterOneLabel');
+  const filterTwo=$('reportFilterTwoLabel');
+  const filterThree=$('reportFilterThreeLabel');
+  let sorts=[];
+
+  if(type==='lead_list'){
+    filterOne.textContent='Source';filterTwo.textContent='Lead type';filterThree.textContent='Status';
+    setReportSelect('reportFilterOne',uniqueReportValues(base,'source'),'All sources');
+    setReportSelect('reportFilterTwo',uniqueReportValues(base,'report_type'),'All lead types');
+    setReportSelect('reportFilterThree',uniqueReportValues(base,'report_status'),'All statuses');
+    sorts=[['report_date','Lead date'],['report_name','Homeowner'],['report_zip','ZIP'],['source','Source'],['report_type','Lead type'],['report_status','Status']];
+  }else if(type==='direct_mail'){
+    filterOne.textContent='Audience';filterTwo.textContent='Source';filterThree.textContent='Lead type';
+    setReportSelect('reportFilterOne',uniqueReportValues(base,'report_audience'),'Prospects and past leads');
+    setReportSelect('reportFilterTwo',uniqueReportValues(base,'source'),'All sources');
+    setReportSelect('reportFilterThree',uniqueReportValues(base,'report_type'),'All lead types');
+    sorts=[['last_name','Last name'],['report_zip','ZIP'],['report_date','Inquiry date'],['source','Source'],['report_type','Lead type']];
+  }else if(type==='sales_by_type'){
+    filterOne.textContent='Year';filterTwo.textContent='Job type';filterThree.textContent='Salesperson';
+    setReportSelect('reportFilterOne',uniqueReportValues(base.map(row=>({...row,year:reportRecordDate(row).slice(0,4)})),'year'),'All years');
+    setReportSelect('reportFilterTwo',uniqueReportValues(base,'report_type'),'All job types');
+    setReportSelect('reportFilterThree',uniqueReportValues(base,'salesperson'),'All salespeople');
+    sorts=[['year','Year'],['job_type','Job type'],['total_sales','Total sales'],['job_count','Jobs sold']];
+  }else{
+    filterOne.textContent='Stage';filterTwo.textContent='Job type';filterThree.textContent='Salesperson';
+    setReportSelect('reportFilterOne',uniqueReportValues(base,'report_status'),'All stages');
+    setReportSelect('reportFilterTwo',uniqueReportValues(base,'report_type'),'All job types');
+    setReportSelect('reportFilterThree',uniqueReportValues(base,'salesperson'),'All salespeople');
+    sorts=[['report_date','Contract date'],['job_number','Job #'],['report_name','Customer'],['report_zip','ZIP'],['report_type','Job type'],['report_status','Stage'],['salesperson','Salesperson'],['report_amount','Contract amount']];
+  }
+
+  $('reportSort').innerHTML=sorts.map(([value,label])=>`<option value="${value}">${esc(label)}</option>`).join('');
+  $('reportDirection').value=['lead_list','job_list','sales_by_type'].includes(type)?'desc':'asc';
+  const columns=REPORT_COLUMN_SETS[type];
+  $('reportColumns').innerHTML=columns.map(([key,label])=>`<label class="report-column"><input type="checkbox" value="${esc(key)}" checked><span>${esc(label)}</span></label>`).join('');
+  $('reportColumnsWrap').classList.toggle('hidden',false);
+  $('reportPreview').innerHTML='';
+  $('reportStatus').textContent='Choose filters, preview the report, then export it to Excel.';
+}
+
+function selectedReportColumns() {
+  const selected=new Set([...document.querySelectorAll('#reportColumns input:checked')].map(input=>input.value));
+  return (REPORT_COLUMN_SETS[$('reportType').value]||[]).filter(([key])=>selected.has(key));
+}
+
+function filteredReportBaseRows() {
+  const type=$('reportType').value;
+  let rows=reportTypeRows(type);
+  const one=$('reportFilterOne').value;
+  const two=$('reportFilterTwo').value;
+  const three=$('reportFilterThree').value;
+  const zip=$('reportZip').value.trim();
+  const from=$('reportDateFrom').value;
+  const to=$('reportDateTo').value;
+  rows=rows.filter(row=>{
+    const date=reportRecordDate(row);
+    if(type==='sales_by_type'&&/cancel/i.test(String(row.report_status||'')))return false;
+    if(zip&&reportZip(row)!==zip)return false;
+    if(from&&date&&date<from)return false;
+    if(to&&date&&date>to)return false;
+    if(type==='lead_list'&&((one&&row.source!==one)||(two&&row.report_type!==two)||(three&&row.report_status!==three)))return false;
+    if(type==='direct_mail'&&((one&&row.report_audience!==one)||(two&&row.source!==two)||(three&&row.report_type!==three)))return false;
+    if(type==='job_list'&&((one&&row.report_status!==one)||(two&&row.report_type!==two)||(three&&row.salesperson!==three)))return false;
+    if(type==='sales_by_type'&&((one&&date.slice(0,4)!==one)||(two&&row.report_type!==two)||(three&&row.salesperson!==three)))return false;
+    return true;
+  });
+  return rows;
+}
+
+function buildCurrentReport() {
+  const type=$('reportType').value;
+  const base=filteredReportBaseRows();
+  reportDetailRows=base;
+  if(type==='sales_by_type'){
+    const groups=new Map();
+    base.forEach(job=>{
+      const year=reportRecordDate(job).slice(0,4)||'No date';
+      const jobType=job.report_type||'Not entered';
+      const key=year+'|'+jobType;
+      const group=groups.get(key)||{year,job_type:jobType,job_count:0,total_sales:0,average_sale:0};
+      group.job_count++;
+      group.total_sales+=job.report_amount||0;
+      group.average_sale=group.job_count?group.total_sales/group.job_count:0;
+      groups.set(key,group);
+    });
+    reportRows=[...groups.values()];
+  }else reportRows=base;
+
+  const sortKey=$('reportSort').value;
+  const direction=$('reportDirection').value==='desc'?-1:1;
+  reportRows.sort((a,b)=>{
+    const av=a[sortKey]??'',bv=b[sortKey]??'';
+    if(typeof av==='number'||typeof bv==='number')return (Number(av||0)-Number(bv||0))*direction;
+    return String(av).localeCompare(String(bv),undefined,{numeric:true})*direction;
+  });
+  return reportRows;
+}
+
+function previewCurrentReport() {
+  const rows=buildCurrentReport();
+  const columns=selectedReportColumns();
+  if(!columns.length){$('reportStatus').textContent='Select at least one column.';$('reportPreview').innerHTML='';return;}
+  if(!rows.length){$('reportStatus').textContent='No records match these filters.';$('reportPreview').innerHTML='<div class="report-empty">No matching records.</div>';return;}
+  const head=columns.map(([,label])=>`<th>${esc(label)}</th>`).join('');
+  const body=rows.slice(0,200).map(row=>`<tr>${columns.map(([key])=>`<td class="${['report_amount','total_sales','average_sale','job_count'].includes(key)?'report-number':''}">${esc(reportColumnValue(row,key,false))}</td>`).join('')}</tr>`).join('');
+  $('reportPreview').innerHTML=`<table class="report-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  const amountMissing=$('reportType').value==='sales_by_type'&&reportDetailRows.length&&!reportDetailRows.some(row=>row.report_amount);
+  $('reportStatus').textContent=`${rows.length} ${rows.length===1?'row':'rows'} ready.${rows.length>200?' Preview shows the first 200.':''}${amountMissing?' Contract amounts are not stored on current jobs yet, so this report currently shows job counts.':''}`;
+}
+
+function excelRowsForReport(rows,columns) {
+  return rows.map(row=>Object.fromEntries(columns.map(([key,label])=>[label,reportColumnValue(row,key,true)])));
+}
+
+function exportCurrentReport() {
+  if(typeof XLSX==='undefined')return msg('Excel export could not load. Refresh Mission Control and try again.','error');
+  previewCurrentReport();
+  const columns=selectedReportColumns();
+  if(!reportRows.length||!columns.length)return;
+  const workbook=XLSX.utils.book_new();
+  const type=$('reportType').value;
+  XLSX.utils.book_append_sheet(workbook,XLSX.utils.json_to_sheet(excelRowsForReport(reportRows,columns)),type==='direct_mail'?'Direct Mail':type==='sales_by_type'?'Sales Summary':type==='job_list'?'Jobs':'Leads');
+  if(type==='sales_by_type'){
+    const detailColumns=REPORT_COLUMN_SETS.job_list;
+    XLSX.utils.book_append_sheet(workbook,XLSX.utils.json_to_sheet(excelRowsForReport(reportDetailRows,detailColumns)),'Job Detail');
+  }
+  const date=new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});
+  const name={lead_list:'Leads-Report',direct_mail:'Direct-Mail',job_list:'Jobs-Report',sales_by_type:'Sales-by-Year-and-Job-Type'}[type]||'Mission-Control-Report';
+  XLSX.writeFile(workbook,`${name}-${date}.xlsx`);
+  $('reportStatus').textContent=`Exported ${reportRows.length} ${reportRows.length===1?'row':'rows'} to Excel.`;
+}
+
+async function openReports(context) {
+  reportContext=context;
+  $('reportDialogTitle').textContent=context==='leads'?'Lead Reports':'Job Reports';
+  $('reportDialogDescription').textContent=context==='leads'
+    ? 'Sort and export Leads, or create a deduplicated direct-mail list from Prospects and past Leads that did not convert.'
+    : 'Sort and export Jobs, or review sales by contract year and primary job type.';
+  $('reportType').innerHTML=context==='leads'
+    ? '<option value="lead_list">Lead List</option><option value="direct_mail">Direct Mail — Prospects & Past Leads</option>'
+    : '<option value="job_list">Job List</option><option value="sales_by_type">Sales by Year & Job Type</option>';
+  $('reportStatus').textContent='Loading all records…';
+  $('reportPreview').innerHTML='';
+  $('reportDialog').showModal();
+  try{
+    const [leads,prospects,jobs,appointments]=await Promise.all([
+      fetchEveryReportRow('leads','created_at'),fetchEveryReportRow('prospects','created_at'),fetchEveryReportRow('jobs','created_at'),fetchEveryReportRow('appointments','appointment_at')
+    ]);
+    reportData={leads,prospects,jobs,appointments};
+    configureReportControls();
+  }catch(error){
+    $('reportStatus').textContent='Could not load report records: '+(error.message||String(error));
+  }
+}
 
 const esc = v =>
   String(v ?? '').replace(
@@ -2385,8 +2868,11 @@ $('loginBtn').onclick =
       await db.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo:
-            location.href.split('#')[0]
+          emailRedirectTo:(()=>{
+            const redirect=new URL(cfg.APP_URL||'./',window.location.href);
+            if(cfg.APP_VERSION)redirect.searchParams.set('release',cfg.APP_VERSION);
+            return redirect.toString();
+          })()
         }
       });
 
@@ -3893,10 +4379,20 @@ function renderProspectsLeads() {
   $('kpiAppointments').textContent = upcomingAppointments.length;
 
   const query = $('leadSearch') ? $('leadSearch').value : '';
-  const matchingLeads = activeLeads
-    .filter(l => leadMatchesSearch(l, query))
-    .slice()
-    .sort((a,b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+  const leadSort=$('leadSort')?.value||'newest';
+  const matchingLeads = activeLeads.filter(l => leadMatchesSearch(l, query)).slice().sort((a,b) => {
+    if(leadSort==='oldest')return String(a.created_at||a.lead_date||'').localeCompare(String(b.created_at||b.lead_date||''));
+    if(leadSort==='appointment'){
+      const aa=leadUpcomingAppointments(a.id)[0]?.appointment_at||'9999';
+      const ba=leadUpcomingAppointments(b.id)[0]?.appointment_at||'9999';
+      return String(aa).localeCompare(String(ba));
+    }
+    if(leadSort==='zip')return reportZip(a).localeCompare(reportZip(b),undefined,{numeric:true})||leadName(a).localeCompare(leadName(b));
+    if(leadSort==='source')return String(a.source||'').localeCompare(String(b.source||''))||leadName(a).localeCompare(leadName(b));
+    if(leadSort==='type')return String(a.work_category||a.lead_type||'').localeCompare(String(b.work_category||b.lead_type||''))||leadName(a).localeCompare(leadName(b));
+    if(leadSort==='name')return leadName(a).localeCompare(leadName(b));
+    return String(b.created_at||b.lead_date||'').localeCompare(String(a.created_at||a.lead_date||''));
+  });
 
   if (!selectedLeadId || !state.leads.some(l => visibleLead(l) && l.id === selectedLeadId)) {
     selectedLeadId = matchingLeads.length ? matchingLeads[0].id : '';
@@ -3925,7 +4421,16 @@ function renderProspectsLeads() {
 }
 
 function renderJobs() {
-  const activeJobs = state.jobs.filter(activeRow);
+  const jobSort=$('jobSort')?.value||'updated';
+  const activeJobs = state.jobs.filter(activeRow).slice().sort((a,b)=>{
+    if(jobSort==='contract')return String(b.contract_date||'').localeCompare(String(a.contract_date||''));
+    if(jobSort==='start')return String(a.confirmed_start_date||a.target_start_date||'9999').localeCompare(String(b.confirmed_start_date||b.target_start_date||'9999'));
+    if(jobSort==='zip')return reportZip(a).localeCompare(reportZip(b),undefined,{numeric:true})||String(a.customer_name||'').localeCompare(String(b.customer_name||''));
+    if(jobSort==='type')return String(a.primary_job_type||a.job_type||'').localeCompare(String(b.primary_job_type||b.job_type||''))||String(a.customer_name||'').localeCompare(String(b.customer_name||''));
+    if(jobSort==='stage')return String(a.stage||'').localeCompare(String(b.stage||''))||String(a.customer_name||'').localeCompare(String(b.customer_name||''));
+    if(jobSort==='name')return String(a.customer_name||'').localeCompare(String(b.customer_name||''));
+    return String(b.updated_at||b.created_at||'').localeCompare(String(a.updated_at||a.created_at||''));
+  });
   const today=todayISO();
   const needsUpdate=activeJobs.filter(j=>!['Final / Closed','Closed'].includes(j.stage||'') && (!j.dad_acknowledged_at || !j.production_next_update_date || j.production_next_update_date<=today));
   const needsContact=activeJobs.filter(j=>!['Final / Closed','Closed'].includes(j.stage||'') && (j.client_communication_needed || (j.client_communication_due_date && j.client_communication_due_date<=today)));
@@ -4093,7 +4598,7 @@ function clearProspectForm() { ['prospectEditId','prospectSourceRef','prospectFi
 function openProspectDialog(prospect=null) { clearProspectForm(); if(prospect){$('prospectEditId').value=prospect.id; $('prospectDialogTitle').textContent='Prospect Details'; $('saveProspectBtn').textContent='Save Changes'; $('prospectSource').value=prospect.source||'Other'; toggleAngiFields('prospect'); $('prospectSourceAccount').value=prospect.source_account||''; $('prospectSourceRef').value=prospect.source_reference||''; $('prospectStatus').value=prospect.current_status||'New'; $('prospectFirstName').value=prospect.first_name||''; $('prospectLastName').value=prospect.last_name||''; $('prospectStreet').value=prospect.street_address||''; $('prospectCity').value=prospect.city||''; $('prospectState').value=prospect.state||'SC'; $('prospectZip').value=prospect.zip||''; $('prospectPhone').value=prospect.phone||''; $('prospectEmail').value=prospect.email||''; $('prospectWorkCategory').value=prospect.work_category||'Roofing'; $('prospectAssignedTo').value=prospect.assigned_to||'Roy'; $('prospectNextFollow').value=dateTimeLocalValue(prospect.next_follow_up_at); $('prospectNextAction').value=prospect.next_action||''; $('prospectNotes').value=prospect.notes||'';} $('prospectDialog').showModal(); }
 async function saveProspect() { try { const id=$('prospectEditId').value; const first=$('prospectFirstName').value.trim(), last=$('prospectLastName').value.trim(), phone=$('prospectPhone').value.trim(), email=$('prospectEmail').value.trim(); if(!first&&!last&&!phone&&!email)return msg('Enter at least a name, phone number, or email for the prospect.','error'); const row={source:$('prospectSource').value,source_account:$('prospectSource').value==='Angi'?($('prospectSourceAccount').value||null):null,source_reference:$('prospectSourceRef').value.trim()||null,first_name:first,last_name:last,customer_name:[first,last].filter(Boolean).join(' '),street_address:$('prospectStreet').value.trim(),city:$('prospectCity').value.trim(),state:$('prospectState').value.trim(),zip:$('prospectZip').value.trim(),phone,email,work_category:$('prospectWorkCategory').value,current_status:$('prospectStatus').value,assigned_to:$('prospectAssignedTo').value,next_follow_up_at:$('prospectNextFollow').value?new Date($('prospectNextFollow').value).toISOString():null,next_action:$('prospectNextAction').value.trim(),notes:$('prospectNotes').value.trim()}; if(id){await updateRecord('prospects',id,row,'Prospect changes undone.');} else {const r=await db.from('prospects').insert({...row,import_source:'Manual'}).select().single(); if(r.error)throw r.error; await db.from('undo_history').insert({action_type:'create',entity_type:'prospects',entity_id:r.data.id,description:'New prospect removed.',payload:{}});} $('prospectDialog').close(); await loadAll(); msg(id?'Prospect updated.':'Prospect saved.','success'); } catch(error){msg('Could not save prospect: '+(error.message||String(error)),'error');} }
 
-function clearLeadForm() { ['leadEditId','leadProspectId','leadNumber','leadDate','leadSourceRef','leadFirstName','leadLastName','leadSpouse','leadStreet','leadCity','leadZip','leadPhone','leadPhone2','leadEmail','leadAppointmentDate','leadAppointmentTime','leadEstimateNote','leadNotes'].forEach(id=>{if($(id))$(id).value='';}); $('leadState').value='SC'; $('leadWorkCategory').value='Roofing'; $('leadStatus').value='Appointment Wanted'; $('leadDialogTitle').textContent='New Lead'; $('saveLeadBtn').textContent='Save Lead'; setupLeadProspectSelects(); }
+function clearLeadForm() { ['leadEditId','leadProspectId','leadNumber','leadDate','leadSourceRef','leadFirstName','leadLastName','leadSpouse','leadStreet','leadCity','leadZip','leadPhone','leadPhone2','leadEmail','leadAppointmentDate','leadAppointmentTime','leadEstimateNote','leadNotes'].forEach(id=>{if($(id))$(id).value='';}); clearLeadAddressSuggestions(); leadAddressSessionToken=null; $('leadState').value='SC'; $('leadWorkCategory').value='Roofing'; $('leadStatus').value='Appointment Wanted'; $('leadDialogTitle').textContent='New Lead'; $('saveLeadBtn').textContent='Save Lead'; setupLeadProspectSelects(); }
 function openLeadEdit(id) { const l=state.leads.find(x=>x.id===id); if(!l)return; clearLeadForm(); $('leadEditId').value=l.id; $('leadProspectId').value=l.prospect_id||''; $('leadDialogTitle').textContent='Lead Details'; $('saveLeadBtn').textContent='Save Changes'; $('leadNumber').value=l.lead_number||''; $('leadDate').value=l.lead_date||''; $('leadSource').value=l.source||'Other'; toggleAngiFields('lead'); $('leadSourceAccount').value=l.source_account||''; $('leadSourceRef').value=l.source_reference||''; $('leadFirstName').value=l.first_name||''; $('leadLastName').value=l.last_name||''; $('leadSpouse').value=l.spouse_name||''; $('leadStreet').value=l.street_address||''; $('leadCity').value=l.city||''; $('leadState').value=l.state||'SC'; $('leadZip').value=l.zip||''; $('leadPhone').value=l.phone||''; $('leadPhone2').value=l.phone_secondary||''; $('leadEmail').value=l.email||''; $('leadWorkCategory').value=l.work_category||'Roofing'; $('leadAssignedTo').value=l.assigned_to||'Roy'; $('leadStatus').value=l.lead_status||'Appointment Wanted'; $('leadEstimateStatus').value=l.estimate_status||'Not Known'; $('leadEstimateNote').value=l.estimate_issue_note||''; $('leadNotes').value=l.notes||''; const a=state.appointments.filter(a=>activeRow(a)&&a.lead_id===l.id).sort((a,b)=>String(b.appointment_at||'').localeCompare(String(a.appointment_at||'')))[0]; if(a){$('leadAppointmentDate').value=datePart(a.appointment_at); $('leadAppointmentTime').value=timePart(a.appointment_at); $('leadMarketSharpStatus').value=a.marketsharp_status||'Not Needed Yet';} $('leadDialog').showModal(); }
 async function saveLead() {
   try {
@@ -4408,6 +4913,15 @@ if($('cancelSopBtn')) $('cancelSopBtn').onclick=()=>{$('sopDialog').close();clea
 if ($('newProspectBtn')) $('newProspectBtn').onclick=()=>openProspectDialog();
 $('newLeadBtn').onclick=()=>{clearLeadForm();openLeadDialog();};
 if ($('leadSearch')) $('leadSearch').oninput=()=>{ selectedLeadId=''; renderProspectsLeads(); };
+if($('leadSort'))$('leadSort').onchange=()=>{selectedLeadId='';renderProspectsLeads();};
+if($('jobSort'))$('jobSort').onchange=renderJobs;
+$('leadReportsBtn').onclick=()=>openReports('leads');
+$('jobReportsBtn').onclick=()=>openReports('jobs');
+$('reportType').onchange=configureReportControls;
+$('previewReportBtn').onclick=previewCurrentReport;
+$('exportReportBtn').onclick=exportCurrentReport;
+$('reportSelectAllBtn').onclick=()=>{document.querySelectorAll('#reportColumns input').forEach(input=>{input.checked=true;});};
+$('reportClearColumnsBtn').onclick=()=>{document.querySelectorAll('#reportColumns input').forEach(input=>{input.checked=false;});};
 $('newJobBtn').onclick=()=>{clearJobForm();$('jobDialog').showModal();};
 if($('createDadProductionLinkBtn')) $('createDadProductionLinkBtn').onclick=createDadProductionLink;
 
@@ -4435,4 +4949,5 @@ document.body.addEventListener('click', async event=>{
 });
 
 
-init();
+setupLeadAddressAutocomplete();
+ensureLatestRelease().then(reloading=>{if(!reloading)init();});

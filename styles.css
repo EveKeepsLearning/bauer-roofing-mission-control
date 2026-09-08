@@ -191,3 +191,24 @@ input,textarea,select{width:100%;padding:9px;border:1px solid #c9cdd2;border-rad
 @media(max-width:620px){.lead-info-grid{grid-template-columns:1fr}.lead-info-grid .wide{grid-column:auto}.lead-detail-appt{grid-template-columns:1fr}.lead-detail-appt.header{display:none}}
 @media(max-width:700px){.production-kpis{grid-template-columns:1fr}.production-job-head{display:block}.production-stage{margin-top:7px}.production-job-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:620px){.today-task-bar{align-items:flex-start}.today-task-bar .btn{font-size:13px}.task-subtasks{padding:8px}}
+
+/* Google Places address suggestions in the lead form. */
+.address-autocomplete-wrap{position:relative}
+.address-suggestions{position:absolute;z-index:1000;left:0;right:0;top:calc(100% + 4px);overflow:auto;max-height:260px;background:#fff;border:1px solid #ccd5df;border-radius:9px;box-shadow:0 12px 28px rgba(31,48,72,.18)}
+.address-suggestion{display:block;width:100%;border:0;border-bottom:1px solid #edf0f3;background:#fff;color:var(--text);padding:11px 12px;text-align:left;cursor:pointer;font:inherit;line-height:1.35}
+.address-suggestion:last-child{border-bottom:0}.address-suggestion:hover,.address-suggestion.active{background:#edf5ff}
+.address-suggestion-main{display:block;font-size:14px;font-weight:700}.address-suggestion-secondary{display:block;margin-top:2px;color:var(--muted);font-size:12px}
+.field-help{margin-top:5px;color:var(--muted);font-size:11px}
+.list-sort-select{width:auto;min-width:175px}.list-sort-toolbar{margin:8px 0}.list-sort-toolbar label{font-size:12px;font-weight:700;color:var(--muted)}
+@media(max-width:560px){.list-sort-select{width:100%}.list-sort-toolbar{align-items:stretch}.list-sort-toolbar .spacer{display:none}}
+
+/* Leads and Jobs report builder. */
+.report-dialog{width:min(1180px,96vw);max-width:none}.report-card{width:100%;max-height:92vh;overflow:auto;margin:0;padding:22px}
+.report-heading{align-items:flex-start;border-bottom:1px solid var(--line);padding-bottom:14px}.report-heading h2{margin:4px 0}.report-heading .auth-note{margin:4px 0 0}
+.report-builder-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px;margin:18px 0}.report-builder-grid label{display:block;margin-bottom:5px;font-size:11px;font-weight:750;color:#596678}
+.report-columns-wrap{border:1px solid var(--line);border-radius:10px;padding:12px;margin:14px 0}.compact-toolbar h3{font-size:15px;margin:0}
+.report-columns{display:grid;grid-template-columns:repeat(4,minmax(145px,1fr));gap:7px 12px;margin-top:10px}.report-column{display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer}.report-column input{width:auto;margin:0}
+.report-actions{margin:15px 0}.report-preview{overflow:auto;border:1px solid var(--line);border-radius:10px;max-height:430px}.report-preview:empty{display:none}
+.report-table{width:100%;border-collapse:collapse;font-size:12px;background:#fff}.report-table th{position:sticky;top:0;z-index:1;background:#edf2f7;color:#465468;text-align:left;white-space:nowrap}.report-table th,.report-table td{padding:9px 10px;border-bottom:1px solid #e6ebf0;vertical-align:top}.report-table tr:last-child td{border-bottom:0}.report-table td{max-width:280px}.report-number{text-align:right!important;font-variant-numeric:tabular-nums}.report-empty{padding:24px;text-align:center;color:var(--muted)}
+@media(max-width:900px){.report-builder-grid,.report-columns{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.report-builder-grid,.report-columns{grid-template-columns:1fr}.report-card{padding:15px}.report-actions{align-items:stretch}.report-actions .btn{width:100%}}

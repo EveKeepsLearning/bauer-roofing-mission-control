@@ -356,6 +356,7 @@
 
       <div class="dialog-actions">
         <button class="btn small" id="notSalesBtn">Not related to a lead</button>
+        <button class="btn primary small hidden" id="changeNotSalesBtn" type="button">Change to Lead Review</button>
         <div id="reviewNavigation" class="review-navigation hidden">
           <button class="btn small" id="backToReviewListBtn" type="button">Review List</button>
           <span id="reviewProgress" class="status-line"></span>
@@ -530,6 +531,7 @@ let reviewQueueActive = false;
 let reviewQueueEventIds = [];
 let reviewQueueIndex = -1;
 let pastReviewScrollTop = 0;
+let rememberedNotRelatedFingerprints = null;
 
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({
@@ -719,6 +721,70 @@ function normalizeText(value){
     .replace(/[^a-z0-9]+/g,' ')
     .replace(/\s+/g,' ')
     .trim();
+}
+
+function exactImportedText(value){
+  return String(value||'').trim().toLowerCase().replace(/\s+/g,' ');
+}
+
+function notRelatedFingerprint(row){
+  const summary=exactImportedText(row?.summary);
+  if(!summary) return '';
+  return JSON.stringify({
+    calendar:exactImportedText(row?.google_calendar_id||row?.calendar_name),
+    summary,
+    description:exactImportedText(row?.description),
+    location:exactImportedText(row?.location_raw)
+  });
+}
+
+function hasManualLeadReviewOverride(row){
+  return row?.match_reason==='Manually reopened for lead review';
+}
+
+async function loadRememberedNotRelatedFingerprints(){
+  if(rememberedNotRelatedFingerprints) return rememberedNotRelatedFingerprints;
+  const {data,error}=await db
+    .from('calendar_events')
+    .select('*')
+    .eq('calendar_classification','Not Sales Related')
+    .limit(5000);
+  if(error){
+    console.warn('Previous Not Related choices could not be checked:',error.message);
+    rememberedNotRelatedFingerprints=new Set();
+    return rememberedNotRelatedFingerprints;
+  }
+  rememberedNotRelatedFingerprints=new Set((data||[]).map(notRelatedFingerprint).filter(Boolean));
+  return rememberedNotRelatedFingerprints;
+}
+
+async function applyRememberedNotRelatedChoices(rows){
+  const fingerprints=await loadRememberedNotRelatedFingerprints();
+  if(!fingerprints.size) return rows||[];
+  const output=[...(rows||[])];
+
+  for(let index=0;index<output.length;index++){
+    const row=output[index];
+    if(row.matched_lead_id||row.calendar_classification==='Not Sales Related'||hasManualLeadReviewOverride(row)) continue;
+    const fingerprint=notRelatedFingerprint(row);
+    if(!fingerprint||!fingerprints.has(fingerprint)) continue;
+
+    const patch={
+      matched_lead_id:null,
+      matched_lead_number:null,
+      match_confidence:null,
+      match_reason:'Automatically marked not related — identical to a previous choice',
+      calendar_classification:'Not Sales Related',
+      updated_at:new Date().toISOString()
+    };
+    const {data,error}=await db.from('calendar_events').update(patch).eq('id',row.id).select().single();
+    if(error){
+      console.warn('An identical Not Related choice could not be applied:',error.message);
+      continue;
+    }
+    output[index]=data;
+  }
+  return output;
 }
 
 function normalizePhone(value){
@@ -1443,7 +1509,8 @@ async function previewBulkImport(){
     return;
   }
 
-  bulkImportPlan=buildBulkImportPlan((data||[]).map(enrichCalendarEvent));
+  const reviewedRows=await applyRememberedNotRelatedChoices(data||[]);
+  bulkImportPlan=buildBulkImportPlan(reviewedRows.map(enrichCalendarEvent));
   renderBulkImportPlan();
 }
 
@@ -1643,7 +1710,8 @@ async function loadPastReviewQueue(){
     return;
   }
 
-  pastReviewEvents=(data||[]).map(enrichCalendarEvent).filter(row=>
+  const reviewedRows=await applyRememberedNotRelatedChoices(data||[]);
+  pastReviewEvents=reviewedRows.map(enrichCalendarEvent).filter(row=>
     !row.matched_lead_id &&
     row.calendar_classification!=='Not Sales Related' &&
     (isStructuredSalesAppointment(row)||row.calendar_classification==='Needs Review')
@@ -1917,7 +1985,7 @@ async function loadWeek(){
   }
 
   $('authMessage').classList.add('hidden');
-  const rawEvents=data||[];
+  const rawEvents=await applyRememberedNotRelatedChoices(data||[]);
   events=rawEvents.map(enrichCalendarEvent);
   await persistParsedCalendarFields(rawEvents);
   renderCalendar();
@@ -2059,6 +2127,7 @@ function renderReview(event){
   $('manualResults').innerHTML='';
   $('matchStatus').textContent='';
   $('leadSearch').value='';
+  $('changeNotSalesBtn').classList.add('hidden');
 
   if(event.matched_lead_id){
     const lead=leads.find(l=>l.id===event.matched_lead_id);
@@ -2071,6 +2140,7 @@ function renderReview(event){
       : '<b>Matched to Lead # '+esc(event.matched_lead_number || '')+'</b>'+openLeadLink;
     $('matchBanner').classList.remove('hidden');
     $('notSalesBtn').classList.add('hidden');
+    $('changeNotSalesBtn').classList.add('hidden');
     return;
   }
 
@@ -2078,11 +2148,13 @@ function renderReview(event){
     $('matchBanner').innerHTML='<b>Marked not related to a lead.</b>';
     $('matchBanner').classList.remove('hidden');
     $('notSalesBtn').classList.add('hidden');
+    $('changeNotSalesBtn').classList.remove('hidden');
     return;
   }
 
   if(!needsReview){
     $('notSalesBtn').classList.add('hidden');
+    $('changeNotSalesBtn').classList.add('hidden');
     $('reviewBox').classList.add('hidden');
     return;
   }
@@ -2464,10 +2536,49 @@ async function markNotSalesRelated(){
 
   events=events.map(e=>e.id===data.id ? data : e);
   activeEvent=data;
+  const fingerprint=notRelatedFingerprint(data);
+  if(fingerprint){
+    if(!rememberedNotRelatedFingerprints) rememberedNotRelatedFingerprints=new Set();
+    rememberedNotRelatedFingerprints.add(fingerprint);
+  }
   renderCalendar();
   renderReview(data);
   renderAppointmentResult(data);
   await advanceReviewQueueAfterResolution(data.id);
+}
+
+async function reopenForLeadReview(){
+  if(!activeEvent||activeEvent.calendar_classification!=='Not Sales Related') return;
+  if(!confirm('Change this event to Lead Review? It will be available to match to a Lead or add as a new Lead.')) return;
+
+  $('changeNotSalesBtn').disabled=true;
+  const classification=isStructuredSalesAppointment(activeEvent)?'Sales Appointment':'Needs Review';
+  const {data,error}=await db
+    .from('calendar_events')
+    .update({
+      matched_lead_id:null,
+      matched_lead_number:null,
+      match_confidence:null,
+      match_reason:'Manually reopened for lead review',
+      calendar_classification:classification,
+      updated_at:new Date().toISOString()
+    })
+    .eq('id',activeEvent.id)
+    .select()
+    .single();
+  $('changeNotSalesBtn').disabled=false;
+
+  if(error){
+    $('matchStatus').textContent='Could not reopen this event: '+error.message;
+    return;
+  }
+
+  events=events.map(event=>event.id===data.id?data:event);
+  activeEvent=data;
+  renderCalendar();
+  renderReview(data);
+  renderAppointmentResult(data);
+  $('matchStatus').textContent='This event is ready for Lead review.';
 }
 
 function searchLeads(){
@@ -2550,6 +2661,7 @@ $('closePastReviewBtn').onclick=()=>{
 $('pastReviewSearch').addEventListener('input',renderPastReviewQueue);
 $('backToReviewListBtn').onclick=()=>returnToReviewList(false);
 $('nextReviewBtn').onclick=()=>showReviewQueueEvent(reviewQueueIndex+1);
+$('changeNotSalesBtn').onclick=reopenForLeadReview;
 $('previewBulkImportBtn').onclick=previewBulkImport;
 $('runBulkImportBtn').onclick=runBulkImport;
 $('closeBulkImportBtn').onclick=()=>$('bulkImportDialog').close();

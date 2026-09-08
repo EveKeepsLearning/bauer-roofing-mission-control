@@ -6,11 +6,11 @@
 
   <title>Bauer Roofing Mission Control</title>
 
-  <link rel="stylesheet" href="styles.css?v=20260907-1">
+  <link rel="stylesheet" href="styles.css?v=20260908-1">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="config.js"></script>
+  <script src="config.js?v=20260908-1"></script>
 
   <style>
     .nav a.nav-calendar-link{
@@ -140,7 +140,7 @@
         </button>
 
         <a
-          href="calendar.html?v=20260907-4"
+          href="calendar.html?v=20260907-5"
           class="nav-calendar-link">
           Calendar
         </a>
@@ -494,11 +494,21 @@
             </div>
             <div class="spacer"></div>
             <a class="btn small" href="leads-sync.html">Sync Leads.xlsx</a>
+            <button class="btn small" id="leadReportsBtn" type="button">Reports</button>
             <button class="btn small primary" id="newLeadBtn">+ Lead</button>
           </div>
 
           <div class="toolbar">
             <input id="leadSearch" type="search" placeholder="Search name, address, phone, email, lead #, or source..." style="flex:1;min-width:240px">
+            <select id="leadSort" class="list-sort-select" aria-label="Sort leads">
+              <option value="newest">Newest leads</option>
+              <option value="oldest">Oldest leads</option>
+              <option value="appointment">Next appointment</option>
+              <option value="zip">ZIP code</option>
+              <option value="source">Source</option>
+              <option value="type">Lead type</option>
+              <option value="name">Homeowner name</option>
+            </select>
           </div>
         </div>
 
@@ -545,6 +555,13 @@
 
             <button
               class="btn small"
+              id="jobReportsBtn"
+              type="button">
+              Reports
+            </button>
+
+            <button
+              class="btn small"
               id="createDadProductionLinkBtn">
               Create Dad Production Check-Off
             </button>
@@ -563,6 +580,20 @@
             production facts; Mission Control keeps customer communication on
             your list unless Dad marks that he already contacted the customer.
           </p>
+
+          <div class="toolbar list-sort-toolbar">
+            <div class="spacer"></div>
+            <label for="jobSort">Sort jobs</label>
+            <select id="jobSort" class="list-sort-select">
+              <option value="updated">Recently updated</option>
+              <option value="contract">Contract date</option>
+              <option value="start">Start date</option>
+              <option value="zip">ZIP code</option>
+              <option value="type">Job type</option>
+              <option value="stage">Production stage</option>
+              <option value="name">Customer name</option>
+            </select>
+          </div>
 
           <div class="production-kpis">
             <div class="kpi"><div class="n" id="productionActiveKpi">0</div><div class="l">Active jobs</div></div>
@@ -1024,7 +1055,11 @@
 
             <div class="wide">
               <label>Street address</label>
-              <input id="leadStreet">
+              <div class="address-autocomplete-wrap">
+                <input id="leadStreet" autocomplete="street-address" aria-autocomplete="list" aria-controls="leadAddressSuggestions" placeholder="Start typing the property address">
+                <div id="leadAddressSuggestions" class="address-suggestions hidden" role="listbox" aria-label="Suggested addresses"></div>
+              </div>
+              <div id="leadAddressHelp" class="field-help hidden">Choose a suggestion to fill the city, state, and ZIP.</div>
             </div>
 
             <div>
@@ -1503,6 +1538,81 @@
         </form>
       </dialog>
 
+      <!-- LEADS / JOBS REPORTS -->
+      <dialog id="reportDialog" class="report-dialog">
+        <form method="dialog" class="card report-card">
+          <div class="toolbar report-heading">
+            <div>
+              <div class="today-eyebrow">REPORTS &amp; EXPORTS</div>
+              <h2 id="reportDialogTitle">Reports</h2>
+              <p class="auth-note" id="reportDialogDescription"></p>
+            </div>
+            <div class="spacer"></div>
+            <button class="btn" value="cancel">Close</button>
+          </div>
+
+          <div class="report-builder-grid">
+            <div>
+              <label>Report</label>
+              <select id="reportType"></select>
+            </div>
+            <div>
+              <label>Sort by</label>
+              <select id="reportSort"></select>
+            </div>
+            <div>
+              <label>Order</label>
+              <select id="reportDirection">
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+              </select>
+            </div>
+            <div>
+              <label>ZIP code</label>
+              <input id="reportZip" placeholder="All ZIP codes">
+            </div>
+            <div>
+              <label id="reportFilterOneLabel">Source</label>
+              <select id="reportFilterOne"></select>
+            </div>
+            <div>
+              <label id="reportFilterTwoLabel">Lead type</label>
+              <select id="reportFilterTwo"></select>
+            </div>
+            <div>
+              <label id="reportFilterThreeLabel">Status</label>
+              <select id="reportFilterThree"></select>
+            </div>
+            <div>
+              <label>Beginning date</label>
+              <input id="reportDateFrom" type="date">
+            </div>
+            <div>
+              <label>Ending date</label>
+              <input id="reportDateTo" type="date">
+            </div>
+          </div>
+
+          <div class="report-columns-wrap" id="reportColumnsWrap">
+            <div class="toolbar compact-toolbar">
+              <h3>Columns to include</h3>
+              <div class="spacer"></div>
+              <button class="btn small" id="reportSelectAllBtn" type="button">Select all</button>
+              <button class="btn small" id="reportClearColumnsBtn" type="button">Clear</button>
+            </div>
+            <div id="reportColumns" class="report-columns"></div>
+          </div>
+
+          <div class="toolbar report-actions">
+            <button class="btn primary" id="previewReportBtn" type="button">Preview Report</button>
+            <button class="btn success" id="exportReportBtn" type="button">Export Excel</button>
+            <div id="reportStatus" class="status-line"></div>
+          </div>
+
+          <div id="reportPreview" class="report-preview"></div>
+        </form>
+      </dialog>
+
     </main>
 
 
@@ -1514,7 +1624,7 @@
   </div>
 
 
-  <script src="app.js?v=20260907-1"></script>
+  <script src="app.js?v=20260908-1"></script>
 
 </body>
 </html>
