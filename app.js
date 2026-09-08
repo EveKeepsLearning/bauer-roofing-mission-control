@@ -184,6 +184,16 @@ function setupLeadAddressAutocomplete() {
 
 async function ensureLatestRelease() {
   try {
+    // Never reload while Supabase is consuming a one-time sign-in callback.
+    // Reloading this URL can discard or reuse the authentication token and
+    // send the user back to the sign-in screen.
+    const query = new URLSearchParams(window.location.search);
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/,''));
+    const isAuthCallback =
+      query.has('code') || query.has('token_hash') || query.has('error') ||
+      hash.has('access_token') || hash.has('refresh_token') || hash.has('error');
+    if (isAuthCallback) return false;
+
     const response = await fetch(`release.json?t=${Date.now()}`, { cache:'no-store' });
     if (!response.ok) return false;
     const release = await response.json();
@@ -2868,11 +2878,9 @@ $('loginBtn').onclick =
       await db.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo:(()=>{
-            const redirect=new URL(cfg.APP_URL||'./',window.location.href);
-            if(cfg.APP_VERSION)redirect.searchParams.set('release',cfg.APP_VERSION);
-            return redirect.toString();
-          })()
+          // This must match the production URL allowed in Supabase.
+          // Release checking runs after the authentication callback.
+          emailRedirectTo:new URL(cfg.APP_URL||'./',window.location.href).toString()
         }
       });
 
