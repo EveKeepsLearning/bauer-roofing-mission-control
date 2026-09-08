@@ -16,6 +16,9 @@ let state = {
   phone: [],
   prospects: [],
   leads: [],
+  contacts: [],
+  properties: [],
+  contact_properties: [],
   appointments: [],
   sales_communications: [],
   job_communications: [],
@@ -28,6 +31,9 @@ let state = {
 };
 
 let selectedLeadId = '';
+let selectedContactKey = '';
+let contactArchitectureAvailable = false;
+let pendingRelatedContactId = '';
 let urlNavigationApplied = false;
 let leadAddressSessionToken = null;
 let leadAddressPredictions = [];
@@ -634,12 +640,13 @@ async function applyUrlNavigation(){
     }
     if(lead){
       selectedLeadId=lead.id;
+      selectedContactKey=contactKeyForLead(lead);
       setView('leads');
       renderProspectsLeads();
       urlNavigationApplied=true;
       setTimeout(()=>{
         $('leadDetail')?.scrollIntoView({behavior:'smooth',block:'start'});
-        if(params.get('edit')==='1')openLeadEdit(lead.id);
+        if(params.get('edit')==='1'){openLeadEdit(lead.id);if($('leadDialogTitle'))$('leadDialogTitle').textContent='Inquiry Details';}
       },0);
       return;
     }
@@ -3095,6 +3102,12 @@ function jobIsCancelled(job) {
   return String(job?.stage || '').trim().toLowerCase() === 'cancelled';
 }
 
+function jobIsOpen(job) {
+  if (!activeRow(job) || jobIsCancelled(job)) return false;
+  const stage = String(job?.stage || '').trim().toLowerCase();
+  return !['closed','final / closed','fully paid'].includes(stage);
+}
+
 function visibleProspect(x) {
   return activeRow(x) && !x.archive_flag && !x.converted_to_lead_at;
 }
@@ -4509,7 +4522,7 @@ function renderLeadDetail() {
     </div>`;
 }
 
-function renderProspectsLeads() {
+function renderContactsLegacyList() {
   if (!$('leadList')) return;
   const now = new Date();
   const activeLeads = state.leads.filter(l => visibleLead(l) && !['Sold','Not Moving Forward'].includes(l.lead_status));
@@ -4562,6 +4575,159 @@ function renderProspectsLeads() {
   $('archivedSalesList').innerHTML = archivedLeads.map(l => `<div class="task"><b>${esc(leadName(l))}</b><div class="meta">${l.lead_number ? 'Lead # ' + esc(l.lead_number) : ''}${l.street_address ? ' • ' + esc(l.street_address) : ''}</div><div class="actions"><button class="btn small" data-record-action="restore" data-record-table="leads" data-record-id="${esc(l.id)}">Restore</button><button class="btn small" data-record-action="delete" data-record-table="leads" data-record-id="${esc(l.id)}">Delete</button></div></div>`).join('') || empty('No archived leads.');
 }
 
+function contactKeyForLead(lead) {
+  return lead?.contact_id ? `contact:${lead.contact_id}` : `inquiry:${lead?.id || ''}`;
+}
+
+function contactDisplayName(contact, inquiries = []) {
+  const representative = inquiries[0] || {};
+  return contact?.display_name || [contact?.first_name, contact?.last_name].filter(Boolean).join(' ') || leadName(representative).replace('Unnamed lead','Unnamed contact');
+}
+
+function contactGroups() {
+  const groups = new Map();
+  const activeContacts = (state.contacts || []).filter(activeRow);
+  activeContacts.forEach(contact => groups.set(`contact:${contact.id}`, { key:`contact:${contact.id}`, contact, inquiries:[], jobs:[], properties:[] }));
+
+  state.leads.filter(lead => lead && !lead.deleted_at).forEach(lead => {
+    const key = contactKeyForLead(lead);
+    if (!groups.has(key)) groups.set(key, { key, contact:null, inquiries:[], jobs:[], properties:[] });
+    groups.get(key).inquiries.push(lead);
+  });
+
+  state.jobs.filter(j => !j.deleted_at).forEach(job => {
+    let key = job.contact_id ? `contact:${job.contact_id}` : '';
+    if (!key && job.lead_id) {
+      const lead = state.leads.find(item => item.id === job.lead_id);
+      if (lead) key = contactKeyForLead(lead);
+    }
+    if (!key && job.lead_number) {
+      const lead = state.leads.find(item => String(item.lead_number || '') === String(job.lead_number));
+      if (lead) key = contactKeyForLead(lead);
+    }
+    if (key && groups.has(key)) groups.get(key).jobs.push(job);
+  });
+
+  groups.forEach(group => {
+    const propertyIds = new Set();
+    if (group.contact) (state.contact_properties || []).filter(link => link.contact_id === group.contact.id && !link.ended_at).forEach(link => propertyIds.add(link.property_id));
+    group.inquiries.forEach(lead => { if (lead.property_id) propertyIds.add(lead.property_id); });
+    group.jobs.forEach(job => { if (job.property_id) propertyIds.add(job.property_id); });
+    group.properties = (state.properties || []).filter(property => propertyIds.has(property.id));
+    if (!group.properties.length) {
+      const seen = new Set();
+      group.properties = group.inquiries.map(lead => ({id:`lead:${lead.id}`,street_address:lead.street_address,city:lead.city,state:lead.state,zip:lead.zip})).filter(property => {
+        const key = [property.street_address,property.city,property.state,property.zip].join('|').toLowerCase();
+        if (!property.street_address || seen.has(key)) return false;
+        seen.add(key); return true;
+      });
+    }
+    group.name = contactDisplayName(group.contact, group.inquiries);
+    group.phone = group.contact?.phone || group.inquiries.find(l => l.phone)?.phone || '';
+    group.phoneSecondary = group.contact?.phone_secondary || group.inquiries.find(l => l.phone_secondary)?.phone_secondary || '';
+    group.email = group.contact?.email || group.inquiries.find(l => l.email)?.email || '';
+    group.spouse = group.contact?.spouse_name || group.inquiries.find(l => l.spouse_name)?.spouse_name || '';
+    group.openInquiries = group.inquiries.filter(l => activeRow(l) && !['Sold','Not Moving Forward'].includes(l.lead_status));
+    group.openJobs = group.jobs.filter(jobIsOpen);
+    group.labels = [];
+    if (group.openInquiries.length) group.labels.push('Open Inquiry');
+    if (group.openJobs.length) group.labels.push('Active Customer');
+    if (group.jobs.length && !group.openJobs.length) group.labels.push('Past Customer');
+    if (group.inquiries.length > 1 || group.jobs.length > 1) group.labels.push('Repeat Customer');
+    if (group.inquiries.some(l => l.lead_status === 'Not Moving Forward') && !group.jobs.length) group.labels.push('Did Not Convert');
+    if (group.openJobs.some(j => String(j.stage || '').toLowerCase().includes('collection'))) group.labels.push('Collections');
+    const dates = [...group.inquiries.map(l => l.updated_at || l.created_at || l.lead_date), ...group.jobs.map(j => j.updated_at || j.created_at || j.contract_date)].filter(Boolean).sort();
+    group.lastActivity = dates.at(-1) || '';
+    group.firstActivity = dates[0] || '';
+  });
+  return [...groups.values()];
+}
+
+function contactMatchesView(group, view) {
+  if (view === 'open-inquiries') return group.openInquiries.length > 0;
+  if (view === 'active-customers') return group.openJobs.length > 0;
+  if (view === 'past-customers') return group.labels.includes('Past Customer');
+  if (view === 'repeat-customers') return group.labels.includes('Repeat Customer');
+  if (view === 'did-not-convert') return group.labels.includes('Did Not Convert');
+  if (view === 'collections') return group.labels.includes('Collections');
+  return true;
+}
+
+function contactPropertyText(property) {
+  return [property.street_address,property.city,property.state,property.zip].filter(Boolean).join(property.street_address && property.city ? ', ' : ' ');
+}
+
+function contactSearchText(group) {
+  return [group.name,group.phone,group.phoneSecondary,group.email,group.spouse,
+    ...group.properties.map(contactPropertyText),
+    ...group.inquiries.flatMap(l => [l.lead_number,l.source,l.work_category,l.lead_status]),
+    ...group.jobs.flatMap(j => [j.job_number,j.lead_number,j.property_address,j.stage,j.job_type,j.primary_job_type])
+  ].join(' ').toLowerCase();
+}
+
+function renderContactDetail(group) {
+  const detail = $('leadDetail');
+  if (!detail) return;
+  if (!group) { detail.innerHTML = empty('Select a contact.'); return; }
+  const primaryInquiry = group.inquiries[0];
+  const labels = group.labels.length ? group.labels.map(label => `<span class="contact-label">${esc(label)}</span>`).join('') : '<span class="contact-label neutral">Contact</span>';
+  const propertyHtml = group.properties.length ? group.properties.map(property => `<div class="contact-related-row"><div><b>${esc(contactPropertyText(property) || 'Address not entered')}</b><div class="meta">Property</div></div></div>`).join('') : empty('No property connected yet.');
+  const inquiryHtml = group.inquiries.slice().sort((a,b)=>String(b.lead_date||b.created_at||'').localeCompare(String(a.lead_date||a.created_at||''))).map(lead => {
+    const appointments = leadAppointments(lead.id);
+    return `<div class="contact-related-row inquiry-row"><div><b>${lead.lead_number ? 'Inquiry #'+esc(lead.lead_number) : 'Inquiry'}${lead.archived_at?' • Archived':''}</b><div>${esc(lead.work_category || 'Work type not entered')} • ${esc(lead.lead_status || 'Status not entered')}</div><div class="meta">${esc(lead.source || 'Source not entered')}${lead.lead_date ? ' • '+esc(lead.lead_date) : ''}${appointments[0]?.appointment_at ? ' • Appointment '+esc(formatWhen(appointments[0].appointment_at)) : ''}</div></div><button class="btn small" data-edit-lead="${esc(lead.id)}">View / Edit Inquiry</button></div>`;
+  }).join('') || empty('No inquiries connected yet.');
+  const jobHtml = group.jobs.slice().sort((a,b)=>String(b.contract_date||b.created_at||'').localeCompare(String(a.contract_date||a.created_at||''))).map(job => `<div class="contact-related-row job-row"><div><b>${job.job_number ? 'Job #'+esc(job.job_number) : 'Job'}</b><div>${esc(job.job_type || job.primary_job_type || 'Job type not entered')} • ${esc(job.stage || 'Stage not entered')}</div><div class="meta">${esc(job.property_address || '')}${job.contract_date ? ' • Contract '+esc(job.contract_date) : ''}</div></div><button class="btn small" data-edit-job="${esc(job.id)}">View Job</button></div>`).join('') || empty('No jobs connected yet.');
+  const activity = [];
+  group.inquiries.forEach(lead => {
+    leadAppointments(lead.id).forEach(a => activity.push({date:a.appointment_at || a.created_at,title:`Appointment • ${appointmentTypeLabel(a)}`,note:a.appointment_result || a.appointment_status || ''}));
+    state.sales_communications.filter(c => c.lead_id === lead.id).forEach(c => activity.push({date:c.occurred_at || c.created_at,title:c.communication_type || 'Communication',note:c.result || c.notes || ''}));
+  });
+  group.jobs.forEach(job => state.job_communications.filter(c => c.job_id === job.id).forEach(c => activity.push({date:c.occurred_at || c.created_at,title:c.communication_type || 'Job communication',note:c.result || c.notes || ''})));
+  activity.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  const activityHtml = activity.slice(0,12).map(item => `<div class="contact-timeline-item"><span></span><div><b>${esc(item.title)}</b><div class="meta">${esc(formatWhen(item.date))}${item.note ? ' • '+esc(item.note) : ''}</div></div></div>`).join('') || empty('No activity recorded yet.');
+  const teamButtons = primaryInquiry ? teamTextButtons('lead',primaryInquiry.id) : (group.jobs[0] ? teamTextButtons('job',group.jobs[0].id) : '');
+  detail.innerHTML = `<div class="contact-record-head"><div><div class="contact-labels">${labels}</div><h2>${esc(group.name)}</h2><div class="meta">${group.inquiries.length} ${group.inquiries.length===1?'inquiry':'inquiries'} • ${group.jobs.length} ${group.jobs.length===1?'job':'jobs'} • ${group.properties.length} ${group.properties.length===1?'property':'properties'}</div></div></div>
+    ${contactActionHtml({phone:group.phone,email:group.email,kind:primaryInquiry?'lead':'',id:primaryInquiry?.id||'',name:group.name,extraHtml:teamButtons})}
+    <div class="contact-overview-grid"><div><span>PHONE</span><b>${esc(group.phone || '—')}</b></div><div><span>OTHER PHONE</span><b>${esc(group.phoneSecondary || '—')}</b></div><div><span>EMAIL</span><b>${esc(group.email || '—')}</b></div><div><span>SPOUSE / OTHER CONTACT</span><b>${esc(group.spouse || '—')}</b></div></div>
+    <div class="contact-record-layout"><div class="contact-main-column"><section class="contact-section"><div class="contact-section-head"><h3>Inquiries</h3>${primaryInquiry?`<button class="btn small primary" data-new-related-inquiry="${esc(group.key)}">+ Inquiry</button>`:''}</div>${inquiryHtml}</section><section class="contact-section"><h3>Activity</h3><div class="contact-timeline">${activityHtml}</div></section></div><aside class="contact-side-column"><section class="contact-section"><h3>Properties</h3>${propertyHtml}</section><section class="contact-section"><h3>Jobs</h3>${jobHtml}</section></aside></div>`;
+}
+
+function renderProspectsLeads() {
+  if (!$('leadList')) return;
+  const now = new Date();
+  const allGroups = contactGroups();
+  const query = String($('leadSearch')?.value || '').trim().toLowerCase();
+  const view = $('contactView')?.value || 'all';
+  const sort = $('leadSort')?.value || 'newest';
+  const groups = allGroups.filter(group => contactMatchesView(group,view) && (!query || contactSearchText(group).includes(query))).sort((a,b) => {
+    if(sort==='oldest') return String(a.firstActivity).localeCompare(String(b.firstActivity));
+    if(sort==='zip') return String(a.properties[0]?.zip||'').localeCompare(String(b.properties[0]?.zip||''),undefined,{numeric:true}) || a.name.localeCompare(b.name);
+    if(sort==='source') return String(a.inquiries[0]?.source||'').localeCompare(String(b.inquiries[0]?.source||'')) || a.name.localeCompare(b.name);
+    if(sort==='type') return String(a.inquiries[0]?.work_category||'').localeCompare(String(b.inquiries[0]?.work_category||'')) || a.name.localeCompare(b.name);
+    if(sort==='name') return a.name.localeCompare(b.name);
+    if(sort==='appointment') {
+      const next = group => group.inquiries.flatMap(l=>leadUpcomingAppointments(l.id)).map(a=>a.appointment_at).sort()[0] || '9999';
+      return next(a).localeCompare(next(b));
+    }
+    return String(b.lastActivity).localeCompare(String(a.lastActivity));
+  });
+  if (!selectedContactKey || !groups.some(group => group.key === selectedContactKey)) selectedContactKey = groups[0]?.key || '';
+  const selected = groups.find(group => group.key === selectedContactKey);
+  $('kpiLeads').textContent = groups.length;
+  const activeLeadIds = new Set(allGroups.flatMap(group=>group.openInquiries.map(l=>l.id)));
+  const upcomingAppointments = state.appointments.filter(a => activeRow(a) && activeLeadIds.has(a.lead_id) && a.appointment_at && new Date(a.appointment_at)>=now && !['Cancelled','Completed'].includes(a.appointment_status)).sort((a,b)=>new Date(a.appointment_at)-new Date(b.appointment_at));
+  $('kpiAppointments').textContent = upcomingAppointments.length;
+  $('leadList').innerHTML = groups.map(group => {
+    const property = group.properties[0];
+    const primaryLabel = group.labels[0] || 'Contact';
+    return `<button class="lead-queue-row ${group.key===selectedContactKey?'selected':''}" data-contact-select="${esc(group.key)}" type="button"><div class="lead-row-top"><strong>${esc(group.name)}</strong><span class="lead-status-pill tone-active">${esc(primaryLabel)}</span></div><div class="meta">${esc(group.phone || group.email || 'No contact information')}</div>${property?`<div class="lead-row-address">${esc(contactPropertyText(property))}</div>`:''}<div class="lead-row-next">${group.inquiries.length} ${group.inquiries.length===1?'inquiry':'inquiries'} • ${group.jobs.length} ${group.jobs.length===1?'job':'jobs'}</div></button>`;
+  }).join('') || empty(query ? 'No contacts match that search.' : 'No contacts in this view.');
+  renderContactDetail(selected);
+  $('appointmentList').innerHTML = upcomingAppointments.slice(0,20).map(a => { const lead=state.leads.find(l=>l.id===a.lead_id); return `<div class="task"><b>${esc(lead?leadName(lead):'Contact')}</b><div class="meta">${esc(formatWhen(a.appointment_at))} • ${esc(a.appointment_status||'Scheduled')}${a.assigned_to?' • '+esc(a.assigned_to):''}</div><div class="actions"><button class="btn small" data-edit-appointment="${esc(a.id)}">Edit</button></div></div>`; }).join('') || empty('No upcoming appointments entered yet.');
+  const archived = state.leads.filter(l=>!l.deleted_at&&l.archived_at);
+  $('archivedSalesList').innerHTML = archived.map(l=>`<div class="task"><b>${esc(leadName(l))}</b><div class="meta">${l.lead_number?'Inquiry # '+esc(l.lead_number):'Inquiry'}${l.street_address?' • '+esc(l.street_address):''}</div><div class="actions"><button class="btn small" data-record-action="restore" data-record-table="leads" data-record-id="${esc(l.id)}">Restore</button><button class="btn small" data-record-action="delete" data-record-table="leads" data-record-id="${esc(l.id)}">Delete</button></div></div>`).join('') || empty('No archived inquiries.');
+}
+
 function renderJobs() {
   const jobSort=$('jobSort')?.value||'updated';
   const query=String($('jobSearch')?.value||'').trim().toLowerCase();
@@ -4569,7 +4735,7 @@ function renderJobs() {
     j.customer_name,j.job_number,j.lead_number,j.property_address,reportZip(j),j.salesperson,
     j.primary_job_type,j.job_type,j.stage,j.material_type,j.material_color,j.production_blocker
   ].some(value=>String(value||'').toLowerCase().includes(query));
-  const allActiveJobs=state.jobs.filter(activeRow).filter(j=>!jobIsCancelled(j));
+  const allActiveJobs=state.jobs.filter(jobIsOpen);
   const activeJobs = allActiveJobs.filter(matchesSearch).slice().sort((a,b)=>{
     if(jobSort==='contract')return String(b.contract_date||'').localeCompare(String(a.contract_date||''));
     if(jobSort==='start')return String(a.confirmed_start_date||a.target_start_date||'9999').localeCompare(String(b.confirmed_start_date||b.target_start_date||'9999'));
@@ -4789,7 +4955,39 @@ function fillLeadIntake(record){
   set('leadPaymentPlan',record?.payment_plan);set('leadReferralCategory',record?.referral_category);set('leadReferralDetail',record?.referral_detail);
   renderAngiOriginal(record);
 }
-function clearLeadForm() { ['leadEditId','leadProspectId','leadNumber','leadDate','leadSourceRef','leadFirstName','leadLastName','leadSpouse','leadStreet','leadCity','leadZip','leadPhone','leadPhone2','leadEmail','leadAppointmentDate','leadAppointmentTime','leadEstimateNote','leadNotes',...LEAD_INTAKE_IDS].forEach(id=>{if($(id))$(id).value='';}); clearLeadAddressSuggestions(); leadAddressSessionToken=null; $('leadState').value='SC'; $('leadMailingState').value='SC'; $('leadTakenBy').value='Eve'; $('leadWorkCategory').value='Roofing'; $('leadStatus').value='Appointment Wanted'; $('leadDialogTitle').textContent='New Lead'; $('saveLeadBtn').textContent='Save Lead'; renderAngiOriginal(null); setupLeadProspectSelects(); }
+function normalizedPropertyKey(record){return [record?.street_address,record?.city,record?.state,record?.zip].map(value=>String(value||'').trim().toLowerCase().replace(/\s+/g,' ')).join('|');}
+async function ensureLeadRelationships(lead){
+  if(!contactArchitectureAvailable||!lead)return lead;
+  let contactId=lead.contact_id||pendingRelatedContactId||'';
+  const contactPatch={display_name:leadName(lead),first_name:lead.first_name||null,last_name:lead.last_name||null,spouse_name:lead.spouse_name||null,phone:lead.phone||null,phone_secondary:lead.phone_secondary||null,email:lead.email||null,updated_at:new Date().toISOString()};
+  if(contactId){const updated=await db.from('contacts').update(contactPatch).eq('id',contactId);if(updated.error)throw updated.error;}
+  else {const created=await db.from('contacts').insert({...contactPatch,legacy_lead_id:lead.id}).select().single();if(created.error)throw created.error;contactId=created.data.id;}
+  let propertyId=lead.property_id||'';
+  const propertyKey=normalizedPropertyKey(lead);
+  const currentProperty=(state.properties||[]).find(property=>property.id===propertyId);
+  if(currentProperty&&normalizedPropertyKey(currentProperty)!==propertyKey)propertyId='';
+  if(lead.street_address&&!propertyId){const existing=(state.properties||[]).find(property=>normalizedPropertyKey(property)===propertyKey);propertyId=existing?.id||'';}
+  const propertyPatch={street_address:lead.street_address||null,city:lead.city||null,state:lead.state||null,zip:lead.zip||null,normalized_key:propertyKey,updated_at:new Date().toISOString()};
+  if(lead.street_address&&propertyId){const updated=await db.from('properties').update(propertyPatch).eq('id',propertyId);if(updated.error)throw updated.error;}
+  else if(lead.street_address){const created=await db.from('properties').insert({...propertyPatch,legacy_lead_id:lead.id}).select().single();if(created.error)throw created.error;propertyId=created.data.id;}
+  const leadPatch={contact_id:contactId,property_id:propertyId||null};
+  const linked=await db.from('leads').update(leadPatch).eq('id',lead.id).select().single();if(linked.error)throw linked.error;
+  if(propertyId){const relation=await db.from('contact_properties').upsert({contact_id:contactId,property_id:propertyId,relationship_type:'Owner / Contact'},{onConflict:'contact_id,property_id'});if(relation.error)throw relation.error;}
+  pendingRelatedContactId='';
+  return linked.data;
+}
+function openRelatedInquiry(contactKey){
+  const group=contactGroups().find(item=>item.key===contactKey);if(!group)return;
+  clearLeadForm();
+  pendingRelatedContactId=group.contact?.id||'';
+  $('leadDialogTitle').textContent=`New Inquiry for ${group.name}`;
+  $('leadFirstName').value=group.contact?.first_name||group.inquiries[0]?.first_name||'';
+  $('leadLastName').value=group.contact?.last_name||group.inquiries[0]?.last_name||'';
+  $('leadSpouse').value=group.spouse||'';$('leadPhone').value=group.phone||'';$('leadPhone2').value=group.phoneSecondary||'';$('leadEmail').value=group.email||'';
+  const property=group.properties[0];if(property){$('leadStreet').value=property.street_address||'';$('leadCity').value=property.city||'';$('leadState').value=property.state||'SC';$('leadZip').value=property.zip||'';}
+  $('leadDialog').showModal();
+}
+function clearLeadForm() { ['leadEditId','leadProspectId','leadNumber','leadDate','leadSourceRef','leadFirstName','leadLastName','leadSpouse','leadStreet','leadCity','leadZip','leadPhone','leadPhone2','leadEmail','leadAppointmentDate','leadAppointmentTime','leadEstimateNote','leadNotes',...LEAD_INTAKE_IDS].forEach(id=>{if($(id))$(id).value='';}); pendingRelatedContactId=''; clearLeadAddressSuggestions(); leadAddressSessionToken=null; $('leadState').value='SC'; $('leadMailingState').value='SC'; $('leadTakenBy').value='Eve'; $('leadWorkCategory').value='Roofing'; $('leadStatus').value='Appointment Wanted'; $('leadDialogTitle').textContent='New Inquiry'; $('saveLeadBtn').textContent='Save Inquiry'; renderAngiOriginal(null); setupLeadProspectSelects(); }
 function openLeadEdit(id) { const l=state.leads.find(x=>x.id===id); if(!l)return; clearLeadForm(); $('leadEditId').value=l.id; $('leadProspectId').value=l.prospect_id||''; $('leadDialogTitle').textContent='Lead Details'; $('saveLeadBtn').textContent='Save Changes'; $('leadNumber').value=l.lead_number||''; $('leadDate').value=l.lead_date||''; $('leadSource').value=l.source||'Other'; toggleAngiFields('lead'); $('leadSourceAccount').value=l.source_account||''; $('leadSourceRef').value=l.source_reference||''; $('leadFirstName').value=l.first_name||''; $('leadLastName').value=l.last_name||''; $('leadSpouse').value=l.spouse_name||''; $('leadStreet').value=l.street_address||''; $('leadCity').value=l.city||''; $('leadState').value=l.state||'SC'; $('leadZip').value=l.zip||''; $('leadPhone').value=l.phone||''; $('leadPhone2').value=l.phone_secondary||''; $('leadEmail').value=l.email||''; $('leadWorkCategory').value=l.work_category||'Roofing'; $('leadAssignedTo').value=l.assigned_to||'Roy'; $('leadStatus').value=l.lead_status||'Appointment Wanted'; $('leadEstimateStatus').value=l.estimate_status||'Not Known'; $('leadEstimateNote').value=l.estimate_issue_note||''; $('leadNotes').value=l.notes||''; fillLeadIntake(l); const a=state.appointments.filter(a=>activeRow(a)&&a.lead_id===l.id).sort((a,b)=>String(b.appointment_at||'').localeCompare(String(a.appointment_at||'')))[0]; if(a){$('leadAppointmentDate').value=datePart(a.appointment_at); $('leadAppointmentTime').value=timePart(a.appointment_at); $('leadMarketSharpStatus').value=a.marketsharp_status||'Not Needed Yet';} $('leadDialog').showModal(); }
 async function saveLead() {
   try {
@@ -4798,6 +4996,7 @@ async function saveLead() {
       const first=$('leadFirstName').value.trim(), last=$('leadLastName').value.trim();
       const patch={lead_number:$('leadNumber').value.trim()||null,lead_date:$('leadDate').value||null,source:$('leadSource').value,source_account:$('leadSource').value==='Angi'?($('leadSourceAccount').value||null):null,source_reference:$('leadSourceRef').value.trim()||null,homeowner_name:[first,last].filter(Boolean).join(' '),first_name:first,last_name:last,spouse_name:$('leadSpouse').value.trim()||null,street_address:$('leadStreet').value.trim(),city:$('leadCity').value.trim(),state:$('leadState').value.trim(),zip:$('leadZip').value.trim(),phone:$('leadPhone').value.trim(),phone_secondary:$('leadPhone2').value.trim()||null,email:$('leadEmail').value.trim(),work_category:$('leadWorkCategory').value,lead_status:$('leadStatus').value,assigned_to:$('leadAssignedTo').value,estimate_status:$('leadEstimateStatus').value,estimate_issue_note:$('leadEstimateNote').value.trim(),notes:$('leadNotes').value.trim(),...leadIntakePatch()};
       await updateRecord('leads',editId,patch,'Lead changes undone.');
+      await ensureLeadRelationships({...state.leads.find(lead=>lead.id===editId),...patch,id:editId});
       const appointment=state.appointments.filter(a=>activeRow(a)&&a.lead_id===editId).sort((a,b)=>String(b.appointment_at||'').localeCompare(String(a.appointment_at||'')))[0];
       if(appointment && $('leadAppointmentDate').value){ const at=new Date(`${$('leadAppointmentDate').value}T${$('leadAppointmentTime').value||'12:00'}`).toISOString(); await updateRecord('appointments',appointment.id,{appointment_at:at,marketsharp_status:$('leadMarketSharpStatus').value,assigned_to:$('leadAssignedTo').value},'Appointment changes undone.'); }
       $('leadDialog').close(); await loadAll(); msg('Lead updated.','success'); return;
@@ -4806,8 +5005,9 @@ async function saveLead() {
     const first=$('leadFirstName').value.trim(), last=$('leadLastName').value.trim(), leadNumber=$('leadNumber').value.trim(), prospectId=$('leadProspectId').value||null;
     if(!first&&!last&&!$('leadPhone').value.trim())return msg('Enter at least a homeowner name or phone number.','error');
     const sourceProspect=prospectId?state.prospects.find(p=>p.id===prospectId):null;
-    const row={prospect_id:prospectId,lead_number:leadNumber||null,lead_date:$('leadDate').value||todayISO(),source:$('leadSource').value,source_account:$('leadSource').value==='Angi'?($('leadSourceAccount').value||null):null,source_reference:$('leadSourceRef').value.trim()||null,import_source:'Manual',homeowner_name:[first,last].filter(Boolean).join(' '),first_name:first,last_name:last,spouse_name:$('leadSpouse').value.trim()||null,street_address:$('leadStreet').value.trim(),city:$('leadCity').value.trim(),state:$('leadState').value.trim(),zip:$('leadZip').value.trim(),phone:$('leadPhone').value.trim(),phone_secondary:$('leadPhone2').value.trim()||null,email:$('leadEmail').value.trim(),work_category:$('leadWorkCategory').value,lead_status:$('leadStatus').value,assigned_to:$('leadAssignedTo').value,estimate_status:$('leadEstimateStatus').value,estimate_issue_note:$('leadEstimateNote').value.trim(),notes:$('leadNotes').value.trim(),...leadIntakePatch(),angi_original_data:angiSnapshot(sourceProspect)};
+    const row={prospect_id:prospectId,lead_number:leadNumber||null,lead_date:$('leadDate').value||todayISO(),source:$('leadSource').value,source_account:$('leadSource').value==='Angi'?($('leadSourceAccount').value||null):null,source_reference:$('leadSourceRef').value.trim()||null,import_source:'Manual',homeowner_name:[first,last].filter(Boolean).join(' '),first_name:first,last_name:last,spouse_name:$('leadSpouse').value.trim()||null,street_address:$('leadStreet').value.trim(),city:$('leadCity').value.trim(),state:$('leadState').value.trim(),zip:$('leadZip').value.trim(),phone:$('leadPhone').value.trim(),phone_secondary:$('leadPhone2').value.trim()||null,email:$('leadEmail').value.trim(),work_category:$('leadWorkCategory').value,lead_status:$('leadStatus').value,assigned_to:$('leadAssignedTo').value,estimate_status:$('leadEstimateStatus').value,estimate_issue_note:$('leadEstimateNote').value.trim(),notes:$('leadNotes').value.trim(),...leadIntakePatch(),angi_original_data:angiSnapshot(sourceProspect),...(contactArchitectureAvailable&&pendingRelatedContactId?{contact_id:pendingRelatedContactId}:{})};
     const r=await db.from('leads').insert(row).select().single(); if(r.error)throw r.error; let appointmentId=null; let prospectBefore=null;
+    await ensureLeadRelationships(r.data);
     if(prospectId){ prospectBefore=state.prospects.find(p=>p.id===prospectId)||null; const u=await db.from('prospects').update({converted_to_lead_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',prospectId).select().single(); if(u.error)throw u.error; }
     if($('leadAppointmentDate').value){ const at=new Date(`${$('leadAppointmentDate').value}T${$('leadAppointmentTime').value||'12:00'}`).toISOString(); const a=await db.from('appointments').insert({lead_id:r.data.id,prospect_id:prospectId,appointment_at:at,appointment_type:'Measure & Presentation',appointment_status:'Scheduled',assigned_to:$('leadAssignedTo').value,marketsharp_status:$('leadMarketSharpStatus').value,google_calendar_status:'Not Added'}).select().single(); if(a.error)throw a.error; appointmentId=a.data.id; }
     if(prospectId){ await db.from('undo_history').insert({action_type:'promote_prospect',entity_type:'prospects',entity_id:prospectId,description:'Prospect promotion undone.',payload:{prospect_before:prospectBefore,lead_id:r.data.id,appointment_id:appointmentId}}); } else { await db.from('undo_history').insert({action_type:'create',entity_type:'leads',entity_id:r.data.id,description:'New lead removed.',payload:{}}); }
@@ -4863,8 +5063,11 @@ async function saveJob(){
     const changeReason=materialDelivery!==(original?.material_delivery_date||null)
       ? (materialDelivery?'Materials delivery scheduled or changed for '+materialDelivery:'Materials delivery date removed')
       : (confirmedStart?'Crew start scheduled or changed for '+confirmedStart:'Crew start date removed');
+    const relatedLead=state.leads.find(lead=>String(lead.lead_number||'').trim()===String($('jobLead').value||'').trim());
     const row={
       customer_name:customer,lead_number:$('jobLead').value.trim(),job_number:$('jobNumber').value.trim(),
+      ...(relatedLead?{lead_id:relatedLead.id}:{}),
+      ...(contactArchitectureAvailable&&relatedLead?{contact_id:relatedLead.contact_id||null,property_id:relatedLead.property_id||null}:{}),
       property_address:$('jobAddress').value.trim(),salesperson:$('jobSalesperson').value.trim(),
       contract_date:$('jobContractDate').value||null,job_type:$('jobType').value.trim()||null,
       stage:$('jobStage').value,material_type:$('jobMaterialType').value.trim()||null,
@@ -5066,6 +5269,16 @@ async function loadAll(){
   const calls=[['tasks','created_at',false],['jobs','updated_at',false],['communications','due_date',true],['phone_messages','created_at',false],['prospects','created_at',false],['leads','created_at',false],['appointments','appointment_at',true],['sales_communications','occurred_at',false],['job_communications','occurred_at',false],['lookup_options','sort_order',true],['sops','title',true],['suggestions','created_at',false],['quick_notes','updated_at',false]];
   const results=await Promise.all(calls.map(([table,order,ascending])=>db.from(table).select('*').order(order,{ascending}).limit(['leads','jobs','prospects','appointments'].includes(table)?5000:500)));
   for(let i=0;i<results.length;i++){ if(results[i].error)throw results[i].error; let stateName=calls[i][0]==='phone_messages'?'phone':calls[i][0]; if(stateName==='lookup_options')stateName='lookups'; state[stateName]=results[i].data||[]; }
+  const relationshipResults=await Promise.all(['contacts','properties','contact_properties'].map(table=>db.from(table).select('*').limit(5000)));
+  contactArchitectureAvailable=relationshipResults.every(result=>!result.error);
+  if(contactArchitectureAvailable){
+    state.contacts=relationshipResults[0].data||[];
+    state.properties=relationshipResults[1].data||[];
+    state.contact_properties=relationshipResults[2].data||[];
+  }else{
+    state.contacts=[];state.properties=[];state.contact_properties=[];
+    console.info('Contacts relationship migration has not been installed yet; using inquiry-backed contact cards.');
+  }
   const subtaskResult=await db.from('task_subtasks').select('*').order('sort_order',{ascending:true}).limit(2000);
   if(subtaskResult.error){state.task_subtasks=[];console.warn('Task subtasks are not available until the task-group SQL is installed:',subtaskResult.error.message);}else state.task_subtasks=subtaskResult.data||[];
   if(!subtaskResult.error){
@@ -5110,8 +5323,10 @@ document.body.addEventListener('click', async event => {
     const editTask=event.target.closest('[data-edit-task]'); if(editTask){openTaskEdit(editTask.dataset.editTask);return;}
     const editPhone=event.target.closest('[data-edit-phone]'); if(editPhone){openPhoneEdit(editPhone.dataset.editPhone);return;}
     const editProspect=event.target.closest('[data-edit-prospect]'); if(editProspect){openProspectDialog(state.prospects.find(p=>p.id===editProspect.dataset.editProspect));return;}
+    const selectContact=event.target.closest('[data-contact-select]');if(selectContact){selectedContactKey=selectContact.dataset.contactSelect;renderProspectsLeads();return;}
+    const newRelatedInquiry=event.target.closest('[data-new-related-inquiry]');if(newRelatedInquiry){openRelatedInquiry(newRelatedInquiry.dataset.newRelatedInquiry);return;}
     const selectLead=event.target.closest('[data-lead-select]'); if(selectLead){selectedLeadId=selectLead.dataset.leadSelect;renderProspectsLeads();return;}
-    const editLead=event.target.closest('[data-edit-lead]'); if(editLead){openLeadEdit(editLead.dataset.editLead);return;}
+    const editLead=event.target.closest('[data-edit-lead]'); if(editLead){openLeadEdit(editLead.dataset.editLead);if($('leadDialogTitle'))$('leadDialogTitle').textContent='Inquiry Details';return;}
     const editJob=event.target.closest('[data-edit-job]'); if(editJob){openJobEdit(editJob.dataset.editJob);return;}
     const cancelJobButton=event.target.closest('[data-cancel-job]');if(cancelJobButton){openCancelJob(cancelJobButton.dataset.cancelJob);return;}
     const reopenJobButton=event.target.closest('[data-reopen-job]');if(reopenJobButton){await reopenJob(reopenJobButton.dataset.reopenJob);return;}
@@ -5136,8 +5351,9 @@ if($('saveSopBtn')) $('saveSopBtn').onclick=saveSop;
 if($('cancelSopBtn')) $('cancelSopBtn').onclick=()=>{$('sopDialog').close();clearSopForm();};
 if ($('newProspectBtn')) $('newProspectBtn').onclick=()=>openProspectDialog();
 $('newLeadBtn').onclick=()=>{clearLeadForm();openLeadDialog();};
-if ($('leadSearch')) $('leadSearch').oninput=()=>{ selectedLeadId=''; renderProspectsLeads(); };
-if($('leadSort'))$('leadSort').onchange=()=>{selectedLeadId='';renderProspectsLeads();};
+if ($('leadSearch')) $('leadSearch').oninput=()=>{ selectedLeadId='';selectedContactKey=''; renderProspectsLeads(); };
+if($('leadSort'))$('leadSort').onchange=()=>{selectedLeadId='';selectedContactKey='';renderProspectsLeads();};
+if($('contactView'))$('contactView').onchange=()=>{selectedLeadId='';selectedContactKey='';renderProspectsLeads();};
 if($('jobSort'))$('jobSort').onchange=renderJobs;
 if($('jobSearch'))$('jobSearch').oninput=renderJobs;
 $('leadReportsBtn').onclick=()=>openReports('leads');

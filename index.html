@@ -6,11 +6,11 @@
 
   <title>Bauer Roofing Operations</title>
 
-  <link rel="stylesheet" href="styles.css?v=20260908-9">
+  <link rel="stylesheet" href="styles.css?v=20260908-10">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="config.js?v=20260908-9"></script>
+  <script src="config.js?v=20260908-10"></script>
 
   <style>
     .nav a.nav-calendar-link{
@@ -158,7 +158,7 @@
         </button>
 
         <button data-view="leads">
-          Leads
+          Contacts
         </button>
 
         <a
@@ -168,7 +168,7 @@
         </a>
 
         <button data-view="jobs">
-          Jobs
+          Open Jobs
         </button>
 
         <button data-view="playbook">
@@ -490,7 +490,7 @@
         </div>
       </section>
 
-      <!-- LEADS -->
+      <!-- CONTACTS -->
 
       <section
         id="view-leads"
@@ -499,7 +499,7 @@
         <div class="kpi-row">
           <div class="kpi">
             <div class="n" id="kpiLeads">0</div>
-            <div class="l">Active leads</div>
+            <div class="l">Contacts shown</div>
           </div>
 
           <div class="kpi">
@@ -511,37 +511,46 @@
         <div class="card leads-toolbar-card">
           <div class="toolbar">
             <div>
-              <h2>Leads</h2>
-              <p class="auth-note">Confirmed opportunities. Select a lead on the left to work it in the main panel.</p>
+              <h2>Contacts</h2>
+              <p class="auth-note">One person can have multiple inquiries, properties, and jobs. Select a contact to see the complete relationship.</p>
             </div>
             <div class="spacer"></div>
-            <a class="btn small" href="leads-sync.html?v=20260908-9">Sync Leads.xlsx</a>
+            <a class="btn small" href="leads-sync.html?v=20260908-10">Sync Leads.xlsx</a>
             <button class="btn small" id="leadReportsBtn" type="button">Reports</button>
-            <button class="btn small primary" id="newLeadBtn">+ Lead</button>
+            <button class="btn small primary" id="newLeadBtn">+ Inquiry</button>
           </div>
 
           <div class="toolbar">
-            <input id="leadSearch" type="search" placeholder="Search name, address, phone, email, lead #, or source..." style="flex:1;min-width:240px">
+            <input id="leadSearch" type="search" placeholder="Search contacts, properties, phones, emails, inquiry #, or job #..." style="flex:1;min-width:240px">
+            <select id="contactView" class="list-sort-select" aria-label="Contact view">
+              <option value="all">All Contacts</option>
+              <option value="open-inquiries">Open Inquiries</option>
+              <option value="active-customers">Active Customers</option>
+              <option value="past-customers">Past Customers</option>
+              <option value="repeat-customers">Repeat Customers</option>
+              <option value="did-not-convert">Did Not Convert</option>
+              <option value="collections">Collections</option>
+            </select>
             <select id="leadSort" class="list-sort-select" aria-label="Sort leads">
-              <option value="newest">Newest leads</option>
-              <option value="oldest">Oldest leads</option>
+              <option value="newest">Most recent activity</option>
+              <option value="oldest">Oldest activity</option>
               <option value="appointment">Next appointment</option>
               <option value="zip">ZIP code</option>
               <option value="source">Source</option>
-              <option value="type">Lead type</option>
-              <option value="name">Homeowner name</option>
+              <option value="type">Inquiry type</option>
+              <option value="name">Contact name</option>
             </select>
           </div>
         </div>
 
         <div class="leads-workspace">
           <div class="card leads-rail-card">
-            <h3>Lead List</h3>
+            <h3>Contact List</h3>
             <div id="leadList" class="leads-queue-list"></div>
           </div>
 
           <div id="leadDetail" class="card leads-detail-card">
-            <div class="empty">Select a lead.</div>
+            <div class="empty">Select a contact.</div>
           </div>
         </div>
 
@@ -551,15 +560,15 @@
         </div>
 
         <div class="card">
-          <h3>Archived Leads</h3>
-          <p class="auth-note">Archived leads stay available and can be restored. Angi prospect history remains in the Angi workflow rather than appearing here.</p>
+          <h3>Archived Inquiries</h3>
+          <p class="auth-note">Archived inquiries remain connected to the contact and can be restored. Angi prospect history stays in the Angi workflow.</p>
           <div id="archivedSalesList"></div>
         </div>
 
       </section>
 
 
-      <!-- JOBS -->
+      <!-- OPEN JOBS -->
 
       <section
         id="view-jobs"
@@ -570,7 +579,7 @@
           <div class="toolbar">
 
             <h2>
-              Jobs / Production
+              Open Jobs / Production
             </h2>
 
             <div class="spacer"></div>
@@ -598,9 +607,9 @@
 
 
           <p class="auth-note">
-            You create the Job after receiving the signed contract. Dad updates
+            Open Jobs contains work from signed contract through production and collections. Dad updates
             production facts; Bauer Roofing Operations keeps customer communication on
-            your list unless Dad marks that he already contacted the customer.
+            your list unless Dad marks that he already contacted the customer. Closed and fully paid jobs remain in each contact's history.
           </p>
 
           <div class="toolbar list-sort-toolbar">
@@ -1036,7 +1045,7 @@
 
       <dialog id="leadDialog">
         <form method="dialog" class="card" style="min-width:min(780px,92vw);margin:0">
-          <h2 id="leadDialogTitle">New Lead</h2>
+          <h2 id="leadDialogTitle">New Inquiry</h2>
           <input id="leadEditId" type="hidden">
           <input id="leadProspectId" type="hidden">
 
@@ -1121,7 +1130,7 @@
             </div>
 
             <div class="wide form-section-title">
-              <h3>Lead Sheet Information</h3>
+              <h3>Inquiry Intake Information</h3>
               <p class="meta">Contact and property details gathered during the call.</p>
             </div>
 
@@ -1288,7 +1297,7 @@
             </div>
 
             <div>
-              <label>Lead status</label>
+              <label>Inquiry status</label>
               <select id="leadStatus">
                 <option>Appointment Wanted</option>
                 <option>Appointment Match Needed</option>
@@ -1334,7 +1343,7 @@
           </div>
 
           <div class="toolbar">
-            <button class="btn primary" type="button" id="saveLeadBtn">Save Lead</button>
+            <button class="btn primary" type="button" id="saveLeadBtn">Save Inquiry</button>
             <button class="btn" value="cancel">Cancel</button>
           </div>
         </form>
@@ -1855,7 +1864,7 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=20260908-9"></script>
+  <script src="app.js?v=20260908-10"></script>
 
 </body>
 </html>
