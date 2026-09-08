@@ -34,6 +34,7 @@ let selectedLeadId = '';
 let selectedContactKey = '';
 let contactArchitectureAvailable = false;
 let pendingRelatedContactId = '';
+let expandedCurrentTaskId = '';
 let urlNavigationApplied = false;
 let leadAddressSessionToken = null;
 let leadAddressPredictions = [];
@@ -3315,7 +3316,16 @@ function renderNextUp(task){
   const action=inProgress?'resume':(['Paused','Blocked','Waiting'].includes(task.status)?'resume':'start');
   const label=inProgress?'Continue':(['Paused','Blocked','Waiting'].includes(task.status)?'Resume':'Start');
   const dueText=formatDueDateTime(task.due_date,task.due_time);
-  target.innerHTML=`<div class="next-up-card" data-task-id="${esc(task.id)}"><div><div class="next-label">${inProgress?'CURRENT TASK':'NEXT UP'}</div><div class="next-title">${esc(task.task)}</div>${dueText?`<div class="next-meta">${esc(dueText)}</div>`:''}</div><button class="btn next-action" data-action="${action}">${label}</button></div>`;
+  const expanded=inProgress&&expandedCurrentTaskId===task.id;
+  const subtasks=(state.task_subtasks||[]).filter(item=>item.task_id===task.id&&!item.deleted_at).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+  const details=expanded?`<div class="current-task-expanded">
+    ${task.description?`<div class="current-task-detail"><span>DETAILS</span>${esc(task.description)}</div>`:''}
+    ${task.next_action?`<div class="current-task-detail"><span>NEXT ACTION</span>${esc(task.next_action)}</div>`:''}
+    ${subtasks.length?`<div class="current-task-subtasks">${subtasks.map(item=>`<label class="task-subtask ${item.completed_at?'done':''}"><input type="checkbox" data-subtask-toggle="${esc(item.id)}" ${item.completed_at?'checked':''}><span>${esc(item.title)}</span></label>`).join('')}</div>`:''}
+    ${!task.description&&!task.next_action&&!subtasks.length?'<div class="current-task-detail">This task is in progress.</div>':''}
+    <div class="actions"><button class="btn small current-task-light" data-action="pause">Pause</button><button class="btn small current-task-light" data-action="complete">Complete</button><button class="btn small current-task-light" data-open-sop-task="${esc(task.id)}">Open Instructions</button><button class="btn small current-task-light" data-edit-task="${esc(task.id)}">View / Edit</button></div>
+  </div>`:'';
+  target.innerHTML=`<div class="next-up-card ${expanded?'expanded':''}" data-task-id="${esc(task.id)}"><div><div class="next-label">${inProgress?'CURRENT TASK':'NEXT UP'}</div><div class="next-title">${esc(task.task)}</div>${dueText?`<div class="next-meta">${esc(dueText)}</div>`:''}</div><button class="btn next-action" ${inProgress?`data-continue-task="${esc(task.id)}"`:`data-action="${action}"`}>${expanded?'Hide Details':label}</button>${details}</div>`;
 }
 
 function todayEntrySort(a,b){
@@ -5314,6 +5324,7 @@ async function loadAll(){
 // Additional click handling for editing and record safety actions.
 document.body.addEventListener('click', async event => {
   try {
+    const continueTask=event.target.closest('[data-continue-task]');if(continueTask){expandedCurrentTaskId=expandedCurrentTaskId===continueTask.dataset.continueTask?'':continueTask.dataset.continueTask;renderDashboard();requestAnimationFrame(()=>$('currentTask')?.scrollIntoView({behavior:'smooth',block:'start'}));return;}
     const subtaskToggle=event.target.closest('[data-subtask-toggle]');if(subtaskToggle){await toggleTaskSubtask(subtaskToggle.dataset.subtaskToggle);return;}
     const editNote=event.target.closest('[data-edit-quick-note]'); if(editNote){const n=(state.quick_notes||[]).find(x=>x.id===editNote.dataset.editQuickNote);if(n){$('quickNoteEditId').value=n.id;$('quickNoteText').value=n.note||'';$('saveQuickNoteBtn').textContent='Save Changes';$('cancelQuickNoteEditBtn').classList.remove('hidden');$('quickNoteText').focus();}return;}
     const deleteNote=event.target.closest('[data-delete-quick-note]'); if(deleteNote){await deleteQuickNote(deleteNote.dataset.deleteQuickNote);return;}

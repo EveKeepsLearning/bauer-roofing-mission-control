@@ -145,6 +145,7 @@ input,textarea,select{width:100%;padding:9px;border:1px solid #c9cdd2;border-rad
 .next-up-card .next-title{font-size:19px;font-weight:750;line-height:1.25}
 .next-up-card .next-meta{font-size:12px;opacity:.83;margin-top:5px}
 .next-up-card .next-action{background:#fff;color:#175caf;font-weight:700;margin:0;padding:9px 15px}.next-up-card .next-action:hover{background:#f3f7ff}
+.next-up-card.expanded{align-items:start}.current-task-expanded{grid-column:1/-1;border-top:1px solid rgba(255,255,255,.25);padding-top:13px;display:grid;gap:9px}.current-task-detail{font-size:13px;line-height:1.45}.current-task-detail>span{display:block;font-size:9px;font-weight:800;letter-spacing:.09em;opacity:.72;margin-bottom:3px}.current-task-subtasks{display:grid;gap:7px;background:rgba(255,255,255,.12);border-radius:9px;padding:10px 12px}.current-task-subtasks .task-subtask{color:#fff}.current-task-subtasks .task-subtask.done span{color:rgba(255,255,255,.68)}.current-task-subtasks input{accent-color:#fff}.current-task-light{background:#fff;color:#175caf;border-color:#fff;font-weight:700}.current-task-light:hover{background:#eef5ff}
 .today-layout{display:grid;grid-template-columns:minmax(0,2.15fr) minmax(285px,.85fr);gap:16px;align-items:start}
 .today-work-card{padding:0 18px 4px;border:1px solid #e0e5ec;box-shadow:0 2px 7px rgba(31,48,72,.05)}
 .today-section-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding:18px 0 13px;border-bottom:1px solid #e8ecf1}.today-section-heading h2{margin:3px 0 0;font-size:23px;color:var(--today-ink)}
