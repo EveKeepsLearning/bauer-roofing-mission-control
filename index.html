@@ -6,11 +6,11 @@
 
   <title>Bauer Roofing Operations</title>
 
-  <link rel="stylesheet" href="styles.css?v=20260908-6">
+  <link rel="stylesheet" href="styles.css?v=20260908-7">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="config.js?v=20260908-6"></script>
+  <script src="config.js?v=20260908-7"></script>
 
   <style>
     .nav a.nav-calendar-link{
@@ -1642,7 +1642,15 @@
       <dialog id="teamNumbersDialog">
         <form method="dialog" class="card" style="min-width:min(460px,90vw);margin:0">
           <h2>Team Text Numbers</h2>
-          <p class="auth-note">These numbers are saved with your Bauer Roofing Operations account and used by the Text Roy and Text Dad buttons.</p>
+          <p class="auth-note">Choose who uses this account and save the team’s mobile numbers. Lead and job buttons will show the other two team members.</p>
+          <label for="teamAccountMember">This account belongs to</label>
+          <select id="teamAccountMember">
+            <option value="eve">Eve</option>
+            <option value="roy">Roy</option>
+            <option value="dad">Dad</option>
+          </select>
+          <label for="eveTextPhone">Eve’s mobile number</label>
+          <input id="eveTextPhone" type="tel" autocomplete="tel">
           <label for="royTextPhone">Roy’s mobile number</label>
           <input id="royTextPhone" type="tel" autocomplete="tel">
           <label for="dadTextPhone">Dad’s mobile number</label>
@@ -1847,7 +1855,7 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=20260908-6"></script>
+  <script src="app.js?v=20260908-7"></script>
 
 </body>
 </html>

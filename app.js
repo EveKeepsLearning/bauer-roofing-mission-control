@@ -624,6 +624,7 @@ function applyUrlNavigation(){
   const params=new URLSearchParams(window.location.search);
   const requestedView=params.get('view');
   const requestedLead=params.get('lead');
+  const requestedJob=params.get('job');
 
   if(requestedLead){
     const lead=state.leads.find(item=>item.id===requestedLead);
@@ -633,6 +634,17 @@ function applyUrlNavigation(){
       renderProspectsLeads();
       urlNavigationApplied=true;
       if(params.get('edit')==='1') setTimeout(()=>openLeadEdit(lead.id),0);
+      return;
+    }
+  }
+
+  if(requestedJob){
+    const job=state.jobs.find(item=>item.id===requestedJob);
+    if(job){
+      setView('jobs');
+      renderJobs();
+      urlNavigationApplied=true;
+      setTimeout(()=>openJobEdit(job.id),0);
       return;
     }
   }
@@ -3422,7 +3434,7 @@ function phoneDigits(value) {
   return digits;
 }
 
-function contactActionHtml({ phone = '', email = '', kind = '', id = '', name = '', callUsable = true } = {}) {
+function contactActionHtml({ phone = '', email = '', kind = '', id = '', name = '', callUsable = true, extraHtml = '' } = {}) {
   const digits = phoneDigits(phone);
   const subject = encodeURIComponent('Bauer Roofing');
   const call = digits && callUsable !== false ? `<a class="btn small primary" href="tel:${esc(digits)}">☎ Call</a>` : '';
@@ -3430,18 +3442,29 @@ function contactActionHtml({ phone = '', email = '', kind = '', id = '', name = 
   const outlookUrl = email ? `https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(email)}&subject=${encodeURIComponent('Bauer Roofing')}&login_hint=${encodeURIComponent('evebauer@bauerroofs.com')}` : '';
   const mail = email ? `<a class="btn small" href="${outlookUrl}" target="_blank" rel="noopener noreferrer">Email</a>` : '';
   const log = kind && id ? `<button class="btn small" data-log-communication="${esc(kind)}" data-contact-id="${esc(id)}">Log Communication</button>` : '';
-  return `<div class="actions contact-actions">${call}${text}${mail}${log}</div>`;
+  return `<div class="actions contact-actions">${call}${text}${mail}${log}${extraHtml}</div>`;
 }
 
 function teamPhoneSettings(){
   const account=user?.user_metadata?.bauer_team_phones||{};
   let local={};
   try{local=JSON.parse(localStorage.getItem('bauer_team_phones')||'{}');}catch(error){local={};}
-  return {roy:account.roy||local.roy||'',dad:account.dad||local.dad||''};
+  return {eve:account.eve||local.eve||'',roy:account.roy||local.roy||'',dad:account.dad||local.dad||''};
+}
+
+function currentTeamMember(){
+  const saved=String(user?.user_metadata?.bauer_team_member||localStorage.getItem('bauer_team_member')||'').toLowerCase();
+  if(['eve','roy','dad'].includes(saved))return saved;
+  const email=String(user?.email||'').toLowerCase();
+  if(email.includes('eve'))return 'eve';
+  if(email==='jbauer@bauerroofs.com')return 'dad';
+  return 'roy';
 }
 
 function openTeamNumbers(){
   const phones=teamPhoneSettings();
+  $('teamAccountMember').value=currentTeamMember();
+  $('eveTextPhone').value=phones.eve||'';
   $('royTextPhone').value=phones.roy||'';
   $('dadTextPhone').value=phones.dad||'';
   $('teamNumbersDialog').showModal();
@@ -3449,23 +3472,26 @@ function openTeamNumbers(){
 
 async function saveTeamNumbers(){
   try{
-    const phones={roy:$('royTextPhone').value.trim(),dad:$('dadTextPhone').value.trim()};
-    if(phones.roy&&phoneDigits(phones.roy).length<10)return msg('Enter Roy’s complete mobile number.','error');
-    if(phones.dad&&phoneDigits(phones.dad).length<10)return msg('Enter Dad’s complete mobile number.','error');
-    const result=await db.auth.updateUser({data:{bauer_team_phones:phones}});
+    const member=$('teamAccountMember').value;
+    const phones={eve:$('eveTextPhone').value.trim(),roy:$('royTextPhone').value.trim(),dad:$('dadTextPhone').value.trim()};
+    for(const key of ['eve','roy','dad'])if(phones[key]&&phoneDigits(phones[key]).length<10)return msg(`Enter ${key==='dad'?'Dad':key[0].toUpperCase()+key.slice(1)}’s complete mobile number.`,'error');
+    const result=await db.auth.updateUser({data:{bauer_team_phones:phones,bauer_team_member:member}});
     if(result.error)throw result.error;
     if(result.data?.user)user=result.data.user;
     localStorage.setItem('bauer_team_phones',JSON.stringify(phones));
+    localStorage.setItem('bauer_team_member',member);
     $('teamNumbersDialog').close();msg('Team text numbers saved.','success');
+    renderProspectsLeads();renderJobs();
   }catch(error){msg('Could not save team numbers: '+(error.message||String(error)),'error');}
 }
 
 function teamTextButtons(kind,id){
-  return `<button class="btn small" data-team-text="roy" data-team-kind="${esc(kind)}" data-team-id="${esc(id)}">Text Roy</button><button class="btn small" data-team-text="dad" data-team-kind="${esc(kind)}" data-team-id="${esc(id)}">Text Dad</button>`;
+  const current=currentTeamMember();
+  return ['eve','roy','dad'].filter(member=>member!==current).map(member=>`<button class="btn small" data-team-text="${member}" data-team-kind="${esc(kind)}" data-team-id="${esc(id)}">Text ${member==='dad'?'Dad':member[0].toUpperCase()+member.slice(1)}</button>`).join('');
 }
 
 function openTeamText(member,kind,id){
-  const person=member==='roy'?'Roy':'Dad';
+  const person=member==='dad'?'Dad':member[0].toUpperCase()+member.slice(1);
   const number=phoneDigits(teamPhoneSettings()[member]);
   if(!number){openTeamNumbers();msg(`Add ${person}’s mobile number, then tap Text ${person} again.`,'error');return;}
   const record=kind==='lead'?state.leads.find(l=>l.id===id):state.jobs.find(j=>j.id===id);
@@ -3473,7 +3499,13 @@ function openTeamText(member,kind,id){
   const name=kind==='lead'?leadName(record):(record.customer_name||'Unnamed customer');
   const address=kind==='lead'?[record.street_address,record.city,record.state,record.zip].filter(Boolean).join(record.street_address&&record.city?', ':' '):(record.property_address||'No address entered');
   const reference=kind==='lead'?(record.lead_number?'Lead #'+record.lead_number:'Lead'):(record.job_number?'Job #'+record.job_number:'Job');
-  const body=`${name}\n${address}\n${reference}\n\n`;
+  const customerPhone=kind==='lead'?(record.phone||''):contactForJob(record).phone;
+  const detailUrl=new URL(cfg.APP_URL||window.location.href);
+  detailUrl.search='';detailUrl.hash='';
+  detailUrl.searchParams.set('view',kind==='lead'?'leads':'jobs');
+  detailUrl.searchParams.set(kind,id);
+  if(kind==='job')detailUrl.searchParams.set('edit','1');
+  const body=`${name}\n${address}\n${reference}${customerPhone?'\n'+customerPhone:''}\n${detailUrl.toString()}\n\n`;
   const separator=/iPhone|iPad|iPod/i.test(navigator.userAgent)?'&':'?';
   window.location.href=`sms:${number}${separator}body=${encodeURIComponent(body)}`;
 }
@@ -4435,8 +4467,7 @@ function renderLeadDetail() {
       <div class="meta">${esc(sourceLine)}</div>
     </div>
 
-    ${contactActionHtml({phone:lead.phone,email:lead.email,kind:'lead',id:lead.id,name:leadName(lead)})}
-    <div class="actions internal-contact-actions">${teamTextButtons('lead',lead.id)}</div>
+    ${contactActionHtml({phone:lead.phone,email:lead.email,kind:'lead',id:lead.id,name:leadName(lead),extraHtml:`${teamTextButtons('lead',lead.id)}<button class="btn primary" data-edit-lead="${esc(lead.id)}">View / Edit</button>`})}
 
     <div class="lead-info-grid">
       <div class="info-tile"><span>PHONE</span><b>${esc(lead.phone || '—')}</b></div>
@@ -4462,7 +4493,6 @@ function renderLeadDetail() {
     </details>
 
     <div class="actions lead-detail-actions">
-      <button class="btn primary" data-edit-lead="${esc(lead.id)}">View / Edit</button>
       <button class="btn" data-record-action="archive" data-record-table="leads" data-record-id="${esc(lead.id)}">Archive</button>
       <button class="btn" data-record-action="delete" data-record-table="leads" data-record-id="${esc(lead.id)}">Delete</button>
     </div>`;
