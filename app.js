@@ -332,7 +332,7 @@ function reportJobRows() {
 
 const REPORT_COLUMN_SETS={
   lead_list:[
-    ['lead_number','Lead #'],['report_name','Homeowner'],['spouse_name','Spouse'],['street_address','Street Address'],['city','City'],['state','State'],['report_zip','ZIP'],['phone','Phone'],['phone_secondary','Other Phone'],['email','Email'],['source','Source'],['report_type','Lead Type'],['report_status','Status'],['assigned_to','Salesperson'],['report_date','Lead Date'],['report_appointment_date','Appointment Date'],['report_appointment_result','Appointment Result'],['estimate_status','Estimate Status'],['report_job_number','Job #']
+    ['lead_number','Lead #'],['report_name','Homeowner'],['spouse_name','Spouse'],['street_address','Street Address'],['city','City'],['state','State'],['report_zip','ZIP'],['mailing_street_address','Mailing Address'],['mailing_city','Mailing City'],['mailing_state','Mailing State'],['mailing_zip','Mailing ZIP'],['subdivision','Subdivision'],['directions','Directions'],['phone','Phone'],['phone_secondary','Other Phone'],['email','Email'],['source','Source'],['referral_category','Referral Category'],['referral_detail','Referral Details'],['report_type','Lead Type'],['report_status','Status'],['assigned_to','Salesperson'],['taken_by','Taken By'],['report_date','Lead Date'],['insurance_related','Insurance Related'],['insurance_company','Insurance Company'],['shingle_age','Shingle Age'],['desired_work_timing','Desired Timing'],['roof_layers','Roof Layers'],['current_leak','Current Leak'],['current_leak_location','Current Leak Location'],['prior_leak','Prior Leak'],['prior_leak_location','Prior Leak Location'],['home_type','Home Type'],['roof_pitch','Roof Pitch'],['payment_plan','Payment Plan'],['report_appointment_date','Appointment Date'],['report_appointment_result','Appointment Result'],['estimate_status','Estimate Status'],['report_job_number','Job #']
   ],
   direct_mail:[
     ['report_audience','Record Type'],['first_name','First Name'],['last_name','Last Name'],['spouse_name','Spouse'],['greeting','Greeting'],['street','Street Address'],['city','City'],['state','State'],['zip','ZIP'],['source','Source'],['report_type','Lead Type'],['report_date','Inquiry Date']
@@ -347,6 +347,7 @@ const REPORT_COLUMN_SETS={
 
 function reportColumnValue(row,key,forExcel=false) {
   const value=row[key]??'';
+  if(['insurance_related','current_leak','prior_leak'].includes(key))return value===true?'Yes':value===false?'No':'';
   if(['report_date','lead_date','contract_date','report_appointment_date','target_start_date','confirmed_start_date','expected_completion_date'].includes(key))return reportDateOnly(value);
   if(['report_amount','total_sales','average_sale'].includes(key))return forExcel?Number(value||0):reportMoney(value);
   return value;
@@ -1647,6 +1648,7 @@ function openLeadDialog(prospect = null) {
     $('leadWorkCategory').value = prospect.work_category || 'Roofing';
     $('leadAssignedTo').value = prospect.assigned_to || 'Roy';
     $('leadNotes').value = prospect.notes || '';
+    fillLeadIntake(prospect);
   }
 
   $('leadDialog').showModal();
@@ -3729,6 +3731,12 @@ function telHref(phone) {
   return 'tel:' + String(phone || '').replace(/[^0-9+]/g,'');
 }
 
+function angiOriginalDetailsHtml(record){
+  const entries=Object.entries(angiSnapshot(record)).filter(([,value])=>value!==null&&value!==undefined&&String(value).trim()!=='');
+  if(!entries.length)return '';
+  return `<details class="angi-original"><summary>All information supplied by Angi</summary><div class="source-data-grid">${entries.map(([label,value])=>`<div class="source-label">${esc(label)}</div><div class="source-value">${esc(typeof value==='object'?JSON.stringify(value):value)}</div>`).join('')}</div></details>`;
+}
+
 function renderAngiDetail() {
   if (!$('angiDetail')) return;
   const p = state.prospects.find(x => x.id === selectedAngiProspectId && isAngiProspect(x));
@@ -3763,6 +3771,7 @@ function renderAngiDetail() {
       <div class="info-tile wide"><span>PROPERTY</span><b>${esc(p.street_address || '—')}${p.city ? '<br>' + esc([p.city,p.state,p.zip].filter(Boolean).join(', ').replace(', '+p.zip,' '+p.zip)) : ''}</b></div>
       <div class="info-tile wide"><span>PROJECT</span><b>${esc(p.source_description || p.work_category || '—')}</b></div>
     </div>
+    ${angiOriginalDetailsHtml(p)}
     <div class="followup-grid">
       <div class="info-tile"><span>STATUS</span><b>${esc(p.current_status || 'New')}</b></div>
       <div class="info-tile"><span>CALL ATTEMPTS</span><b>${esc(String(p.attempts_count || 0))}</b></div>
@@ -3853,6 +3862,16 @@ function parseCsvText(text) {
 
 function normalizeAngiHeader(value) {
   return String(value ?? '').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim().toLowerCase();
+}
+
+function angiOriginalData(headers,row) {
+  const data={};
+  headers.forEach((header,index)=>{
+    const label=String(header||'').trim();
+    const value=row[index];
+    if(label&&value!==null&&value!==undefined&&String(value).trim()!=='')data[label]=String(value).trim();
+  });
+  return data;
 }
 
 function angiHeaderIndex(headers) {
@@ -4042,6 +4061,7 @@ async function importAngiExport() {
       const feeRaw=idx.fee>=0?String(r[idx.fee]||'').replace(/[$,]/g,'').trim():'';
       const workflow=angiImportWorkflow(leadStatus,account);
       const existingProspect=existingByRef.get(ref);
+      const originalData=angiOriginalData(headers,r);
 
       if (existingProspect) {
         existing++;
@@ -4069,6 +4089,7 @@ async function importAngiExport() {
           phone_key:normPhone(phone || existingProspect.phone)||null,
           email_key:normEmail(email || existingProspect.email)||null,
           address_key:normAddress(address || existingProspect.street_address)||null,
+          angi_original_data:{...(existingProspect.angi_original_data||{}),...originalData},
           updated_at:new Date().toISOString()
         };
         const sourceKind=angiSourceStatusKind(leadStatus);
@@ -4163,6 +4184,7 @@ async function importAngiExport() {
         initial_contact_eligible:workflow.initial_contact_eligible,
         initial_contact_suppressed_reason:workflow.initial_contact_suppressed_reason,
         duplicate_flag:!!duplicate,
+        angi_original_data:originalData,
         phone_key:normPhone(phone)||null,email_key:normEmail(email)||null,address_key:normAddress(address)||null
       });
       existingByRef.set(ref,{source_reference:ref});
@@ -4623,14 +4645,52 @@ function clearProspectForm() { ['prospectEditId','prospectSourceRef','prospectFi
 function openProspectDialog(prospect=null) { clearProspectForm(); if(prospect){$('prospectEditId').value=prospect.id; $('prospectDialogTitle').textContent='Prospect Details'; $('saveProspectBtn').textContent='Save Changes'; $('prospectSource').value=prospect.source||'Other'; toggleAngiFields('prospect'); $('prospectSourceAccount').value=prospect.source_account||''; $('prospectSourceRef').value=prospect.source_reference||''; $('prospectStatus').value=prospect.current_status||'New'; $('prospectFirstName').value=prospect.first_name||''; $('prospectLastName').value=prospect.last_name||''; $('prospectStreet').value=prospect.street_address||''; $('prospectCity').value=prospect.city||''; $('prospectState').value=prospect.state||'SC'; $('prospectZip').value=prospect.zip||''; $('prospectPhone').value=prospect.phone||''; $('prospectEmail').value=prospect.email||''; $('prospectWorkCategory').value=prospect.work_category||'Roofing'; $('prospectAssignedTo').value=prospect.assigned_to||'Roy'; $('prospectNextFollow').value=dateTimeLocalValue(prospect.next_follow_up_at); $('prospectNextAction').value=prospect.next_action||''; $('prospectNotes').value=prospect.notes||'';} $('prospectDialog').showModal(); }
 async function saveProspect() { try { const id=$('prospectEditId').value; const first=$('prospectFirstName').value.trim(), last=$('prospectLastName').value.trim(), phone=$('prospectPhone').value.trim(), email=$('prospectEmail').value.trim(); if(!first&&!last&&!phone&&!email)return msg('Enter at least a name, phone number, or email for the prospect.','error'); const row={source:$('prospectSource').value,source_account:$('prospectSource').value==='Angi'?($('prospectSourceAccount').value||null):null,source_reference:$('prospectSourceRef').value.trim()||null,first_name:first,last_name:last,customer_name:[first,last].filter(Boolean).join(' '),street_address:$('prospectStreet').value.trim(),city:$('prospectCity').value.trim(),state:$('prospectState').value.trim(),zip:$('prospectZip').value.trim(),phone,email,work_category:$('prospectWorkCategory').value,current_status:$('prospectStatus').value,assigned_to:$('prospectAssignedTo').value,next_follow_up_at:$('prospectNextFollow').value?new Date($('prospectNextFollow').value).toISOString():null,next_action:$('prospectNextAction').value.trim(),notes:$('prospectNotes').value.trim()}; if(id){await updateRecord('prospects',id,row,'Prospect changes undone.');} else {const r=await db.from('prospects').insert({...row,import_source:'Manual'}).select().single(); if(r.error)throw r.error; await db.from('undo_history').insert({action_type:'create',entity_type:'prospects',entity_id:r.data.id,description:'New prospect removed.',payload:{}});} $('prospectDialog').close(); await loadAll(); msg(id?'Prospect updated.':'Prospect saved.','success'); } catch(error){msg('Could not save prospect: '+(error.message||String(error)),'error');} }
 
-function clearLeadForm() { ['leadEditId','leadProspectId','leadNumber','leadDate','leadSourceRef','leadFirstName','leadLastName','leadSpouse','leadStreet','leadCity','leadZip','leadPhone','leadPhone2','leadEmail','leadAppointmentDate','leadAppointmentTime','leadEstimateNote','leadNotes'].forEach(id=>{if($(id))$(id).value='';}); clearLeadAddressSuggestions(); leadAddressSessionToken=null; $('leadState').value='SC'; $('leadWorkCategory').value='Roofing'; $('leadStatus').value='Appointment Wanted'; $('leadDialogTitle').textContent='New Lead'; $('saveLeadBtn').textContent='Save Lead'; setupLeadProspectSelects(); }
-function openLeadEdit(id) { const l=state.leads.find(x=>x.id===id); if(!l)return; clearLeadForm(); $('leadEditId').value=l.id; $('leadProspectId').value=l.prospect_id||''; $('leadDialogTitle').textContent='Lead Details'; $('saveLeadBtn').textContent='Save Changes'; $('leadNumber').value=l.lead_number||''; $('leadDate').value=l.lead_date||''; $('leadSource').value=l.source||'Other'; toggleAngiFields('lead'); $('leadSourceAccount').value=l.source_account||''; $('leadSourceRef').value=l.source_reference||''; $('leadFirstName').value=l.first_name||''; $('leadLastName').value=l.last_name||''; $('leadSpouse').value=l.spouse_name||''; $('leadStreet').value=l.street_address||''; $('leadCity').value=l.city||''; $('leadState').value=l.state||'SC'; $('leadZip').value=l.zip||''; $('leadPhone').value=l.phone||''; $('leadPhone2').value=l.phone_secondary||''; $('leadEmail').value=l.email||''; $('leadWorkCategory').value=l.work_category||'Roofing'; $('leadAssignedTo').value=l.assigned_to||'Roy'; $('leadStatus').value=l.lead_status||'Appointment Wanted'; $('leadEstimateStatus').value=l.estimate_status||'Not Known'; $('leadEstimateNote').value=l.estimate_issue_note||''; $('leadNotes').value=l.notes||''; const a=state.appointments.filter(a=>activeRow(a)&&a.lead_id===l.id).sort((a,b)=>String(b.appointment_at||'').localeCompare(String(a.appointment_at||'')))[0]; if(a){$('leadAppointmentDate').value=datePart(a.appointment_at); $('leadAppointmentTime').value=timePart(a.appointment_at); $('leadMarketSharpStatus').value=a.marketsharp_status||'Not Needed Yet';} $('leadDialog').showModal(); }
+const LEAD_INTAKE_IDS=['leadTakenBy','leadSubdivision','leadMailingStreet','leadMailingCity','leadMailingState','leadMailingZip','leadDirections','leadInsuranceRelated','leadInsuranceCompany','leadShingleAge','leadWorkTiming','leadRoofLayers','leadCurrentLeak','leadCurrentLeakLocation','leadPriorLeak','leadPriorLeakLocation','leadHomeType','leadRoofPitch','leadPaymentPlan','leadReferralCategory','leadReferralDetail'];
+function formNullableBoolean(id){const value=$(id)?.value||'';return value===''?null:value==='true';}
+function leadIntakePatch(){return {
+  taken_by:$('leadTakenBy').value.trim()||null,subdivision:$('leadSubdivision').value.trim()||null,
+  mailing_street_address:$('leadMailingStreet').value.trim()||null,mailing_city:$('leadMailingCity').value.trim()||null,
+  mailing_state:$('leadMailingState').value.trim()||null,mailing_zip:$('leadMailingZip').value.trim()||null,
+  directions:$('leadDirections').value.trim()||null,insurance_related:formNullableBoolean('leadInsuranceRelated'),
+  insurance_company:$('leadInsuranceCompany').value.trim()||null,shingle_age:$('leadShingleAge').value.trim()||null,
+  desired_work_timing:$('leadWorkTiming').value.trim()||null,roof_layers:$('leadRoofLayers').value||null,
+  current_leak:formNullableBoolean('leadCurrentLeak'),current_leak_location:$('leadCurrentLeakLocation').value.trim()||null,
+  prior_leak:formNullableBoolean('leadPriorLeak'),prior_leak_location:$('leadPriorLeakLocation').value.trim()||null,
+  home_type:$('leadHomeType').value||null,roof_pitch:$('leadRoofPitch').value||null,payment_plan:$('leadPaymentPlan').value||null,
+  referral_category:$('leadReferralCategory').value||null,referral_detail:$('leadReferralDetail').value.trim()||null
+};}
+function angiSnapshot(record){
+  const raw=record?.angi_original_data&&typeof record.angi_original_data==='object'?record.angi_original_data:{};
+  if(Object.keys(raw).length)return raw;
+  if(!record||!isAngiProspect(record)&&String(record.source||'').toLowerCase()!=='angi')return {};
+  return {'Angi lead number':record.source_reference||'','Angi account':record.source_account||'','Lead date':record.received_at||record.lead_date||'','Lead status':record.source_status||'','Lead type':record.source_lead_type||'','Project description':record.source_description||'','Lead fee':record.source_fee??'','Name':record.customer_name||record.homeowner_name||'','Address':record.street_address||'','City':record.city||'','State':record.state||'','ZIP':record.zip||'','Phone':record.phone||'','Email':record.email||''};
+}
+function renderAngiOriginal(record){
+  const wrap=$('leadAngiOriginalWrap'),target=$('leadAngiOriginal');if(!wrap||!target)return;
+  const entries=Object.entries(angiSnapshot(record)).filter(([,value])=>value!==null&&value!==undefined&&String(value).trim()!=='');
+  wrap.classList.toggle('hidden',!entries.length);
+  target.innerHTML=entries.map(([label,value])=>`<div class="source-label">${esc(label)}</div><div class="source-value">${esc(typeof value==='object'?JSON.stringify(value):value)}</div>`).join('');
+}
+function fillLeadIntake(record){
+  const set=(id,value)=>{if($(id))$(id).value=value??'';};
+  set('leadTakenBy',record?.taken_by||'Eve');set('leadSubdivision',record?.subdivision);set('leadMailingStreet',record?.mailing_street_address);
+  set('leadMailingCity',record?.mailing_city);set('leadMailingState',record?.mailing_state||'SC');set('leadMailingZip',record?.mailing_zip);
+  set('leadDirections',record?.directions);set('leadInsuranceRelated',record?.insurance_related===true?'true':record?.insurance_related===false?'false':'');
+  set('leadInsuranceCompany',record?.insurance_company);set('leadShingleAge',record?.shingle_age);set('leadWorkTiming',record?.desired_work_timing);
+  set('leadRoofLayers',record?.roof_layers);set('leadCurrentLeak',record?.current_leak===true?'true':record?.current_leak===false?'false':'');
+  set('leadCurrentLeakLocation',record?.current_leak_location);set('leadPriorLeak',record?.prior_leak===true?'true':record?.prior_leak===false?'false':'');
+  set('leadPriorLeakLocation',record?.prior_leak_location);set('leadHomeType',record?.home_type);set('leadRoofPitch',record?.roof_pitch);
+  set('leadPaymentPlan',record?.payment_plan);set('leadReferralCategory',record?.referral_category);set('leadReferralDetail',record?.referral_detail);
+  renderAngiOriginal(record);
+}
+function clearLeadForm() { ['leadEditId','leadProspectId','leadNumber','leadDate','leadSourceRef','leadFirstName','leadLastName','leadSpouse','leadStreet','leadCity','leadZip','leadPhone','leadPhone2','leadEmail','leadAppointmentDate','leadAppointmentTime','leadEstimateNote','leadNotes',...LEAD_INTAKE_IDS].forEach(id=>{if($(id))$(id).value='';}); clearLeadAddressSuggestions(); leadAddressSessionToken=null; $('leadState').value='SC'; $('leadMailingState').value='SC'; $('leadTakenBy').value='Eve'; $('leadWorkCategory').value='Roofing'; $('leadStatus').value='Appointment Wanted'; $('leadDialogTitle').textContent='New Lead'; $('saveLeadBtn').textContent='Save Lead'; renderAngiOriginal(null); setupLeadProspectSelects(); }
+function openLeadEdit(id) { const l=state.leads.find(x=>x.id===id); if(!l)return; clearLeadForm(); $('leadEditId').value=l.id; $('leadProspectId').value=l.prospect_id||''; $('leadDialogTitle').textContent='Lead Details'; $('saveLeadBtn').textContent='Save Changes'; $('leadNumber').value=l.lead_number||''; $('leadDate').value=l.lead_date||''; $('leadSource').value=l.source||'Other'; toggleAngiFields('lead'); $('leadSourceAccount').value=l.source_account||''; $('leadSourceRef').value=l.source_reference||''; $('leadFirstName').value=l.first_name||''; $('leadLastName').value=l.last_name||''; $('leadSpouse').value=l.spouse_name||''; $('leadStreet').value=l.street_address||''; $('leadCity').value=l.city||''; $('leadState').value=l.state||'SC'; $('leadZip').value=l.zip||''; $('leadPhone').value=l.phone||''; $('leadPhone2').value=l.phone_secondary||''; $('leadEmail').value=l.email||''; $('leadWorkCategory').value=l.work_category||'Roofing'; $('leadAssignedTo').value=l.assigned_to||'Roy'; $('leadStatus').value=l.lead_status||'Appointment Wanted'; $('leadEstimateStatus').value=l.estimate_status||'Not Known'; $('leadEstimateNote').value=l.estimate_issue_note||''; $('leadNotes').value=l.notes||''; fillLeadIntake(l); const a=state.appointments.filter(a=>activeRow(a)&&a.lead_id===l.id).sort((a,b)=>String(b.appointment_at||'').localeCompare(String(a.appointment_at||'')))[0]; if(a){$('leadAppointmentDate').value=datePart(a.appointment_at); $('leadAppointmentTime').value=timePart(a.appointment_at); $('leadMarketSharpStatus').value=a.marketsharp_status||'Not Needed Yet';} $('leadDialog').showModal(); }
 async function saveLead() {
   try {
     const editId=$('leadEditId').value;
     if(editId){
       const first=$('leadFirstName').value.trim(), last=$('leadLastName').value.trim();
-      const patch={lead_number:$('leadNumber').value.trim()||null,lead_date:$('leadDate').value||null,source:$('leadSource').value,source_account:$('leadSource').value==='Angi'?($('leadSourceAccount').value||null):null,source_reference:$('leadSourceRef').value.trim()||null,homeowner_name:[first,last].filter(Boolean).join(' '),first_name:first,last_name:last,spouse_name:$('leadSpouse').value.trim()||null,street_address:$('leadStreet').value.trim(),city:$('leadCity').value.trim(),state:$('leadState').value.trim(),zip:$('leadZip').value.trim(),phone:$('leadPhone').value.trim(),phone_secondary:$('leadPhone2').value.trim()||null,email:$('leadEmail').value.trim(),work_category:$('leadWorkCategory').value,lead_status:$('leadStatus').value,assigned_to:$('leadAssignedTo').value,estimate_status:$('leadEstimateStatus').value,estimate_issue_note:$('leadEstimateNote').value.trim(),notes:$('leadNotes').value.trim()};
+      const patch={lead_number:$('leadNumber').value.trim()||null,lead_date:$('leadDate').value||null,source:$('leadSource').value,source_account:$('leadSource').value==='Angi'?($('leadSourceAccount').value||null):null,source_reference:$('leadSourceRef').value.trim()||null,homeowner_name:[first,last].filter(Boolean).join(' '),first_name:first,last_name:last,spouse_name:$('leadSpouse').value.trim()||null,street_address:$('leadStreet').value.trim(),city:$('leadCity').value.trim(),state:$('leadState').value.trim(),zip:$('leadZip').value.trim(),phone:$('leadPhone').value.trim(),phone_secondary:$('leadPhone2').value.trim()||null,email:$('leadEmail').value.trim(),work_category:$('leadWorkCategory').value,lead_status:$('leadStatus').value,assigned_to:$('leadAssignedTo').value,estimate_status:$('leadEstimateStatus').value,estimate_issue_note:$('leadEstimateNote').value.trim(),notes:$('leadNotes').value.trim(),...leadIntakePatch()};
       await updateRecord('leads',editId,patch,'Lead changes undone.');
       const appointment=state.appointments.filter(a=>activeRow(a)&&a.lead_id===editId).sort((a,b)=>String(b.appointment_at||'').localeCompare(String(a.appointment_at||'')))[0];
       if(appointment && $('leadAppointmentDate').value){ const at=new Date(`${$('leadAppointmentDate').value}T${$('leadAppointmentTime').value||'12:00'}`).toISOString(); await updateRecord('appointments',appointment.id,{appointment_at:at,marketsharp_status:$('leadMarketSharpStatus').value,assigned_to:$('leadAssignedTo').value},'Appointment changes undone.'); }
@@ -4639,7 +4699,8 @@ async function saveLead() {
     // Existing Phase 1 create/promote behavior follows for new leads.
     const first=$('leadFirstName').value.trim(), last=$('leadLastName').value.trim(), leadNumber=$('leadNumber').value.trim(), prospectId=$('leadProspectId').value||null;
     if(!first&&!last&&!$('leadPhone').value.trim())return msg('Enter at least a homeowner name or phone number.','error');
-    const row={prospect_id:prospectId,lead_number:leadNumber||null,lead_date:$('leadDate').value||todayISO(),source:$('leadSource').value,source_account:$('leadSource').value==='Angi'?($('leadSourceAccount').value||null):null,source_reference:$('leadSourceRef').value.trim()||null,import_source:'Manual',homeowner_name:[first,last].filter(Boolean).join(' '),first_name:first,last_name:last,spouse_name:$('leadSpouse').value.trim()||null,street_address:$('leadStreet').value.trim(),city:$('leadCity').value.trim(),state:$('leadState').value.trim(),zip:$('leadZip').value.trim(),phone:$('leadPhone').value.trim(),phone_secondary:$('leadPhone2').value.trim()||null,email:$('leadEmail').value.trim(),work_category:$('leadWorkCategory').value,lead_status:$('leadStatus').value,assigned_to:$('leadAssignedTo').value,estimate_status:$('leadEstimateStatus').value,estimate_issue_note:$('leadEstimateNote').value.trim(),notes:$('leadNotes').value.trim()};
+    const sourceProspect=prospectId?state.prospects.find(p=>p.id===prospectId):null;
+    const row={prospect_id:prospectId,lead_number:leadNumber||null,lead_date:$('leadDate').value||todayISO(),source:$('leadSource').value,source_account:$('leadSource').value==='Angi'?($('leadSourceAccount').value||null):null,source_reference:$('leadSourceRef').value.trim()||null,import_source:'Manual',homeowner_name:[first,last].filter(Boolean).join(' '),first_name:first,last_name:last,spouse_name:$('leadSpouse').value.trim()||null,street_address:$('leadStreet').value.trim(),city:$('leadCity').value.trim(),state:$('leadState').value.trim(),zip:$('leadZip').value.trim(),phone:$('leadPhone').value.trim(),phone_secondary:$('leadPhone2').value.trim()||null,email:$('leadEmail').value.trim(),work_category:$('leadWorkCategory').value,lead_status:$('leadStatus').value,assigned_to:$('leadAssignedTo').value,estimate_status:$('leadEstimateStatus').value,estimate_issue_note:$('leadEstimateNote').value.trim(),notes:$('leadNotes').value.trim(),...leadIntakePatch(),angi_original_data:angiSnapshot(sourceProspect)};
     const r=await db.from('leads').insert(row).select().single(); if(r.error)throw r.error; let appointmentId=null; let prospectBefore=null;
     if(prospectId){ prospectBefore=state.prospects.find(p=>p.id===prospectId)||null; const u=await db.from('prospects').update({converted_to_lead_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',prospectId).select().single(); if(u.error)throw u.error; }
     if($('leadAppointmentDate').value){ const at=new Date(`${$('leadAppointmentDate').value}T${$('leadAppointmentTime').value||'12:00'}`).toISOString(); const a=await db.from('appointments').insert({lead_id:r.data.id,prospect_id:prospectId,appointment_at:at,appointment_type:'Measure & Presentation',appointment_status:'Scheduled',assigned_to:$('leadAssignedTo').value,marketsharp_status:$('leadMarketSharpStatus').value,google_calendar_status:'Not Added'}).select().single(); if(a.error)throw a.error; appointmentId=a.data.id; }

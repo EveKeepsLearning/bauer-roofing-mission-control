@@ -6,11 +6,11 @@
 
   <title>Bauer Roofing Mission Control</title>
 
-  <link rel="stylesheet" href="styles.css?v=20260908-3">
+  <link rel="stylesheet" href="styles.css?v=20260908-4">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="config.js?v=20260908-3"></script>
+  <script src="config.js?v=20260908-4"></script>
 
   <style>
     .nav a.nav-calendar-link{
@@ -1107,6 +1107,155 @@
               <input id="leadEmail" type="email">
             </div>
 
+            <div class="wide form-section-title">
+              <h3>Lead Sheet Information</h3>
+              <p class="meta">Contact and property details gathered during the call.</p>
+            </div>
+
+            <div>
+              <label>Taken by</label>
+              <input id="leadTakenBy" placeholder="Eve">
+            </div>
+
+            <div>
+              <label>Subdivision</label>
+              <input id="leadSubdivision">
+            </div>
+
+            <div class="wide">
+              <label>Mailing address</label>
+              <input id="leadMailingStreet" autocomplete="address-line1" placeholder="Leave blank if the same as the job address">
+            </div>
+
+            <div>
+              <label>Mailing city</label>
+              <input id="leadMailingCity">
+            </div>
+
+            <div>
+              <label>Mailing state</label>
+              <input id="leadMailingState" value="SC">
+            </div>
+
+            <div>
+              <label>Mailing ZIP</label>
+              <input id="leadMailingZip">
+            </div>
+
+            <div class="wide">
+              <label>Directions</label>
+              <textarea id="leadDirections"></textarea>
+            </div>
+
+            <div>
+              <label>Insurance related?</label>
+              <select id="leadInsuranceRelated">
+                <option value="">Not answered</option>
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Insurance company</label>
+              <input id="leadInsuranceCompany">
+            </div>
+
+            <div class="wide form-section-title">
+              <h3>Roofing Conversation</h3>
+              <p class="meta">Use these prompts while speaking with the homeowner.</p>
+            </div>
+
+            <div>
+              <label>How old are the shingles?</label>
+              <input id="leadShingleAge" placeholder="Years or best estimate">
+            </div>
+
+            <div>
+              <label>When do they hope to have the work done?</label>
+              <input id="leadWorkTiming">
+            </div>
+
+            <div>
+              <label>How many roof layers?</label>
+              <select id="leadRoofLayers">
+                <option value="">Not answered</option>
+                <option>1</option><option>2</option><option>Not sure</option><option>Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Type of home</label>
+              <select id="leadHomeType">
+                <option value="">Not answered</option>
+                <option>1-story</option><option>2-story</option><option>Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Any leaks now?</label>
+              <select id="leadCurrentLeak">
+                <option value="">Not answered</option><option value="true">Yes</option><option value="false">No</option>
+              </select>
+            </div>
+
+            <div>
+              <label>If yes, where?</label>
+              <input id="leadCurrentLeakLocation">
+            </div>
+
+            <div>
+              <label>Has it ever leaked?</label>
+              <select id="leadPriorLeak">
+                <option value="">Not answered</option><option value="true">Yes</option><option value="false">No</option>
+              </select>
+            </div>
+
+            <div>
+              <label>If yes, where?</label>
+              <input id="leadPriorLeakLocation">
+            </div>
+
+            <div>
+              <label>Roof pitch or slope</label>
+              <select id="leadRoofPitch">
+                <option value="">Not answered</option><option>Walkable</option><option>Steep</option><option>Not sure</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Payment preference</label>
+              <select id="leadPaymentPlan">
+                <option value="">Not answered</option><option>Cash</option><option>Financing</option><option>Undecided</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Who referred our company?</label>
+              <select id="leadReferralCategory">
+                <option value="">Not answered</option>
+                <optgroup label="Referrals">
+                  <option>Previous client</option><option>Other referral</option><option>Employee referral</option><option>Real estate agent</option>
+                </optgroup>
+                <optgroup label="Advertising">
+                  <option>Yelp</option><option>Angi Ads</option><option>HomeAdvisor</option><option>Vital Storm</option>
+                </optgroup>
+                <optgroup label="Signs"><option>Office sign</option><option>Truck sign</option><option>Jobsite sign</option></optgroup>
+                <optgroup label="Internet"><option>BCI website</option><option>Classic website</option><option>MRA website</option><option>Other internet</option></optgroup>
+                <option>Media advertising</option><option>Telephone solicitation</option><option>Yellow Pages - AT&amp;T</option><option>Yellow Pages - Talking Phone Book</option><option>Direct mail</option><option>Canvassing</option><option>Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Referral name, location or details</label>
+              <input id="leadReferralDetail">
+            </div>
+
+            <details class="wide angi-original" id="leadAngiOriginalWrap">
+              <summary>Original information supplied by Angi</summary>
+              <div id="leadAngiOriginal" class="source-data-grid"></div>
+            </details>
+
             <div>
               <label>Work requested</label>
               <select id="leadWorkCategory">
@@ -1654,7 +1803,7 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=20260908-3"></script>
+  <script src="app.js?v=20260908-4"></script>
 
 </body>
 </html>
