@@ -1,5 +1,5 @@
 window.BAUER_CONFIG = {
-  APP_VERSION: '20260908-13',
+  APP_VERSION: '20260908-14',
   APP_URL: 'https://evekeepslearning.github.io/bauer-roofing-mission-control/',
   SUPABASE_URL: 'https://eufimdrdimpkzowlupre.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_F-nEDaSaUQPwy2rTKy71LA_H4gxArBt',

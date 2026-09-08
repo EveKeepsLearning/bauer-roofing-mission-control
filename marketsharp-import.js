@@ -100,8 +100,8 @@ async function fetchAll(table, columns, orderColumn = 'created_at') {
 }
 
 function updateFileChecklist() {
-  const ready = REQUIRED_FILES.filter(name => selectedFiles.has(name)).length;
-  $('requiredFiles').innerHTML = REQUIRED_FILES.map(name => `<span class="${selectedFiles.has(name) ? 'ready' : ''}">${esc(name)}</span>`).join('');
+  const ready = REQUIRED_FILES.filter(name => selectedFiles.has(name.toUpperCase())).length;
+  $('requiredFiles').innerHTML = REQUIRED_FILES.map(name => `<span class="${selectedFiles.has(name.toUpperCase()) ? 'ready' : ''}">${esc(name)}</span>`).join('');
   $('analyzeMarketSharpBtn').disabled = ready !== REQUIRED_FILES.length || !db;
   $('migrationStatus').textContent = `${ready} of ${REQUIRED_FILES.length} required files selected.`;
 }
@@ -276,7 +276,7 @@ async function analyzeBackup() {
     $('migrationWarning').textContent = 'The comparison stopped without changing Bauer Roofing Operations.';
     $('migrationWarning').className = 'migration-warning migration-error';
   } finally {
-    button.disabled = REQUIRED_FILES.some(name => !selectedFiles.has(name)) || !db;
+    button.disabled = REQUIRED_FILES.some(name => !selectedFiles.has(name.toUpperCase())) || !db;
   }
 }
 
