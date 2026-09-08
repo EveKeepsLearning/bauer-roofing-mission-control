@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Review & Migrate MarketSharp • Bauer Roofing Operations</title>
+  <link rel="stylesheet" href="styles.css?v=20260908-16">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js?v=20260908-16"></script>
+  <style>
+    body{background:#f3f6f9}.review-shell{width:min(1480px,96vw);margin:24px auto 56px}.review-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:16px}.review-head h1{margin:3px 0 5px;font-size:30px}.stage-pill{display:inline-flex;border-radius:999px;background:#e8f1ff;color:#175caf;padding:5px 9px;font-size:12px;font-weight:750}.review-card{background:#fff;border:1px solid #dfe5ec;border-radius:13px;padding:18px;box-shadow:0 2px 8px rgba(31,48,72,.05);margin-bottom:16px}.review-kpis{display:grid;grid-template-columns:repeat(5,minmax(125px,1fr));gap:9px;margin:12px 0}.review-kpi{border:1px solid #e0e6ed;border-radius:10px;padding:11px;background:#fff}.review-kpi b{display:block;font-size:22px;color:#26354a}.review-kpi span{display:block;margin-top:3px;font-size:11px;color:#687588}.review-filters{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:14px 0}.review-filter{border:1px solid #d8e0e8;background:#fff;border-radius:999px;padding:7px 11px;color:#4f5e71;cursor:pointer;font:inherit;font-size:13px}.review-filter.active{background:#175caf;color:#fff;border-color:#175caf}.review-table-wrap{overflow:auto;max-height:650px;border:1px solid #dfe5ec;border-radius:10px}.review-table{width:100%;min-width:1180px;border-collapse:collapse;background:#fff;font-size:13px}.review-table th{position:sticky;top:0;z-index:2;background:#edf2f7;color:#4a596b;text-align:left;padding:10px;border-bottom:1px solid #d8e0e8;white-space:nowrap}.review-table td{padding:10px;border-bottom:1px solid #e8edf2;vertical-align:top}.review-table small{display:block;color:#748092;margin-top:3px}.status-pill{display:inline-flex;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:750;white-space:nowrap}.status-ready{background:#e8f1ff;color:#175caf}.status-linked,.status-migrated{background:#e9f6ec;color:#176b34}.status-review{background:#fff1cf;color:#805600}.status-conflict{background:#fceceb;color:#a62922}.status-historical{background:#eef1f4;color:#596574}.selection-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px;border:1px solid #dfe5ec;border-radius:10px;background:#f8fafc;margin:12px 0}.selection-bar .spacer{flex:1}.review-note{border-left:4px solid #2475df;background:#f3f8ff;padding:11px 12px;border-radius:8px;color:#42546a;margin-top:10px}.review-warning{border-left-color:#d68b00;background:#fffaf0;color:#5b4a27}.migration-progress{height:9px;background:#e8edf3;border-radius:999px;overflow:hidden;margin-top:10px}.migration-progress>span{display:block;height:100%;width:0;background:#2475df;transition:width .2s}.checkbox-cell input{width:auto;margin:0}.company-tag{display:inline-flex;margin-left:5px;border-radius:999px;background:#f1ecff;color:#6546a3;padding:2px 6px;font-size:10px;font-weight:700}@media(max-width:850px){.review-kpis{grid-template-columns:repeat(2,1fr)}.review-head{display:block}.review-head .btn{margin-top:10px}}@media(max-width:560px){.review-shell{width:94vw;margin-top:14px}.review-kpis{grid-template-columns:1fr 1fr}.review-card{padding:14px}}
+  </style>
+</head>
+<body>
+  <main class="review-shell">
+    <div class="review-head">
+      <div><span class="stage-pill">Review and migrate</span><h1>MarketSharp Review</h1><div class="sub">Choose which preserved MarketSharp inquiries should become working Bauer Roofing Operations records.</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="marketsharp-import.html">Back to Archive</a><a class="btn" href="index.html?view=leads">Back to Contacts</a></div>
+    </div>
+
+    <div id="authNotice" class="notice hidden"></div>
+
+    <section class="review-card">
+      <div class="toolbar"><div><h2 style="margin:0 0 5px">1. Review preserved inquiries</h2><p class="auth-note">Nothing is migrated until you check records and click the migrate button.</p></div><div class="spacer"></div><button class="btn small" id="refreshReviewBtn" type="button">Refresh</button></div>
+      <div class="review-kpis">
+        <div class="review-kpi"><b id="reviewTotal">0</b><span>Preserved inquiries</span></div>
+        <div class="review-kpi"><b id="reviewReady">0</b><span>Ready to review</span></div>
+        <div class="review-kpi"><b id="reviewLinked">0</b><span>Already linked</span></div>
+        <div class="review-kpi"><b id="reviewNeedsDecision">0</b><span>Need decision</span></div>
+        <div class="review-kpi"><b id="reviewHistorical">0</b><span>Historical / no lead #</span></div>
+      </div>
+      <div class="review-note">This stage migrates <b>inquiries and their contact/property information</b>. MarketSharp jobs and job history remain safely preserved and will be handled in the later job-migration stage.</div>
+      <div class="review-filters" id="reviewFilters">
+        <button class="review-filter active" data-review-filter="ready">Ready to review</button>
+        <button class="review-filter" data-review-filter="linked">Already linked</button>
+        <button class="review-filter" data-review-filter="decision">Needs decision</button>
+        <button class="review-filter" data-review-filter="historical">Historical / no lead #</button>
+        <button class="review-filter" data-review-filter="all">All</button>
+        <input id="reviewSearch" type="search" placeholder="Search lead #, name, company, address, phone, or source" style="flex:1;min-width:250px;margin:0">
+      </div>
+
+      <div class="selection-bar">
+        <b><span id="selectedCount">0</span> selected</b>
+        <button class="btn small" id="selectShownBtn" type="button">Select shown ready records</button>
+        <button class="btn small" id="clearSelectionBtn" type="button">Clear selection</button>
+        <div class="spacer"></div>
+        <button class="btn success" id="migrateSelectedBtn" type="button" disabled>Migrate Selected Inquiries</button>
+      </div>
+
+      <div class="review-table-wrap">
+        <table class="review-table">
+          <thead><tr><th></th><th>Status</th><th>Lead #</th><th>Contact</th><th>Property</th><th>Source</th><th>Appointments</th><th>Jobs</th><th>Review note</th></tr></thead>
+          <tbody id="reviewTableBody"><tr><td colspan="9" class="empty">Loading preserved MarketSharp records…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="meta" id="reviewTableNote"></div>
+    </section>
+
+    <section class="review-card">
+      <h2 style="margin:0 0 6px">2. Migration status</h2>
+      <div id="migrationStatus" class="status-line">Select one or more ready records above.</div>
+      <div id="migrationProgress" class="migration-progress hidden"><span id="migrationProgressBar"></span></div>
+      <div id="migrationWarning" class="review-note review-warning hidden"></div>
+    </section>
+  </main>
+  <script src="marketsharp-review.js?v=20260908-16"></script>
+</body>
+</html>
