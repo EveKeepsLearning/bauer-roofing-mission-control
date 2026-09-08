@@ -1034,6 +1034,10 @@ function jobsThisWeek() {
 
   return state.jobs.filter(j => {
 
+    if (!activeRow(j) || jobIsCancelled(j)) {
+      return false;
+    }
+
     const value =
       j.confirmed_start_date ||
       j.target_start_date;
@@ -3064,6 +3068,10 @@ function activeRow(x) {
   return x && !x.deleted_at && !x.archived_at;
 }
 
+function jobIsCancelled(job) {
+  return String(job?.stage || '').trim().toLowerCase() === 'cancelled';
+}
+
 function visibleProspect(x) {
   return activeRow(x) && !x.archive_flag && !x.converted_to_lead_at;
 }
@@ -3209,7 +3217,7 @@ function communicationDueItems() {
     .map(c => ({ kind:'communication', dueDate:c.due_date || '', dueTime:c.due_time || '', item:c }));
 
   const jobItems = state.jobs
-    .filter(j => activeRow(j) && !['Final / Closed','Closed'].includes(j.stage || ''))
+    .filter(j => activeRow(j) && !jobIsCancelled(j) && !['Final / Closed','Closed'].includes(j.stage || ''))
     .filter(j => j.client_communication_needed || (j.client_communication_due_date && j.client_communication_due_date <= td))
     .map(j => ({ kind:'job', dueDate:j.client_communication_due_date || td, dueTime:'', item:j }));
 
@@ -3423,6 +3431,51 @@ function contactActionHtml({ phone = '', email = '', kind = '', id = '', name = 
   const mail = email ? `<a class="btn small" href="${outlookUrl}" target="_blank" rel="noopener noreferrer">Email</a>` : '';
   const log = kind && id ? `<button class="btn small" data-log-communication="${esc(kind)}" data-contact-id="${esc(id)}">Log Communication</button>` : '';
   return `<div class="actions contact-actions">${call}${text}${mail}${log}</div>`;
+}
+
+function teamPhoneSettings(){
+  const account=user?.user_metadata?.bauer_team_phones||{};
+  let local={};
+  try{local=JSON.parse(localStorage.getItem('bauer_team_phones')||'{}');}catch(error){local={};}
+  return {roy:account.roy||local.roy||'',dad:account.dad||local.dad||''};
+}
+
+function openTeamNumbers(){
+  const phones=teamPhoneSettings();
+  $('royTextPhone').value=phones.roy||'';
+  $('dadTextPhone').value=phones.dad||'';
+  $('teamNumbersDialog').showModal();
+}
+
+async function saveTeamNumbers(){
+  try{
+    const phones={roy:$('royTextPhone').value.trim(),dad:$('dadTextPhone').value.trim()};
+    if(phones.roy&&phoneDigits(phones.roy).length<10)return msg('Enter Roy’s complete mobile number.','error');
+    if(phones.dad&&phoneDigits(phones.dad).length<10)return msg('Enter Dad’s complete mobile number.','error');
+    const result=await db.auth.updateUser({data:{bauer_team_phones:phones}});
+    if(result.error)throw result.error;
+    if(result.data?.user)user=result.data.user;
+    localStorage.setItem('bauer_team_phones',JSON.stringify(phones));
+    $('teamNumbersDialog').close();msg('Team text numbers saved.','success');
+  }catch(error){msg('Could not save team numbers: '+(error.message||String(error)),'error');}
+}
+
+function teamTextButtons(kind,id){
+  return `<button class="btn small" data-team-text="roy" data-team-kind="${esc(kind)}" data-team-id="${esc(id)}">Text Roy</button><button class="btn small" data-team-text="dad" data-team-kind="${esc(kind)}" data-team-id="${esc(id)}">Text Dad</button>`;
+}
+
+function openTeamText(member,kind,id){
+  const person=member==='roy'?'Roy':'Dad';
+  const number=phoneDigits(teamPhoneSettings()[member]);
+  if(!number){openTeamNumbers();msg(`Add ${person}’s mobile number, then tap Text ${person} again.`,'error');return;}
+  const record=kind==='lead'?state.leads.find(l=>l.id===id):state.jobs.find(j=>j.id===id);
+  if(!record)return;
+  const name=kind==='lead'?leadName(record):(record.customer_name||'Unnamed customer');
+  const address=kind==='lead'?[record.street_address,record.city,record.state,record.zip].filter(Boolean).join(record.street_address&&record.city?', ':' '):(record.property_address||'No address entered');
+  const reference=kind==='lead'?(record.lead_number?'Lead #'+record.lead_number:'Lead'):(record.job_number?'Job #'+record.job_number:'Job');
+  const body=`${name}\n${address}\n${reference}\n\n`;
+  const separator=/iPhone|iPad|iPod/i.test(navigator.userAgent)?'&':'?';
+  window.location.href=`sms:${number}${separator}body=${encodeURIComponent(body)}`;
 }
 
 function contactForJob(job) {
@@ -4383,6 +4436,7 @@ function renderLeadDetail() {
     </div>
 
     ${contactActionHtml({phone:lead.phone,email:lead.email,kind:'lead',id:lead.id,name:leadName(lead)})}
+    <div class="actions internal-contact-actions">${teamTextButtons('lead',lead.id)}</div>
 
     <div class="lead-info-grid">
       <div class="info-tile"><span>PHONE</span><b>${esc(lead.phone || '—')}</b></div>
@@ -4469,7 +4523,13 @@ function renderProspectsLeads() {
 
 function renderJobs() {
   const jobSort=$('jobSort')?.value||'updated';
-  const activeJobs = state.jobs.filter(activeRow).slice().sort((a,b)=>{
+  const query=String($('jobSearch')?.value||'').trim().toLowerCase();
+  const matchesSearch=j=>!query||[
+    j.customer_name,j.job_number,j.lead_number,j.property_address,reportZip(j),j.salesperson,
+    j.primary_job_type,j.job_type,j.stage,j.material_type,j.material_color,j.production_blocker
+  ].some(value=>String(value||'').toLowerCase().includes(query));
+  const allActiveJobs=state.jobs.filter(activeRow).filter(j=>!jobIsCancelled(j));
+  const activeJobs = allActiveJobs.filter(matchesSearch).slice().sort((a,b)=>{
     if(jobSort==='contract')return String(b.contract_date||'').localeCompare(String(a.contract_date||''));
     if(jobSort==='start')return String(a.confirmed_start_date||a.target_start_date||'9999').localeCompare(String(b.confirmed_start_date||b.target_start_date||'9999'));
     if(jobSort==='zip')return reportZip(a).localeCompare(reportZip(b),undefined,{numeric:true})||String(a.customer_name||'').localeCompare(String(b.customer_name||''));
@@ -4479,9 +4539,9 @@ function renderJobs() {
     return String(b.updated_at||b.created_at||'').localeCompare(String(a.updated_at||a.created_at||''));
   });
   const today=todayISO();
-  const needsUpdate=activeJobs.filter(j=>!['Final / Closed','Closed'].includes(j.stage||'') && (!j.dad_acknowledged_at || !j.production_next_update_date || j.production_next_update_date<=today));
-  const needsContact=activeJobs.filter(j=>!['Final / Closed','Closed'].includes(j.stage||'') && (j.client_communication_needed || (j.client_communication_due_date && j.client_communication_due_date<=today)));
-  if($('productionActiveKpi')) $('productionActiveKpi').textContent=activeJobs.filter(j=>!['Final / Closed','Closed'].includes(j.stage||'')).length;
+  const needsUpdate=allActiveJobs.filter(j=>!['Final / Closed','Closed'].includes(j.stage||'') && (!j.dad_acknowledged_at || !j.production_next_update_date || j.production_next_update_date<=today));
+  const needsContact=allActiveJobs.filter(j=>!['Final / Closed','Closed'].includes(j.stage||'') && (j.client_communication_needed || (j.client_communication_due_date && j.client_communication_due_date<=today)));
+  if($('productionActiveKpi')) $('productionActiveKpi').textContent=allActiveJobs.filter(j=>!['Final / Closed','Closed'].includes(j.stage||'')).length;
   if($('productionUpdateKpi')) $('productionUpdateKpi').textContent=needsUpdate.length;
   if($('productionContactKpi')) $('productionContactKpi').textContent=needsContact.length;
   const rows = activeJobs.map(j => {
@@ -4498,14 +4558,19 @@ function renderJobs() {
       </div>
       ${j.production_blocker ? `<div class="production-alert"><b>Waiting on:</b> ${esc(j.production_blocker)}</div>` : ''}
       ${contactDue ? `<div class="production-alert customer"><b>Customer contact:</b> ${esc(j.client_communication_reason || 'Weekly production check-in is due')}</div>` : ''}
-      <div class="actions">${contactActionHtml({phone:contact.phone,email:contact.email,kind:'job',id:j.id,name:contact.name})}${contactDue?`<button class="btn success small" data-job-contacted="${esc(j.id)}">Mark Customer Contacted</button>`:''}<button class="btn small" data-edit-job="${esc(j.id)}">View / Edit</button><button class="btn small" data-record-action="archive" data-record-table="jobs" data-record-id="${esc(j.id)}">Archive</button><button class="btn small" data-record-action="delete" data-record-table="jobs" data-record-id="${esc(j.id)}">Delete</button></div>
+      <div class="actions">${contactActionHtml({phone:contact.phone,email:contact.email,kind:'job',id:j.id,name:contact.name})}${teamTextButtons('job',j.id)}${contactDue?`<button class="btn success small" data-job-contacted="${esc(j.id)}">Mark Customer Contacted</button>`:''}<button class="btn small" data-edit-job="${esc(j.id)}">View / Edit</button><button class="btn danger small" data-cancel-job="${esc(j.id)}">Cancel Job</button><button class="btn small" data-record-action="archive" data-record-table="jobs" data-record-id="${esc(j.id)}">Archive</button><button class="btn small" data-record-action="delete" data-record-table="jobs" data-record-id="${esc(j.id)}">Delete</button></div>
       <details><summary>Communication history</summary>${communicationHistoryHtml('job',j.id)}</details>
     </div>`;
   }).join('');
-  $('jobsTable').innerHTML = rows || empty('No jobs entered yet.');
+  $('jobsTable').innerHTML = rows || empty(query?'No active jobs match your search.':'No active jobs entered yet.');
   $('allComms').innerHTML = state.communications.map(c => `<div class="task"><b>${esc(c.purpose)}</b><div class="meta ${c.due_date && c.due_date < todayISO() && c.status !== 'Completed' ? 'comm-overdue' : ''}">${esc(c.type)} • ${esc(c.status)} • Due ${esc(c.due_date || '')} ${esc(c.due_time || '')}</div></div>`).join('') || empty('No communication responsibilities yet.');
-  const archived = state.jobs.filter(j => !j.deleted_at && j.archived_at);
-  $('archivedJobsList').innerHTML = archived.map(j => `<div class="task"><b>${esc(j.customer_name || 'Unnamed customer')}</b><div class="meta">${j.job_number ? 'Job # ' + esc(j.job_number) : ''}${j.property_address ? ' • ' + esc(j.property_address) : ''}</div><div class="actions"><button class="btn small" data-record-action="restore" data-record-table="jobs" data-record-id="${esc(j.id)}">Restore</button><button class="btn small" data-record-action="delete" data-record-table="jobs" data-record-id="${esc(j.id)}">Delete</button></div></div>`).join('') || empty('No archived jobs.');
+  const cancelled=state.jobs.filter(j=>activeRow(j)&&jobIsCancelled(j)&&matchesSearch(j)).slice().sort((a,b)=>String(b.updated_at||b.created_at||'').localeCompare(String(a.updated_at||a.created_at||'')));
+  $('cancelledJobsList').innerHTML=cancelled.map(j=>{
+    const reason=String(j.production_blocker||'').replace(/^cancelled:\s*/i,'')||'No reason entered';
+    return `<div class="task"><b>${esc(j.customer_name||'Unnamed customer')}</b><div class="meta">${j.job_number?'Job # '+esc(j.job_number):''}${j.property_address?' • '+esc(j.property_address):''}</div><div class="meta"><b>Reason:</b> ${esc(reason)}</div><div class="actions">${teamTextButtons('job',j.id)}<button class="btn small" data-reopen-job="${esc(j.id)}">Reopen Job</button><button class="btn small" data-edit-job="${esc(j.id)}">View / Edit</button><button class="btn small" data-record-action="archive" data-record-table="jobs" data-record-id="${esc(j.id)}">Archive</button></div></div>`;
+  }).join('')||empty(query?'No canceled jobs match your search.':'No canceled jobs.');
+  const archived = state.jobs.filter(j => !j.deleted_at && j.archived_at && matchesSearch(j));
+  $('archivedJobsList').innerHTML = archived.map(j => `<div class="task"><b>${esc(j.customer_name || 'Unnamed customer')}</b><div class="meta">${j.job_number ? 'Job # ' + esc(j.job_number) : ''}${j.property_address ? ' • ' + esc(j.property_address) : ''}</div><div class="actions"><button class="btn small" data-record-action="restore" data-record-table="jobs" data-record-id="${esc(j.id)}">Restore</button><button class="btn small" data-record-action="delete" data-record-table="jobs" data-record-id="${esc(j.id)}">Delete</button></div></div>`).join('') || empty(query?'No archived jobs match your search.':'No archived jobs.');
 }
 
 function clearPhoneForm() {
@@ -4713,6 +4778,35 @@ function dateDaysFromToday(days){ const d=new Date(); d.setDate(d.getDate()+days
 function normalizedProductionStage(stage){ return ({'Sold':'Needs Production Review','Pre-Production':'Production Queue','Complete':'Production Complete'})[stage]||stage||'Needs Production Review'; }
 function clearJobForm(){ ['jobEditId','jobCustomer','jobLead','jobNumber','jobAddress','jobSalesperson','jobContractDate','jobType','jobMaterialType','jobMaterialColor','jobMaterialDelivery','jobExpectedCompletion','jobProductionBlocker','jobTarget','jobConfirmed','jobNotes'].forEach(id=>{if($(id))$(id).value='';}); $('jobStage').value='Needs Production Review'; $('jobNextProductionUpdate').value=dateDaysFromToday(7); $('jobDialogTitle').textContent='New Job'; $('saveJobBtn').textContent='Save'; }
 function openJobEdit(id){ const j=state.jobs.find(x=>x.id===id); if(!j)return; clearJobForm(); $('jobEditId').value=j.id; $('jobCustomer').value=j.customer_name||''; $('jobLead').value=j.lead_number||''; $('jobNumber').value=j.job_number||''; $('jobAddress').value=j.property_address||''; $('jobSalesperson').value=j.salesperson||''; $('jobContractDate').value=j.contract_date||''; $('jobType').value=j.job_type||''; $('jobStage').value=normalizedProductionStage(j.stage); $('jobMaterialType').value=j.material_type||''; $('jobMaterialColor').value=j.material_color||''; $('jobMaterialDelivery').value=j.material_delivery_date||''; $('jobExpectedCompletion').value=j.expected_completion_date||''; $('jobProductionBlocker').value=j.production_blocker||''; $('jobNextProductionUpdate').value=j.production_next_update_date||dateDaysFromToday(7); $('jobTarget').value=j.target_start_date||''; $('jobConfirmed').value=j.confirmed_start_date||''; $('jobNotes').value=j.production_notes||''; $('jobDialogTitle').textContent='Job Details'; $('saveJobBtn').textContent='Save Changes'; $('jobDialog').showModal(); }
+function openCancelJob(id){
+  const job=state.jobs.find(j=>j.id===id);if(!job)return;
+  $('cancelJobId').value=job.id;
+  $('cancelJobName').textContent=`${job.customer_name||'Unnamed customer'}${job.job_number?' • Job #'+job.job_number:''}`;
+  $('cancelJobReason').value='';
+  $('cancelJobReason').setCustomValidity('');
+  $('cancelJobDialog').showModal();
+  $('cancelJobReason').focus();
+}
+async function cancelJob(){
+  try{
+    const id=$('cancelJobId').value,job=state.jobs.find(j=>j.id===id),reasonInput=$('cancelJobReason'),reason=reasonInput.value.trim();
+    if(!job)return;
+    reasonInput.setCustomValidity(reason?'':'Enter the reason the job was canceled.');
+    if(!reason){reasonInput.reportValidity();reasonInput.focus();return;}
+    const when=new Date().toLocaleString('en-US',{timeZone:'America/New_York',month:'2-digit',day:'2-digit',year:'numeric',hour:'numeric',minute:'2-digit'});
+    const history=`Job canceled ${when}${user?.email?' by '+user.email:''}. Previous stage: ${job.stage||'Not entered'}. Reason: ${reason}`;
+    await updateRecord('jobs',id,{stage:'Cancelled',production_blocker:'Cancelled: '+reason,production_next_update_date:null,client_communication_needed:false,client_communication_reason:null,client_communication_due_date:null,production_notes:[job.production_notes,history].filter(Boolean).join('\n')},'Job cancellation undone.');
+    $('cancelJobDialog').close();await loadAll();msg('Job canceled and removed from active production. Undo is available.','success');
+  }catch(error){msg('Could not cancel job: '+(error.message||String(error)),'error');}
+}
+async function reopenJob(id){
+  const job=state.jobs.find(j=>j.id===id);if(!job)return;
+  if(!confirm(`Reopen ${job.customer_name||'this job'} and return it to production review?`))return;
+  const when=new Date().toLocaleString('en-US',{timeZone:'America/New_York',month:'2-digit',day:'2-digit',year:'numeric',hour:'numeric',minute:'2-digit'});
+  const history=`Job reopened ${when}${user?.email?' by '+user.email:''}.`;
+  await updateRecord('jobs',id,{stage:'Needs Production Review',production_blocker:null,production_next_update_date:dateDaysFromToday(7),production_notes:[job.production_notes,history].filter(Boolean).join('\n')},'Job reopening undone.');
+  await loadAll();msg('Job reopened and returned to production review.','success');
+}
 async function saveJob(){
   try{
     const id=$('jobEditId').value;
@@ -4978,6 +5072,9 @@ document.body.addEventListener('click', async event => {
     const selectLead=event.target.closest('[data-lead-select]'); if(selectLead){selectedLeadId=selectLead.dataset.leadSelect;renderProspectsLeads();return;}
     const editLead=event.target.closest('[data-edit-lead]'); if(editLead){openLeadEdit(editLead.dataset.editLead);return;}
     const editJob=event.target.closest('[data-edit-job]'); if(editJob){openJobEdit(editJob.dataset.editJob);return;}
+    const cancelJobButton=event.target.closest('[data-cancel-job]');if(cancelJobButton){openCancelJob(cancelJobButton.dataset.cancelJob);return;}
+    const reopenJobButton=event.target.closest('[data-reopen-job]');if(reopenJobButton){await reopenJob(reopenJobButton.dataset.reopenJob);return;}
+    const teamText=event.target.closest('[data-team-text]');if(teamText){openTeamText(teamText.dataset.teamText,teamText.dataset.teamKind,teamText.dataset.teamId);return;}
     const jobContacted=event.target.closest('[data-job-contacted]'); if(jobContacted){await markJobCustomerContacted(jobContacted.dataset.jobContacted);return;}
     const editAppt=event.target.closest('[data-edit-appointment]'); if(editAppt){openAppointmentEdit(editAppt.dataset.editAppointment);return;}
     const mergeAppt=event.target.closest('[data-merge-appointment]'); if(mergeAppt){await mergeDuplicateAppointments(mergeAppt.dataset.mergeAppointment);return;}
@@ -5001,6 +5098,7 @@ $('newLeadBtn').onclick=()=>{clearLeadForm();openLeadDialog();};
 if ($('leadSearch')) $('leadSearch').oninput=()=>{ selectedLeadId=''; renderProspectsLeads(); };
 if($('leadSort'))$('leadSort').onchange=()=>{selectedLeadId='';renderProspectsLeads();};
 if($('jobSort'))$('jobSort').onchange=renderJobs;
+if($('jobSearch'))$('jobSearch').oninput=renderJobs;
 $('leadReportsBtn').onclick=()=>openReports('leads');
 $('jobReportsBtn').onclick=()=>openReports('jobs');
 $('reportType').onchange=configureReportControls;
@@ -5009,6 +5107,9 @@ $('exportReportBtn').onclick=exportCurrentReport;
 $('reportSelectAllBtn').onclick=()=>{document.querySelectorAll('#reportColumns input').forEach(input=>{input.checked=true;});};
 $('reportClearColumnsBtn').onclick=()=>{document.querySelectorAll('#reportColumns input').forEach(input=>{input.checked=false;});};
 $('newJobBtn').onclick=()=>{clearJobForm();$('jobDialog').showModal();};
+if($('confirmCancelJobBtn'))$('confirmCancelJobBtn').onclick=cancelJob;
+if($('teamNumbersBtn'))$('teamNumbersBtn').onclick=openTeamNumbers;
+if($('saveTeamNumbersBtn'))$('saveTeamNumbersBtn').onclick=saveTeamNumbers;
 if($('createDadProductionLinkBtn')) $('createDadProductionLinkBtn').onclick=createDadProductionLink;
 
 

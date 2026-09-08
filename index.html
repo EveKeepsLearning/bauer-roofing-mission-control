@@ -6,11 +6,11 @@
 
   <title>Bauer Roofing Operations</title>
 
-  <link rel="stylesheet" href="styles.css?v=20260908-5">
+  <link rel="stylesheet" href="styles.css?v=20260908-6">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="config.js?v=20260908-5"></script>
+  <script src="config.js?v=20260908-6"></script>
 
   <style>
     .nav a.nav-calendar-link{
@@ -119,6 +119,13 @@
             class="btn ghost small"
             id="refreshBtn">
             Refresh
+          </button>
+
+          <button
+            class="btn ghost small"
+            id="teamNumbersBtn"
+            type="button">
+            Team Numbers
           </button>
 
           <button
@@ -597,6 +604,7 @@
           </p>
 
           <div class="toolbar list-sort-toolbar">
+            <input id="jobSearch" class="job-search" type="search" placeholder="Search customer, address, ZIP, job #, type, stage…" aria-label="Search jobs">
             <div class="spacer"></div>
             <label for="jobSort">Sort jobs</label>
             <select id="jobSort" class="list-sort-select">
@@ -630,6 +638,11 @@
 
           <div id="allComms"></div>
 
+        </div>
+
+        <div class="card">
+          <h3>Canceled Jobs</h3>
+          <div id="cancelledJobsList"></div>
         </div>
 
         <div class="card">
@@ -1513,6 +1526,7 @@
                 <option>Punch List / Final Inspection</option>
                 <option>Production Complete</option>
                 <option>Final / Closed</option>
+                <option>Cancelled</option>
               </select>
 
             </div>
@@ -1608,6 +1622,36 @@
 
         </form>
 
+      </dialog>
+
+      <dialog id="cancelJobDialog">
+        <form method="dialog" class="card" style="min-width:min(520px,90vw);margin:0">
+          <h2>Cancel Job</h2>
+          <input id="cancelJobId" type="hidden">
+          <p id="cancelJobName" class="auth-note"></p>
+          <label for="cancelJobReason">Why was this job canceled?</label>
+          <textarea id="cancelJobReason" placeholder="Customer changed plans, financing, duplicate job…" required></textarea>
+          <p class="auth-note">The job will leave active production but remain in Canceled Jobs. Its information and history will be preserved.</p>
+          <div class="toolbar">
+            <button class="btn danger" type="button" id="confirmCancelJobBtn">Cancel Job</button>
+            <button class="btn" value="cancel">Keep Job Active</button>
+          </div>
+        </form>
+      </dialog>
+
+      <dialog id="teamNumbersDialog">
+        <form method="dialog" class="card" style="min-width:min(460px,90vw);margin:0">
+          <h2>Team Text Numbers</h2>
+          <p class="auth-note">These numbers are saved with your Bauer Roofing Operations account and used by the Text Roy and Text Dad buttons.</p>
+          <label for="royTextPhone">Roy’s mobile number</label>
+          <input id="royTextPhone" type="tel" autocomplete="tel">
+          <label for="dadTextPhone">Dad’s mobile number</label>
+          <input id="dadTextPhone" type="tel" autocomplete="tel">
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="saveTeamNumbersBtn">Save Numbers</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
       </dialog>
 
 
@@ -1803,7 +1847,7 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=20260908-5"></script>
+  <script src="app.js?v=20260908-6"></script>
 
 </body>
 </html>

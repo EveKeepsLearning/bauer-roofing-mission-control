@@ -84,7 +84,7 @@ async function init(){
   if(!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY){showError('Bauer Roofing Operations is not configured.');return;}
   const {data,error}=await db.rpc('get_dad_production_jobs',{p_token:token});
   if(error){showError(error.message||'This production link is invalid or expired.');return;}
-  jobs=data||[];$('loadingCard').classList.add('hidden');if(!jobs.length){$('doneCard').classList.remove('hidden');$('doneCard').innerHTML='<h2>Nothing needs an update.</h2><div>All active production jobs are complete.</div>';return;}$('appCard').classList.remove('hidden');render();
+  jobs=(data||[]).filter(j=>String(j.stage||'').trim().toLowerCase()!=='cancelled');$('loadingCard').classList.add('hidden');if(!jobs.length){$('doneCard').classList.remove('hidden');$('doneCard').innerHTML='<h2>Nothing needs an update.</h2><div>All active production jobs are complete.</div>';return;}$('appCard').classList.remove('hidden');render();
 }
 $('saveBtn').onclick=()=>submit(false);$('noChangeBtn').onclick=()=>submit(true);$('skipBtn').onclick=()=>{if(!saving){index++;render();}};init();
 </script>
