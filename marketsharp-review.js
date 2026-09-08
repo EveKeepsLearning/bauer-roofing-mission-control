@@ -43,11 +43,17 @@ function contactDisplay(contact) {
   return [contact.first_name, contact.last_name].filter(Boolean).join(' ').trim() || 'Unnamed contact';
 }
 
+function addressParts(row, contact) {
+  return {
+    street: [row.property_address, row.property_address_line_two].filter(Boolean).join(' ').trim() || [contact?.address_line_one, contact?.address_line_two].filter(Boolean).join(' ').trim(),
+    city: String(row.city || contact?.city || '').trim(),
+    state: String(row.state || contact?.state || '').trim(),
+    zip: String(row.zip || contact?.zip || '').trim()
+  };
+}
+
 function addressText(row, contact) {
-  const street = [row.property_address, row.property_address_line_two].filter(Boolean).join(' ').trim() || [contact?.address_line_one, contact?.address_line_two].filter(Boolean).join(' ').trim();
-  const city = row.city || contact?.city || '';
-  const state = row.state || contact?.state || '';
-  const zip = row.zip || contact?.zip || '';
+  const {street, city, state, zip} = addressParts(row, contact);
   const locality = [city, state, zip].filter(Boolean).join(' ').trim();
   return [street, locality].filter(Boolean).join(', ');
 }
@@ -158,7 +164,6 @@ function renderTable() {
     const contact = contacts.get(row.marketsharp_contact_id);
     const selectable = canAddAsActiveLead(row);
     const isCompany = !!String(contact?.business_name || '').trim();
-    const state = rowState(row);
     const archiveButton = selectable ? `<button type="button" data-archive-id="${esc(row.marketsharp_lead_id)}">Keep archive only</button>` : '';
     return `<tr>
       <td class="checkbox-cell">${selectable ? `<input type="checkbox" aria-label="Add Lead ${esc(row.bauer_lead_number || '')} to Operations" data-review-id="${esc(row.marketsharp_lead_id)}" ${selected.has(row.marketsharp_lead_id) ? 'checked' : ''}>` : ''}</td>
@@ -179,73 +184,31 @@ function renderTable() {
   updateSelection();
 }
 
-function normalizePropertyKey(street, city, state, zip) {
-  const clean = value => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
-  return `${clean(street)}|${clean(city)}|${clean(state)}|${String(zip || '').trim()}`;
-}
-
-async function ensureOperationsContact(msContact) {
+async function ensureOperationsContact(msContact, row) {
   if (!msContact) return null;
   if (msContact.operations_contact_id) return msContact.operations_contact_id;
 
-  const displayName = contactDisplay(msContact);
-  const isBusiness = !!String(msContact.business_name || '').trim();
-  const result = await db.from('contacts').insert({
-    display_name: displayName,
-    first_name: isBusiness ? null : (msContact.first_name || null),
-    last_name: isBusiness ? null : (msContact.last_name || null),
+  const name = contactDisplay(msContact);
+  const {street, city, state, zip} = addressParts(row, msContact);
+  const insert = await db.from('contacts').insert({
+    name,
     phone: msContact.phone || null,
-    phone_secondary: msContact.phone_secondary || null,
     email: msContact.primary_email || null,
-    notes: `Migrated from MarketSharp contact ${msContact.marketsharp_contact_id}.`
-  }).select('id').single();
-  if (result.error) throw new Error(`Could not create contact ${displayName}: ${result.error.message}`);
-
-  const update = await db.from('marketsharp_contacts')
-    .update({operations_contact_id:result.data.id, updated_at:new Date().toISOString()})
-    .eq('marketsharp_contact_id', msContact.marketsharp_contact_id);
-  if (update.error) throw new Error(`Contact was created, but its MarketSharp link could not be saved: ${update.error.message}`);
-
-  msContact.operations_contact_id = result.data.id;
-  return result.data.id;
-}
-
-async function ensureProperty(row, msContact) {
-  const street = String(row.property_address || msContact?.address_line_one || '').trim();
-  const city = String(row.city || msContact?.city || '').trim();
-  const state = String(row.state || msContact?.state || '').trim();
-  const zip = String(row.zip || msContact?.zip || '').trim();
-  if (!street) return null;
-
-  const normalizedKey = normalizePropertyKey(street, city, state, zip);
-  const existing = await db.from('properties').select('id').eq('normalized_key', normalizedKey).limit(1);
-  if (existing.error) throw new Error(`Could not check the property for Lead #${row.bauer_lead_number}: ${existing.error.message}`);
-  if (existing.data?.length) return existing.data[0].id;
-
-  const inserted = await db.from('properties').insert({
-    street_address: street,
+    street_address: street || null,
     city: city || null,
     state: state || null,
     zip: zip || null,
-    normalized_key: normalizedKey,
-    notes: `Created from MarketSharp inquiry ${row.marketsharp_lead_id}.`
+    notes: `Migrated from MarketSharp contact ${msContact.marketsharp_contact_id}.`
   }).select('id').single();
-  if (inserted.error) {
-    const retry = await db.from('properties').select('id').eq('normalized_key', normalizedKey).limit(1);
-    if (!retry.error && retry.data?.length) return retry.data[0].id;
-    throw new Error(`Could not create the property for Lead #${row.bauer_lead_number}: ${inserted.error.message}`);
-  }
-  return inserted.data.id;
-}
+  if (insert.error) throw new Error(`Could not create contact ${name}: ${insert.error.message}`);
 
-async function linkContactProperty(contactId, propertyId) {
-  if (!contactId || !propertyId) return;
-  const result = await db.from('contact_properties').upsert({
-    contact_id: contactId,
-    property_id: propertyId,
-    relationship_type: 'Owner / Contact'
-  }, {onConflict:'contact_id,property_id'});
-  if (result.error) throw new Error(`Could not link the contact to the property: ${result.error.message}`);
+  const link = await db.from('marketsharp_contacts')
+    .update({operations_contact_id:insert.data.id, updated_at:new Date().toISOString()})
+    .eq('marketsharp_contact_id', msContact.marketsharp_contact_id);
+  if (link.error) throw new Error(`Contact ${name} was created, but its MarketSharp link could not be saved: ${link.error.message}`);
+
+  msContact.operations_contact_id = insert.data.id;
+  return insert.data.id;
 }
 
 function inferredWorkCategory(row) {
@@ -273,16 +236,12 @@ async function migrateOne(row) {
   }
 
   const msContact = contacts.get(row.marketsharp_contact_id) || null;
-  const contactId = await ensureOperationsContact(msContact);
-  const propertyId = await ensureProperty(row, msContact);
-  await linkContactProperty(contactId, propertyId);
+  await ensureOperationsContact(msContact, row);
 
   const displayName = contactDisplay(msContact);
   const isBusiness = !!String(msContact?.business_name || '').trim();
-  const street = String(row.property_address || msContact?.address_line_one || '').trim();
-  const city = String(row.city || msContact?.city || '').trim();
-  const state = String(row.state || msContact?.state || '').trim();
-  const zip = String(row.zip || msContact?.zip || '').trim();
+  const {street, city, state, zip} = addressParts(row, msContact);
+  const leadDate = inquiryDate(row);
 
   const leadInsert = await db.from('leads').insert({
     lead_number: String(row.bauer_lead_number),
@@ -296,13 +255,15 @@ async function migrateOne(row) {
     state,
     zip,
     phone: msContact?.phone || '',
+    phone_secondary: msContact?.phone_secondary || '',
     email: msContact?.primary_email || '',
     work_category: inferredWorkCategory(row),
     lead_status: 'Active',
     assigned_to: 'Roy',
-    notes: [`Migrated from preserved MarketSharp inquiry ${row.marketsharp_lead_id}.`, `Original inquiry date: ${row.inquiry_date_text || 'not entered'}.`, row.notes || row.description || ''].filter(Boolean).join('\n'),
-    contact_id: contactId,
-    property_id: propertyId
+    lead_date: leadDate ? leadDate.toISOString().slice(0,10) : null,
+    received_at: leadDate ? leadDate.toISOString() : null,
+    source_reference: `MarketSharp inquiry ${row.marketsharp_lead_id}`,
+    notes: [`Migrated from preserved MarketSharp inquiry ${row.marketsharp_lead_id}.`, `Original inquiry date: ${row.inquiry_date_text || 'not entered'}.`, row.notes || row.description || ''].filter(Boolean).join('\n')
   }).select('id').single();
   if (leadInsert.error) throw new Error(`Could not migrate Lead #${row.bauer_lead_number}: ${leadInsert.error.message}`);
 
@@ -374,9 +335,14 @@ async function migrateSelected() {
 }
 
 async function checkSchema() {
-  const test = await db.from('marketsharp_inquiries').select('marketsharp_lead_id,promotion_status,promoted_at').limit(1);
-  schemaReady = !test.error;
-  if (!schemaReady) showNotice('The review screen is installed, but its one-time database setup still needs to be run in Supabase.', 'error');
+  const archiveTest = await db.from('marketsharp_inquiries').select('marketsharp_lead_id,promotion_status,promoted_at').limit(1);
+  const contactsTest = await db.from('contacts').select('id,name,street_address').limit(1);
+  const leadsTest = await db.from('leads').select('id,lead_number,lead_status').limit(1);
+  schemaReady = !archiveTest.error && !contactsTest.error && !leadsTest.error;
+  if (!schemaReady) {
+    const error = archiveTest.error || contactsTest.error || leadsTest.error;
+    showNotice(`The review screen cannot safely migrate yet: ${error?.message || 'database structure check failed'}`, 'error');
+  }
   updateSelection();
 }
 
