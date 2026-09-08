@@ -4,18 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>MarketSharp Migration • Bauer Roofing Operations</title>
-  <link rel="stylesheet" href="styles.css?v=20260908-14">
+  <link rel="stylesheet" href="styles.css?v=20260908-15">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js?v=20260908-14"></script>
+  <script src="config.js?v=20260908-15"></script>
   <style>
-    body{background:#f3f6f9}.migration-shell{width:min(1420px,96vw);margin:24px auto 56px}.migration-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:18px}.migration-head h1{margin:3px 0 5px;font-size:30px}.stage-pill{display:inline-flex;border-radius:999px;background:#e8f1ff;color:#175caf;padding:5px 9px;font-size:12px;font-weight:750}.migration-grid{display:grid;grid-template-columns:minmax(300px,.72fr) minmax(0,1.28fr);gap:16px;align-items:start}.migration-card{background:#fff;border:1px solid #dfe5ec;border-radius:13px;padding:18px;box-shadow:0 2px 8px rgba(31,48,72,.05)}.migration-card h2{margin:0 0 7px;font-size:20px}.file-drop{display:block;border:2px dashed #b8c6d7;border-radius:11px;padding:20px;background:#f8fbff;text-align:center;cursor:pointer;margin:14px 0}.file-drop:hover{border-color:#2f73d9;background:#f1f7ff}.file-drop input{width:100%;margin:8px 0 0}.required-files{display:grid;grid-template-columns:1fr 1fr;gap:5px 12px;margin:12px 0;font-size:13px;color:#546274}.required-files span::before{content:'○';margin-right:6px;color:#8190a2}.required-files span.ready::before{content:'✓';color:#18864b;font-weight:800}.migration-progress{height:9px;background:#e8edf3;border-radius:999px;overflow:hidden;margin-top:13px}.migration-progress>span{display:block;height:100%;width:0;background:#2475df;transition:width .2s}.migration-kpis{display:grid;grid-template-columns:repeat(5,minmax(110px,1fr));gap:9px;margin:14px 0}.migration-kpi{border:1px solid #e0e6ed;border-radius:10px;padding:11px;background:#fff}.migration-kpi b{display:block;font-size:22px;color:#26354a}.migration-kpi span{display:block;margin-top:3px;font-size:11px;color:#687588}.migration-filters{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:14px 0}.migration-filter{border:1px solid #d8e0e8;background:#fff;border-radius:999px;padding:7px 11px;color:#4f5e71;cursor:pointer;font:inherit;font-size:13px}.migration-filter.active{background:#175caf;color:#fff;border-color:#175caf}.migration-table-wrap{overflow:auto;max-height:610px;border:1px solid #dfe5ec;border-radius:10px}.migration-table{width:100%;min-width:1050px;border-collapse:collapse;background:#fff;font-size:13px}.migration-table th{position:sticky;top:0;z-index:2;background:#edf2f7;color:#4a596b;text-align:left;padding:10px;border-bottom:1px solid #d8e0e8;white-space:nowrap}.migration-table td{padding:10px;border-bottom:1px solid #e8edf2;vertical-align:top}.migration-table small{display:block;color:#748092;margin-top:3px}.match-pill{display:inline-flex;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:750;white-space:nowrap}.match-exact{background:#e9f6ec;color:#176b34}.match-new{background:#e8f1ff;color:#175caf}.match-conflict{background:#fceceb;color:#a62922}.match-review{background:#fff1cf;color:#805600}.match-unlinked{background:#eef1f4;color:#596574}.migration-warning{border-left:4px solid #d68b00;background:#fffaf0;padding:11px 12px;border-radius:8px;margin-top:12px;color:#5b4a27}.migration-error{border-left-color:#c9382f;background:#fff2f1;color:#8c2822}.hidden{display:none!important}@media(max-width:900px){.migration-grid{grid-template-columns:1fr}.migration-kpis{grid-template-columns:repeat(2,1fr)}}@media(max-width:560px){.migration-shell{width:94vw;margin-top:14px}.migration-head{display:block}.migration-head .btn{margin-top:10px}.required-files{grid-template-columns:1fr}.migration-kpis{grid-template-columns:1fr 1fr}.migration-card{padding:14px}}
+    body{background:#f3f6f9}.migration-shell{width:min(1420px,96vw);margin:24px auto 56px}.migration-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:18px}.migration-head h1{margin:3px 0 5px;font-size:30px}.stage-pill{display:inline-flex;border-radius:999px;background:#e8f1ff;color:#175caf;padding:5px 9px;font-size:12px;font-weight:750}.migration-grid{display:grid;grid-template-columns:minmax(300px,.72fr) minmax(0,1.28fr);gap:16px;align-items:start}.migration-card{background:#fff;border:1px solid #dfe5ec;border-radius:13px;padding:18px;box-shadow:0 2px 8px rgba(31,48,72,.05)}.migration-card h2{margin:0 0 7px;font-size:20px}.file-drop{display:block;border:2px dashed #b8c6d7;border-radius:11px;padding:20px;background:#f8fbff;text-align:center;cursor:pointer;margin:14px 0}.file-drop:hover{border-color:#2f73d9;background:#f1f7ff}.file-drop input{width:100%;margin:8px 0 0}.required-files{display:grid;grid-template-columns:1fr 1fr;gap:5px 12px;margin:12px 0;font-size:13px;color:#546274}.required-files span::before{content:'○';margin-right:6px;color:#8190a2}.required-files span.ready::before{content:'✓';color:#18864b;font-weight:800}.migration-progress{height:9px;background:#e8edf3;border-radius:999px;overflow:hidden;margin-top:13px}.migration-progress>span{display:block;height:100%;width:0;background:#2475df;transition:width .2s}.migration-kpis{display:grid;grid-template-columns:repeat(5,minmax(110px,1fr));gap:9px;margin:14px 0}.migration-kpi{border:1px solid #e0e6ed;border-radius:10px;padding:11px;background:#fff}.migration-kpi b{display:block;font-size:22px;color:#26354a}.migration-kpi span{display:block;margin-top:3px;font-size:11px;color:#687588}.migration-filters{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:14px 0}.migration-filter{border:1px solid #d8e0e8;background:#fff;border-radius:999px;padding:7px 11px;color:#4f5e71;cursor:pointer;font:inherit;font-size:13px}.migration-filter.active{background:#175caf;color:#fff;border-color:#175caf}.migration-table-wrap{overflow:auto;max-height:610px;border:1px solid #dfe5ec;border-radius:10px}.migration-table{width:100%;min-width:1050px;border-collapse:collapse;background:#fff;font-size:13px}.migration-table th{position:sticky;top:0;z-index:2;background:#edf2f7;color:#4a596b;text-align:left;padding:10px;border-bottom:1px solid #d8e0e8;white-space:nowrap}.migration-table td{padding:10px;border-bottom:1px solid #e8edf2;vertical-align:top}.migration-table small{display:block;color:#748092;margin-top:3px}.match-pill{display:inline-flex;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:750;white-space:nowrap}.match-exact{background:#e9f6ec;color:#176b34}.match-new{background:#e8f1ff;color:#175caf}.match-conflict{background:#fceceb;color:#a62922}.match-review{background:#fff1cf;color:#805600}.match-historical{background:#eef1f4;color:#596574}.migration-warning{border-left:4px solid #d68b00;background:#fffaf0;padding:11px 12px;border-radius:8px;margin-top:12px;color:#5b4a27}.migration-error{border-left-color:#c9382f;background:#fff2f1;color:#8c2822}.archive-card{margin-top:16px;border-top:4px solid #25834c}.archive-steps{margin:12px 0;padding-left:22px;color:#4e5e71}.archive-confirm{display:flex;align-items:flex-start;gap:9px;padding:12px;background:#f3f8f5;border-radius:9px;margin:13px 0}.archive-confirm input{width:auto;margin:3px 0 0}.archive-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.setup-status{font-weight:700}.setup-ready{color:#16703a}.setup-needed{color:#9a5b00}@media(max-width:900px){.migration-grid{grid-template-columns:1fr}.migration-kpis{grid-template-columns:repeat(2,1fr)}}@media(max-width:560px){.migration-shell{width:94vw;margin-top:14px}.migration-head{display:block}.migration-head .btn{margin-top:10px}.required-files{grid-template-columns:1fr}.migration-kpis{grid-template-columns:1fr 1fr}.migration-card{padding:14px}}
   </style>
 </head>
 <body>
   <main class="migration-shell">
     <div class="migration-head">
-      <div><span class="stage-pill">Stage 1 • Read-only review</span><h1>MarketSharp Migration</h1><div class="sub">Connect the MarketSharp backup to Bauer lead numbers before importing records.</div></div>
-      <a class="btn" href="index.html?view=leads&v=20260908-14">Back to Contacts</a>
+      <div><span class="stage-pill">Archive and link</span><h1>MarketSharp Migration</h1><div class="sub">Preserve the backup first, then promote reviewed records into daily operations.</div></div>
+      <a class="btn" href="index.html?view=leads&v=20260908-15">Back to Contacts</a>
     </div>
 
     <div id="authNotice" class="notice hidden"></div>
@@ -37,7 +37,7 @@
 
       <section class="migration-card">
         <div class="toolbar">
-          <div><h2>2. Review the crosswalk</h2><p class="auth-note">No changes can be imported from this screen.</p></div>
+          <div><h2>2. Review the crosswalk</h2><p class="auth-note">Historical records without Bauer numbers are valid and do not need correction.</p></div>
           <div class="spacer"></div>
           <button class="btn small" id="downloadCrosswalkBtn" type="button" disabled>Download Crosswalk</button>
         </div>
@@ -46,7 +46,7 @@
           <div class="migration-kpi"><b id="migrationExact">0</b><span>Exact lead # matches</span></div>
           <div class="migration-kpi"><b id="migrationNew">0</b><span>New numbered inquiries</span></div>
           <div class="migration-kpi"><b id="migrationConflict">0</b><span>Need review</span></div>
-          <div class="migration-kpi"><b id="migrationUnlinked">0</b><span>No Bauer lead #</span></div>
+          <div class="migration-kpi"><b id="migrationUnlinked">0</b><span>Historical / no lead #</span></div>
         </div>
         <div class="migration-filters" id="migrationFilters">
           <button class="migration-filter active" data-migration-filter="all">All</button>
@@ -54,7 +54,7 @@
           <button class="migration-filter" data-migration-filter="new">New</button>
           <button class="migration-filter" data-migration-filter="conflict">Conflicts</button>
           <button class="migration-filter" data-migration-filter="review">Questionable</button>
-          <button class="migration-filter" data-migration-filter="unlinked">No lead #</button>
+          <button class="migration-filter" data-migration-filter="historical">Historical / no lead #</button>
           <input id="migrationSearch" type="search" placeholder="Search lead #, name, address, or source" style="flex:1;min-width:220px;margin:0">
         </div>
         <div class="migration-table-wrap">
@@ -66,7 +66,30 @@
         <div class="meta" id="migrationTableNote"></div>
       </section>
     </div>
+
+    <section class="migration-card archive-card">
+      <div class="toolbar">
+        <div><h2>3. Preserve the core MarketSharp records</h2><p class="auth-note">This copies contacts, inquiries, appointments, and jobs into separate archive tables. It does not change the Contacts or Open Jobs you currently use.</p></div>
+        <div class="spacer"></div>
+        <span id="archiveSetupStatus" class="setup-status setup-needed">Checking database setup…</span>
+      </div>
+      <ol class="archive-steps">
+        <li>If setup is needed, copy the setup SQL and run it once in the Supabase SQL Editor.</li>
+        <li>Select and analyze the MarketSharp files above.</li>
+        <li>Confirm and start the resumable archive import. Re-running it safely updates the same MarketSharp records.</li>
+      </ol>
+      <div class="archive-actions">
+        <button class="btn small" id="copyArchiveSetupBtn" type="button">Copy Database Setup SQL</button>
+        <button class="btn small" id="checkArchiveSetupBtn" type="button">Check Database Setup</button>
+      </div>
+      <label class="archive-confirm"><input id="archiveConfirm" type="checkbox"><span>I understand this preserves the core MarketSharp backup in separate archive tables and does not promote records into my working Contacts or Open Jobs yet.</span></label>
+      <div class="archive-actions">
+        <button class="btn success" id="archiveCoreBtn" type="button" disabled>Preserve Core Records</button>
+        <span class="status-line" id="archiveStatus">Analyze the backup and complete the database setup first.</span>
+      </div>
+      <div class="migration-progress hidden" id="archiveProgress"><span id="archiveProgressBar"></span></div>
+    </section>
   </main>
-  <script src="marketsharp-import.js?v=20260908-14"></script>
+  <script src="marketsharp-import.js?v=20260908-15"></script>
 </body>
 </html>

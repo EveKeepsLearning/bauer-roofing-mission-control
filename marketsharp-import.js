@@ -19,6 +19,9 @@ let selectedFiles = new Map();
 let migrationRows = [];
 let activeFilter = 'all';
 let existingLeads = [];
+let parsedBackup = null;
+let archiveSchemaReady = false;
+let archiveRunning = false;
 
 function esc(value) {
   return String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
@@ -65,6 +68,13 @@ function normalizedNumber(value) {
   if (!/^\d+(?:\.0+)?$/.test(cleaned)) return null;
   const number = Number(cleaned);
   return Number.isSafeInteger(number) ? number : null;
+}
+
+function marketSharpBoolean(value, fallback = false) {
+  const text = String(value ?? '').trim().toLowerCase();
+  if (['true','1','yes','y'].includes(text)) return true;
+  if (['false','0','no','n'].includes(text)) return false;
+  return fallback;
 }
 
 function fullName(contact) {
@@ -122,7 +132,7 @@ function filteredRows() {
 }
 
 function kindLabel(kind) {
-  return {exact:'Exact match',new:'New inquiry',conflict:'Conflict',review:'Questionable',unlinked:'No lead #'}[kind] || kind;
+  return {exact:'Exact match',new:'New inquiry',conflict:'Conflict',review:'Questionable',historical:'Historical'}[kind] || kind;
 }
 
 function renderTable() {
@@ -149,8 +159,12 @@ function renderSummary() {
   $('migrationExact').textContent = (counts.exact || 0).toLocaleString();
   $('migrationNew').textContent = (counts.new || 0).toLocaleString();
   $('migrationConflict').textContent = ((counts.conflict || 0) + (counts.review || 0)).toLocaleString();
-  $('migrationUnlinked').textContent = (counts.unlinked || 0).toLocaleString();
+  $('migrationUnlinked').textContent = (counts.historical || 0).toLocaleString();
   renderTable();
+}
+
+function updateArchiveButton() {
+  $('archiveCoreBtn').disabled = archiveRunning || !archiveSchemaReady || !parsedBackup || !$('archiveConfirm').checked;
 }
 
 async function analyzeBackup() {
@@ -177,18 +191,27 @@ async function analyzeBackup() {
     });
 
     updateProgress(24, 'Reading contacts…');
-    const contacts = new Map((await xmlRows('CONTACT.xml')).map(row => [row.ID, row]));
+    const contactRows = await xmlRows('CONTACT.xml');
+    const contacts = new Map(contactRows.map(row => [row.ID, row]));
 
     updateProgress(36, 'Reading properties…');
+    const addressRows = await xmlRows('ADDRESS.xml');
     const addresses = new Map();
-    (await xmlRows('ADDRESS.xml')).forEach(row => {
+    addressRows.forEach(row => {
       const current = addresses.get(row['CONTACT ID']);
       if (!current || row['PRIMARY ADDR TYPE'] === '1') addresses.set(row['CONTACT ID'], row);
     });
 
     updateProgress(47, 'Reading phone numbers…');
+    const phoneRows = await xmlRows('PHONE_NUMBER.xml');
+    const phoneLists = new Map();
+    phoneRows.forEach(row => {
+      const list = phoneLists.get(row['CONTACT ID']) || [];
+      list.push(row);
+      phoneLists.set(row['CONTACT ID'], list);
+    });
     const phones = new Map();
-    (await xmlRows('PHONE_NUMBER.xml')).forEach(row => {
+    phoneRows.forEach(row => {
       const contact = contacts.get(row['CONTACT ID']);
       const current = phones.get(row['CONTACT ID']);
       if (!current || contact?.['PRIMARY PHONE ID'] === row.ID) phones.set(row['CONTACT ID'], normalizedPhone(row));
@@ -196,11 +219,13 @@ async function analyzeBackup() {
 
     updateProgress(58, 'Reading appointments…');
     const appointmentCounts = new Map();
-    (await xmlRows('APPOINTMENT.xml')).forEach(row => appointmentCounts.set(row['LEAD ID'], (appointmentCounts.get(row['LEAD ID']) || 0) + 1));
+    const appointments = await xmlRows('APPOINTMENT.xml');
+    appointments.forEach(row => appointmentCounts.set(row['LEAD ID'], (appointmentCounts.get(row['LEAD ID']) || 0) + 1));
 
     updateProgress(68, 'Reading jobs…');
     const jobCounts = new Map();
-    (await xmlRows('JOB.xml')).forEach(row => jobCounts.set(row['LEAD ID'], (jobCounts.get(row['LEAD ID']) || 0) + 1));
+    const jobs = await xmlRows('JOB.xml');
+    jobs.forEach(row => jobCounts.set(row['LEAD ID'], (jobCounts.get(row['LEAD ID']) || 0) + 1));
 
     updateProgress(78, 'Reading MarketSharp inquiries…');
     const marketSharpLeads = await xmlRows('LEAD.xml');
@@ -224,8 +249,8 @@ async function analyzeBackup() {
       const address = leadAddress(lead, addresses.get(lead['CONTACT ID']));
       const bauerLeadNumber = numberByLead.has(marketsharpLeadId) ? numberByLead.get(marketsharpLeadId) : null;
       const existing = bauerLeadNumber === null ? [] : (existingByNumber.get(bauerLeadNumber) || []);
-      let kind = 'unlinked';
-      let reason = 'No Lead Number Product Interest was entered in MarketSharp.';
+      let kind = 'historical';
+      let reason = 'Valid MarketSharp history from before or outside Bauer lead numbering.';
       if (bauerLeadNumber !== null) {
         if (bauerLeadNumber <= 0) {
           kind = 'review'; reason = 'The stored lead number is zero and cannot identify an inquiry.';
@@ -262,6 +287,8 @@ async function analyzeBackup() {
       };
     }).sort((a,b) => (a.bauerLeadNumber ?? Number.MAX_SAFE_INTEGER) - (b.bauerLeadNumber ?? Number.MAX_SAFE_INTEGER));
 
+    parsedBackup = {contactRows, contacts, addressRows, addresses, phoneRows, phoneLists, phones, marketSharpLeads, appointments, jobs};
+
     updateProgress(100, `Comparison complete: ${migrationRows.length.toLocaleString()} MarketSharp inquiries reviewed.`);
     $('downloadCrosswalkBtn').disabled = false;
     const duplicated = migrationRows.filter(row => row.kind === 'conflict').length;
@@ -271,12 +298,14 @@ async function analyzeBackup() {
       $('migrationWarning').classList.remove('hidden');
     }
     renderSummary();
+    updateArchiveButton();
   } catch (error) {
     $('migrationStatus').textContent = error.message || String(error);
     $('migrationWarning').textContent = 'The comparison stopped without changing Bauer Roofing Operations.';
     $('migrationWarning').className = 'migration-warning migration-error';
   } finally {
     button.disabled = REQUIRED_FILES.some(name => !selectedFiles.has(name.toUpperCase())) || !db;
+    updateArchiveButton();
   }
 }
 
@@ -301,6 +330,174 @@ function downloadCrosswalk() {
   setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 
+async function checkArchiveSetup() {
+  if (!db) return false;
+  $('archiveSetupStatus').textContent = 'Checking database setup…';
+  $('archiveSetupStatus').className = 'setup-status setup-needed';
+  const result = await db.from('marketsharp_inquiries').select('marketsharp_lead_id', {count:'exact', head:true});
+  archiveSchemaReady = !result.error;
+  if (archiveSchemaReady) {
+    $('archiveSetupStatus').textContent = `Database ready • ${(result.count || 0).toLocaleString()} inquiries preserved`;
+    $('archiveSetupStatus').className = 'setup-status setup-ready';
+  } else {
+    $('archiveSetupStatus').textContent = 'Database setup needed';
+    $('archiveSetupStatus').className = 'setup-status setup-needed';
+  }
+  updateArchiveButton();
+  return archiveSchemaReady;
+}
+
+async function copyArchiveSetupSql() {
+  try {
+    const response = await fetch(`supabase-marketsharp-archive.sql?t=${Date.now()}`, {cache:'no-store'});
+    if (!response.ok) throw new Error('The setup file could not be opened.');
+    const sql = await response.text();
+    await navigator.clipboard.writeText(sql);
+    $('archiveStatus').textContent = 'Database setup SQL copied. Paste it into the Supabase SQL Editor and click Run.';
+  } catch (error) {
+    const link = document.createElement('a');
+    link.href = 'supabase-marketsharp-archive.sql';
+    link.download = 'supabase-marketsharp-archive.sql';
+    link.click();
+    $('archiveStatus').textContent = 'The setup SQL was downloaded. Open it, copy everything, and run it in the Supabase SQL Editor.';
+  }
+}
+
+function setArchiveProgress(percent, text) {
+  $('archiveProgress').classList.remove('hidden');
+  $('archiveProgressBar').style.width = `${Math.max(0, Math.min(100, percent))}%`;
+  $('archiveStatus').textContent = text;
+}
+
+async function upsertArchiveBatches(table, rows, conflictColumn, startPercent, endPercent, label) {
+  const batchSize = 250;
+  for (let start = 0; start < rows.length; start += batchSize) {
+    const batch = rows.slice(start, start + batchSize);
+    const result = await db.from(table).upsert(batch, {onConflict:conflictColumn});
+    if (result.error) throw new Error(`${label} stopped: ${result.error.message}`);
+    const completed = Math.min(start + batch.length, rows.length);
+    const progress = rows.length ? completed / rows.length : 1;
+    setArchiveProgress(startPercent + (endPercent - startPercent) * progress, `${label}: ${completed.toLocaleString()} of ${rows.length.toLocaleString()}`);
+  }
+}
+
+function contactArchiveRows() {
+  return parsedBackup.contactRows.filter(row => row.ID).map(contact => {
+    const address = parsedBackup.addresses.get(contact.ID) || {};
+    const phoneRows = parsedBackup.phoneLists.get(contact.ID) || [];
+    const primary = phoneRows.find(row => row.ID === contact['PRIMARY PHONE ID']) || phoneRows[0] || {};
+    const secondary = phoneRows.find(row => row.ID !== primary.ID) || {};
+    return {
+      marketsharp_contact_id: contact.ID,
+      first_name: contact['CONTACT FIRST NAME'] || null,
+      last_name: contact['CONTACT LAST NAME'] || null,
+      business_name: contact['BUSINESS NAME'] || null,
+      primary_email: contact['PRIMARY EMAIL'] || null,
+      phone: normalizedPhone(primary) || null,
+      phone_secondary: normalizedPhone(secondary) || null,
+      address_line_one: address['ADDR LINEONE'] || null,
+      address_line_two: address['ADDR LINETWO'] || null,
+      city: address['ADDR CITY'] || null,
+      state: address['ADDR STATE'] || null,
+      zip: address['ADDR ZIP'] || null,
+      do_not_mail: marketSharpBoolean(contact['CONTACT DO NOT MAIL']),
+      do_not_email: marketSharpBoolean(contact['HAS DNE EMAIL']) || marketSharpBoolean(contact['PRIMARY EMAIL DNE']),
+      do_not_call: phoneRows.some(row => marketSharpBoolean(row['PHONE HOUSE DO NOT CALL'])),
+      do_not_text: phoneRows.some(row => marketSharpBoolean(row['PHONE DNT TEXTING OPT OUT'])),
+      raw_data: contact,
+      updated_at: new Date().toISOString()
+    };
+  });
+}
+
+function inquiryArchiveRows() {
+  const crosswalk = new Map(migrationRows.map(row => [row.marketsharpLeadId, row]));
+  return parsedBackup.marketSharpLeads.filter(row => row.ID).map(lead => {
+    const match = crosswalk.get(lead.ID);
+    return {
+      marketsharp_lead_id: lead.ID,
+      marketsharp_contact_id: lead['CONTACT ID'] || null,
+      bauer_lead_number: match?.bauerLeadNumber === null || match?.bauerLeadNumber === undefined ? null : String(match.bauerLeadNumber),
+      operations_lead_id: match?.operationsLeadId || null,
+      migration_class: match?.kind || 'historical',
+      source: lead['LEAD SOURCE PRIMARY DESCRIPTION'] || null,
+      description: lead['LEAD DESCRIPTION'] || null,
+      notes: lead['LEAD NOTES'] || null,
+      inquiry_date_text: lead['LEAD INQUIRY DATETIME'] || lead['LEAD CREATION DATE'] || null,
+      property_address: lead['LEAD JOB SITE ADDRESS'] || null,
+      property_address_line_two: lead['LEAD JOB SITE ADDRESS LINE2'] || null,
+      city: lead['LEAD JOB SITE CITY'] || null,
+      state: lead['LEAD JOB SITE STATE'] || null,
+      zip: lead['LEAD JOB SITE ZIP'] || null,
+      appointment_count: match?.appointmentCount || 0,
+      job_count: match?.jobCount || 0,
+      raw_data: lead,
+      updated_at: new Date().toISOString()
+    };
+  });
+}
+
+function appointmentArchiveRows() {
+  return parsedBackup.appointments.filter(row => row.ID).map(appointment => ({
+    marketsharp_appointment_id: appointment.ID,
+    marketsharp_lead_id: appointment['LEAD ID'] || null,
+    appointment_date_text: appointment['APPT DATE'] || null,
+    appointment_set_date_text: appointment['APPT SET DATE'] || null,
+    appointment_type: appointment['APPT TYPE'] || null,
+    appointment_result: appointment['APPT RESULT CODE DESCRIPTION'] || null,
+    salesperson_employee_id: appointment['APPT SALES1 EMP ID'] || null,
+    is_active: marketSharpBoolean(appointment['IS ACTIVE'], true),
+    raw_data: appointment,
+    updated_at: new Date().toISOString()
+  }));
+}
+
+function jobArchiveRows() {
+  return parsedBackup.jobs.filter(row => row.ID).map(job => ({
+    marketsharp_job_id: job.ID,
+    marketsharp_lead_id: job['LEAD ID'] || null,
+    marketsharp_contact_id: job['CONTACT ID'] || null,
+    job_number: job['JOB NUMBER'] || null,
+    job_name: job['JOB NAME'] || null,
+    job_description: job['JOB DESC'] || null,
+    job_type: job['JOB TYPE'] || null,
+    job_status: job['JOB STATUS'] || null,
+    address_line_one: job['JOB ADDRESS1'] || null,
+    address_line_two: job['JOB ADDRESS2'] || null,
+    city: job['JOB CITY'] || null,
+    state: job['JOB STATE'] || null,
+    zip: job['JOB ZIP'] || null,
+    start_date_text: job['JOB START DATE'] || null,
+    sale_date_text: job['SALE DATE'] || null,
+    notes: job['JOB NOTE'] || null,
+    is_active: marketSharpBoolean(job['IS ACTIVE'], true),
+    raw_data: job,
+    updated_at: new Date().toISOString()
+  }));
+}
+
+async function archiveCoreRecords() {
+  if (!archiveSchemaReady || !parsedBackup || archiveRunning || !$('archiveConfirm').checked) return;
+  const counts = [parsedBackup.contactRows.length, parsedBackup.marketSharpLeads.length, parsedBackup.appointments.length, parsedBackup.jobs.length];
+  const total = counts.reduce((sum, count) => sum + count, 0);
+  if (!confirm(`Preserve ${total.toLocaleString()} core MarketSharp records in separate archive tables? Existing Contacts and Open Jobs will not be changed.`)) return;
+  archiveRunning = true;
+  updateArchiveButton();
+  try {
+    await upsertArchiveBatches('marketsharp_contacts', contactArchiveRows(), 'marketsharp_contact_id', 0, 29, 'Preserving contacts');
+    await upsertArchiveBatches('marketsharp_inquiries', inquiryArchiveRows(), 'marketsharp_lead_id', 29, 62, 'Preserving inquiries and lead-number links');
+    await upsertArchiveBatches('marketsharp_appointments', appointmentArchiveRows(), 'marketsharp_appointment_id', 62, 91, 'Preserving appointments');
+    await upsertArchiveBatches('marketsharp_jobs', jobArchiveRows(), 'marketsharp_job_id', 91, 100, 'Preserving jobs');
+    setArchiveProgress(100, `${total.toLocaleString()} core MarketSharp records are safely preserved. Re-running this step will update the same records, not duplicate them.`);
+    await checkArchiveSetup();
+  } catch (error) {
+    $('archiveStatus').textContent = `${error.message || String(error)} You can safely run the archive again; completed batches will be updated rather than duplicated.`;
+  } finally {
+    archiveRunning = false;
+    updateArchiveButton();
+  }
+}
+
 async function start() {
   $('requiredFiles').innerHTML = REQUIRED_FILES.map(name => `<span>${esc(name)}</span>`).join('');
   if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) {
@@ -314,7 +511,8 @@ async function start() {
     showNotice('Sign in to Bauer Roofing Operations first, then return to this migration screen.', 'error');
     $('authNotice').insertAdjacentHTML('beforeend', ' <a href="index.html">Open sign in</a>');
   } else {
-    showNotice(`Signed in as ${session.data.session.user.email}. This screen is read only.`, 'success');
+    showNotice(`Signed in as ${session.data.session.user.email}. Review first; archive only after confirmation.`, 'success');
+    await checkArchiveSetup();
   }
   updateFileChecklist();
 }
@@ -325,6 +523,10 @@ $('marketsharpFiles').addEventListener('change', event => {
 });
 $('analyzeMarketSharpBtn').addEventListener('click', analyzeBackup);
 $('downloadCrosswalkBtn').addEventListener('click', downloadCrosswalk);
+$('copyArchiveSetupBtn').addEventListener('click', copyArchiveSetupSql);
+$('checkArchiveSetupBtn').addEventListener('click', checkArchiveSetup);
+$('archiveConfirm').addEventListener('change', updateArchiveButton);
+$('archiveCoreBtn').addEventListener('click', archiveCoreRecords);
 $('migrationSearch').addEventListener('input', renderTable);
 $('migrationFilters').addEventListener('click', event => {
   const button = event.target.closest('[data-migration-filter]');
