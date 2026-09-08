@@ -35,6 +35,7 @@ let selectedContactKey = '';
 let contactArchitectureAvailable = false;
 let pendingRelatedContactId = '';
 let expandedCurrentTaskId = '';
+let contactLayoutMode = localStorage.getItem('bauer_contact_layout') === 'table' ? 'table' : 'cards';
 let urlNavigationApplied = false;
 let leadAddressSessionToken = null;
 let leadAddressPredictions = [];
@@ -4650,7 +4651,7 @@ function contactGroups() {
     group.lastActivity = dates.at(-1) || '';
     group.firstActivity = dates[0] || '';
   });
-  return [...groups.values()];
+  return [...groups.values()].filter(group => group.inquiries.length || group.jobs.length);
 }
 
 function contactMatchesView(group, view) {
@@ -4702,6 +4703,58 @@ function renderContactDetail(group) {
     <div class="contact-record-layout"><div class="contact-main-column"><section class="contact-section"><div class="contact-section-head"><h3>Inquiries</h3>${primaryInquiry?`<button class="btn small primary" data-new-related-inquiry="${esc(group.key)}">+ Inquiry</button>`:''}</div>${inquiryHtml}</section><section class="contact-section"><h3>Activity</h3><div class="contact-timeline">${activityHtml}</div></section></div><aside class="contact-side-column"><section class="contact-section"><h3>Properties</h3>${propertyHtml}</section><section class="contact-section"><h3>Jobs</h3>${jobHtml}</section></aside></div>`;
 }
 
+function setContactLayout(mode, save = true) {
+  contactLayoutMode = mode === 'table' ? 'table' : 'cards';
+  if (save) localStorage.setItem('bauer_contact_layout',contactLayoutMode);
+  $('contactsWorkspace')?.classList.toggle('hidden',contactLayoutMode==='table');
+  $('contactTableCard')?.classList.toggle('hidden',contactLayoutMode!=='table');
+  document.querySelectorAll('[data-contact-layout]').forEach(button=>{
+    const active=button.dataset.contactLayout===contactLayoutMode;
+    button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));
+  });
+}
+
+function renderContactTable(groups) {
+  const body=$('contactTableBody');if(!body)return;
+  const selectedView=$('contactView');
+  if($('contactTableCard')&&selectedView)$('contactTableCard').querySelector('h3').textContent=selectedView.options[selectedView.selectedIndex]?.text||'All Contacts';
+  if($('contactTableCount'))$('contactTableCount').textContent=`${groups.length} ${groups.length===1?'contact':'contacts'}`;
+  body.innerHTML=groups.map(group=>{
+    const property=group.properties[0];
+    const labels=group.labels.length?group.labels.join(', '):'Contact';
+    return `<tr><td><button class="contact-table-name" type="button" data-contact-open="${esc(group.key)}">${esc(group.name)}</button>${group.spouse?`<small>${esc(group.spouse)}</small>`:''}</td><td>${esc(group.phone||'—')}${group.phoneSecondary?`<small>${esc(group.phoneSecondary)}</small>`:''}</td><td>${esc(group.email||'—')}</td><td>${esc(property?contactPropertyText(property):'—')}</td><td class="contact-table-number">${group.inquiries.length}</td><td class="contact-table-number">${group.jobs.length}</td><td>${esc(labels)}</td><td>${esc(group.lastActivity?formatWhen(group.lastActivity):'—')}</td><td><div class="contact-table-actions"><button class="btn small" type="button" data-contact-open="${esc(group.key)}">View</button><button class="btn small" type="button" data-contact-edit="${esc(group.key)}">Edit</button><button class="btn small danger-link" type="button" data-contact-delete="${esc(group.key)}">Delete</button></div></td></tr>`;
+  }).join('')||'<tr><td colspan="9" class="report-empty">No contacts match this view.</td></tr>';
+}
+
+function openContactEdit(contactKey){
+  const group=contactGroups().find(item=>item.key===contactKey);if(!group)return;
+  const lead=group.inquiries[0]||{};
+  $('contactEditKey').value=group.key;$('contactFirstName').value=group.contact?.first_name||lead.first_name||'';$('contactLastName').value=group.contact?.last_name||lead.last_name||'';$('contactSpouseName').value=group.spouse||'';$('contactPhone').value=group.phone||'';$('contactPhoneSecondary').value=group.phoneSecondary||'';$('contactEmail').value=group.email||'';
+  $('contactDialog').showModal();
+}
+
+async function saveContactEdit(){
+  try{
+    const group=contactGroups().find(item=>item.key===$('contactEditKey').value);if(!group)return;
+    const first=$('contactFirstName').value.trim(),last=$('contactLastName').value.trim(),displayName=[first,last].filter(Boolean).join(' ')||group.name;
+    const shared={first_name:first||null,last_name:last||null,spouse_name:$('contactSpouseName').value.trim()||null,phone:$('contactPhone').value.trim()||null,phone_secondary:$('contactPhoneSecondary').value.trim()||null,email:$('contactEmail').value.trim()||null};
+    if(group.contact&&contactArchitectureAvailable){const result=await db.from('contacts').update({...shared,display_name:displayName,updated_at:new Date().toISOString()}).eq('id',group.contact.id);if(result.error)throw result.error;}
+    for(const lead of group.inquiries){const result=await db.from('leads').update({...shared,homeowner_name:displayName,updated_at:new Date().toISOString()}).eq('id',lead.id);if(result.error)throw result.error;}
+    for(const job of group.jobs){const result=await db.from('jobs').update({customer_name:displayName,updated_at:new Date().toISOString()}).eq('id',job.id);if(result.error)throw result.error;}
+    $('contactDialog').close();await loadAll();msg('Contact updated across connected inquiries and jobs.','success');
+  }catch(error){msg('Could not update contact: '+(error.message||String(error)),'error');}
+}
+
+async function deleteContactGroup(contactKey){
+  const group=contactGroups().find(item=>item.key===contactKey);if(!group)return;
+  if(group.jobs.some(job=>!job.deleted_at)){msg('This contact has job history. Delete or reassign those jobs before deleting the contact.','error');return;}
+  if(!confirm(`Delete ${group.name} and ${group.inquiries.length} connected ${group.inquiries.length===1?'inquiry':'inquiries'}? Use this only for a duplicate, test, or incorrect contact.`))return;
+  try{
+    for(const lead of group.inquiries.filter(item=>!item.deleted_at)){const result=await db.rpc('bauer_record_action',{p_table:'leads',p_id:lead.id,p_action:'delete',p_description:`Deleted with contact ${group.name}.`});if(result.error)throw result.error;}
+    selectedContactKey='';await loadAll();msg('Contact deleted.','success');
+  }catch(error){msg('Could not delete contact: '+(error.message||String(error)),'error');}
+}
+
 function renderProspectsLeads() {
   if (!$('leadList')) return;
   const now = new Date();
@@ -4732,6 +4785,7 @@ function renderProspectsLeads() {
     const primaryLabel = group.labels[0] || 'Contact';
     return `<button class="lead-queue-row ${group.key===selectedContactKey?'selected':''}" data-contact-select="${esc(group.key)}" type="button"><div class="lead-row-top"><strong>${esc(group.name)}</strong><span class="lead-status-pill tone-active">${esc(primaryLabel)}</span></div><div class="meta">${esc(group.phone || group.email || 'No contact information')}</div>${property?`<div class="lead-row-address">${esc(contactPropertyText(property))}</div>`:''}<div class="lead-row-next">${group.inquiries.length} ${group.inquiries.length===1?'inquiry':'inquiries'} • ${group.jobs.length} ${group.jobs.length===1?'job':'jobs'}</div></button>`;
   }).join('') || empty(query ? 'No contacts match that search.' : 'No contacts in this view.');
+  renderContactTable(groups);setContactLayout(contactLayoutMode,false);
   renderContactDetail(selected);
   $('appointmentList').innerHTML = upcomingAppointments.slice(0,20).map(a => { const lead=state.leads.find(l=>l.id===a.lead_id); return `<div class="task"><b>${esc(lead?leadName(lead):'Contact')}</b><div class="meta">${esc(formatWhen(a.appointment_at))} • ${esc(a.appointment_status||'Scheduled')}${a.assigned_to?' • '+esc(a.assigned_to):''}</div><div class="actions"><button class="btn small" data-edit-appointment="${esc(a.id)}">Edit</button></div></div>`; }).join('') || empty('No upcoming appointments entered yet.');
   const archived = state.leads.filter(l=>!l.deleted_at&&l.archived_at);
@@ -5324,6 +5378,10 @@ async function loadAll(){
 // Additional click handling for editing and record safety actions.
 document.body.addEventListener('click', async event => {
   try {
+    const layoutButton=event.target.closest('[data-contact-layout]');if(layoutButton){setContactLayout(layoutButton.dataset.contactLayout);return;}
+    const openContact=event.target.closest('[data-contact-open]');if(openContact){selectedContactKey=openContact.dataset.contactOpen;setContactLayout('cards');renderProspectsLeads();requestAnimationFrame(()=>$('leadDetail')?.scrollIntoView({behavior:'smooth',block:'start'}));return;}
+    const editContact=event.target.closest('[data-contact-edit]');if(editContact){openContactEdit(editContact.dataset.contactEdit);return;}
+    const deleteContact=event.target.closest('[data-contact-delete]');if(deleteContact){await deleteContactGroup(deleteContact.dataset.contactDelete);return;}
     const continueTask=event.target.closest('[data-continue-task]');if(continueTask){expandedCurrentTaskId=expandedCurrentTaskId===continueTask.dataset.continueTask?'':continueTask.dataset.continueTask;renderDashboard();requestAnimationFrame(()=>$('currentTask')?.scrollIntoView({behavior:'smooth',block:'start'}));return;}
     const subtaskToggle=event.target.closest('[data-subtask-toggle]');if(subtaskToggle){await toggleTaskSubtask(subtaskToggle.dataset.subtaskToggle);return;}
     const editNote=event.target.closest('[data-edit-quick-note]'); if(editNote){const n=(state.quick_notes||[]).find(x=>x.id===editNote.dataset.editQuickNote);if(n){$('quickNoteEditId').value=n.id;$('quickNoteText').value=n.note||'';$('saveQuickNoteBtn').textContent='Save Changes';$('cancelQuickNoteEditBtn').classList.remove('hidden');$('quickNoteText').focus();}return;}
@@ -5360,6 +5418,7 @@ if($('newSopBtn')) $('newSopBtn').onclick=()=>openSopEditor();
 if($('editSopBtn')) $('editSopBtn').onclick=()=>openSopEditor($('sopSelect').value);
 if($('saveSopBtn')) $('saveSopBtn').onclick=saveSop;
 if($('cancelSopBtn')) $('cancelSopBtn').onclick=()=>{$('sopDialog').close();clearSopForm();};
+if($('saveContactBtn'))$('saveContactBtn').onclick=saveContactEdit;
 if ($('newProspectBtn')) $('newProspectBtn').onclick=()=>openProspectDialog();
 $('newLeadBtn').onclick=()=>{clearLeadForm();openLeadDialog();};
 if ($('leadSearch')) $('leadSearch').oninput=()=>{ selectedLeadId='';selectedContactKey=''; renderProspectsLeads(); };

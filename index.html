@@ -6,11 +6,11 @@
 
   <title>Bauer Roofing Operations</title>
 
-  <link rel="stylesheet" href="styles.css?v=20260908-11">
+  <link rel="stylesheet" href="styles.css?v=20260908-12">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="config.js?v=20260908-11"></script>
+  <script src="config.js?v=20260908-12"></script>
 
   <style>
     .nav a.nav-calendar-link{
@@ -515,7 +515,7 @@
               <p class="auth-note">One person can have multiple inquiries, properties, and jobs. Select a contact to see the complete relationship.</p>
             </div>
             <div class="spacer"></div>
-            <a class="btn small" href="leads-sync.html?v=20260908-11">Sync Leads.xlsx</a>
+            <a class="btn small" href="leads-sync.html?v=20260908-12">Sync Leads.xlsx</a>
             <button class="btn small" id="leadReportsBtn" type="button">Reports</button>
             <button class="btn small primary" id="newLeadBtn">+ Inquiry</button>
           </div>
@@ -541,9 +541,14 @@
               <option value="name">Contact name</option>
             </select>
           </div>
+
+          <div class="contact-layout-toggle" role="group" aria-label="Contacts display">
+            <button class="btn small active" type="button" data-contact-layout="cards" aria-pressed="true">Contact Cards</button>
+            <button class="btn small" type="button" data-contact-layout="table" aria-pressed="false">Table View</button>
+          </div>
         </div>
 
-        <div class="leads-workspace">
+        <div class="leads-workspace" id="contactsWorkspace">
           <div class="card leads-rail-card">
             <h3>Contact List</h3>
             <div id="leadList" class="leads-queue-list"></div>
@@ -551,6 +556,19 @@
 
           <div id="leadDetail" class="card leads-detail-card">
             <div class="empty">Select a contact.</div>
+          </div>
+        </div>
+
+        <div class="card contact-table-card hidden" id="contactTableCard">
+          <div class="contact-table-heading">
+            <h3>All Contacts</h3>
+            <span class="meta" id="contactTableCount"></span>
+          </div>
+          <div class="contact-table-wrap">
+            <table class="contact-table">
+              <thead><tr><th>Contact</th><th>Phone</th><th>Email</th><th>Property</th><th>Inquiries</th><th>Jobs</th><th>Status</th><th>Last activity</th><th>Actions</th></tr></thead>
+              <tbody id="contactTableBody"></tbody>
+            </table>
           </div>
         </div>
 
@@ -756,6 +774,23 @@
             <button class="btn primary" type="button" id="saveSopBtn">Save SOP</button>
             <button class="btn" type="button" id="cancelSopBtn">Cancel</button>
           </div>
+        </form>
+      </dialog>
+
+      <dialog id="contactDialog">
+        <form method="dialog" class="card" style="min-width:min(620px,90vw);margin:0">
+          <h2>Edit Contact</h2>
+          <input id="contactEditKey" type="hidden">
+          <p class="auth-note">These details belong to the person and will be updated across their connected inquiries.</p>
+          <div class="form-grid">
+            <div><label>First name</label><input id="contactFirstName"></div>
+            <div><label>Last name</label><input id="contactLastName"></div>
+            <div class="wide"><label>Spouse / other contact</label><input id="contactSpouseName"></div>
+            <div><label>Main phone</label><input id="contactPhone" type="tel"></div>
+            <div><label>Other phone</label><input id="contactPhoneSecondary" type="tel"></div>
+            <div class="wide"><label>Email</label><input id="contactEmail" type="email"></div>
+          </div>
+          <div class="toolbar"><button class="btn primary" type="button" id="saveContactBtn">Save Contact</button><button class="btn" value="cancel">Cancel</button></div>
         </form>
       </dialog>
 
@@ -1864,7 +1899,7 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=20260908-11"></script>
+  <script src="app.js?v=20260908-12"></script>
 
 </body>
 </html>
