@@ -6,11 +6,11 @@
 
   <title>Bauer Roofing Mission Control</title>
 
-  <link rel="stylesheet" href="styles.css?v=20260908-2">
+  <link rel="stylesheet" href="styles.css?v=20260908-3">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="config.js?v=20260908-2"></script>
+  <script src="config.js?v=20260908-3"></script>
 
   <style>
     .nav a.nav-calendar-link{
@@ -41,9 +41,8 @@
       <h1>Bauer Roofing Mission Control</h1>
 
       <p class="auth-note">
-        Sign in with your email. Supabase will send a secure sign-in link.
-        Your roofing data stays protected by row-level security even though
-        the website can be hosted publicly.
+        Sign in with your Mission Control email and password. This password
+        is separate from your email account password.
       </p>
 
       <label>Email</label>
@@ -55,11 +54,25 @@
         placeholder="you@example.com"
       >
 
+      <label>Password</label>
+
+      <input
+        id="loginPassword"
+        type="password"
+        autocomplete="current-password"
+        placeholder="Mission Control password"
+      >
+
       <button
         class="btn primary"
         id="loginBtn">
-        Send sign-in link
+        Sign in
       </button>
+
+      <div class="auth-secondary-actions">
+        <button class="btn ghost small" id="magicLinkBtn" type="button">Email a sign-in link</button>
+        <button class="btn ghost small" id="resetPasswordBtn" type="button">Set or reset password</button>
+      </div>
 
       <div
         id="loginMsg"
@@ -92,6 +105,8 @@
 
 
         <div class="toolbar">
+
+          <span class="signed-in-email" id="signedInEmail"></span>
 
           <button
             class="btn ghost small"
@@ -1624,7 +1639,22 @@
   </div>
 
 
-  <script src="app.js?v=20260908-2"></script>
+  <dialog id="passwordDialog">
+    <form method="dialog" class="dialog-card" id="passwordForm">
+      <h2>Choose a Mission Control password</h2>
+      <p class="muted">Use at least 8 characters. Do not reuse your email account password.</p>
+      <label>New password</label>
+      <input id="newPassword" type="password" autocomplete="new-password" minlength="8">
+      <label>Confirm password</label>
+      <input id="confirmPassword" type="password" autocomplete="new-password" minlength="8">
+      <div class="dialog-actions">
+        <button class="btn ghost" value="cancel">Cancel</button>
+        <button class="btn primary" id="savePasswordBtn" type="button">Save password</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js?v=20260908-3"></script>
 
 </body>
 </html>

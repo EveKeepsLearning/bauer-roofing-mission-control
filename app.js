@@ -1,6 +1,8 @@
 'use strict';
 
 const cfg = window.BAUER_CONFIG || {};
+const initialAuthHash = new URLSearchParams(window.location.hash.replace(/^#/,''));
+const passwordRecoveryRequested = initialAuthHash.get('type') === 'recovery';
 
 let db = null;
 let user = null;
@@ -2788,12 +2790,16 @@ async function init() {
     session
   );
 
-  db.auth.onAuthStateChange(
-    (_event, nextSession) =>
-      handleSession(
-        nextSession
-      )
-  );
+  if(passwordRecoveryRequested && session){
+    setTimeout(()=>$('passwordDialog')?.showModal(),0);
+  }
+
+  db.auth.onAuthStateChange((event,nextSession)=>{
+    handleSession(nextSession);
+    if(event==='PASSWORD_RECOVERY'){
+      setTimeout(()=>$('passwordDialog')?.showModal(),0);
+    }
+  });
 }
 
 
@@ -2803,6 +2809,11 @@ async function handleSession(
   user =
     session?.user ||
     null;
+
+  if ($('signedInEmail')) {
+    $('signedInEmail').textContent = user?.email ? `Signed in: ${user.email}` : '';
+    $('signedInEmail').title = user?.email || '';
+  }
 
   $('loginView')
     .classList
@@ -2855,47 +2866,53 @@ async function handleSession(
 }
 
 
-$('loginBtn').onclick =
-  async () => {
+async function loginWithPassword() {
+  const email=$('loginEmail').value.trim();
+  const password=$('loginPassword').value;
+  if(!email||!password){
+    authMsg('Enter your email and Mission Control password.','error');
+    return;
+  }
+  const {error}=await db.auth.signInWithPassword({email,password});
+  authMsg(error?error.message:'Signed in.',error?'error':'success');
+}
 
-    const email =
-      $('loginEmail')
-        .value
-        .trim();
+$('loginBtn').onclick=loginWithPassword;
+$('loginPassword').addEventListener('keydown',event=>{
+  if(event.key==='Enter'){event.preventDefault();loginWithPassword();}
+});
 
-    if (!email) {
-      authMsg(
-        'Enter your email.',
-        'error'
-      );
+$('magicLinkBtn').onclick=async()=>{
+  const email=$('loginEmail').value.trim();
+  if(!email)return authMsg('Enter your email first.','error');
+  const {error}=await db.auth.signInWithOtp({email,options:{
+    shouldCreateUser:false,
+    emailRedirectTo:new URL(cfg.APP_URL||'./',window.location.href).toString()
+  }});
+  authMsg(error?error.message:'Check your email for the sign-in link.',error?'error':'success');
+};
 
-      return;
-    }
+$('resetPasswordBtn').onclick=async()=>{
+  const email=$('loginEmail').value.trim();
+  if(!email)return authMsg('Enter your email first.','error');
+  const {error}=await db.auth.resetPasswordForEmail(email,{
+    redirectTo:new URL(cfg.APP_URL||'./',window.location.href).toString()
+  });
+  authMsg(error?error.message:'Check your email for the password setup link.',error?'error':'success');
+};
 
-    const {
-      error
-    } =
-      await db.auth.signInWithOtp({
-        email,
-        options: {
-          // This must match the production URL allowed in Supabase.
-          // Release checking runs after the authentication callback.
-          emailRedirectTo:new URL(cfg.APP_URL||'./',window.location.href).toString()
-        }
-      });
-
-    if (error) {
-      authMsg(
-        error.message,
-        'error'
-      );
-    } else {
-      authMsg(
-        'Check your email for the sign-in link.',
-        'success'
-      );
-    }
-  };
+$('savePasswordBtn').onclick=async()=>{
+  const password=$('newPassword').value;
+  const confirmation=$('confirmPassword').value;
+  if(password.length<8)return msg('Use at least 8 characters.','error');
+  if(password!==confirmation)return msg('The passwords do not match.','error');
+  const {error}=await db.auth.updateUser({password});
+  if(error)return msg(error.message,'error');
+  $('passwordDialog').close();
+  $('newPassword').value='';
+  $('confirmPassword').value='';
+  msg('Your Mission Control password is ready.','success');
+};
 
 
 $('logoutBtn').onclick =
