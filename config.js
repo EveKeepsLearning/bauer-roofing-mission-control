@@ -1,5 +1,5 @@
 window.BAUER_CONFIG = {
-  APP_VERSION: '20260909-25',
+  APP_VERSION: '20260909-26',
   APP_URL: 'https://evekeepslearning.github.io/bauer-roofing-mission-control/',
   SUPABASE_URL: 'https://eufimdrdimpkzowlupre.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_F-nEDaSaUQPwy2rTKy71LA_H4gxArBt',
@@ -7,7 +7,7 @@ window.BAUER_CONFIG = {
 };
 
 (function(){
-  const VERSION='20260909-25';
+  const VERSION='20260909-26';
   const NAV_ITEMS=[
     ['today','Today','index.html?view=today'],
     ['phone','Phone Message','index.html?view=phone'],
@@ -24,6 +24,6 @@ window.BAUER_CONFIG = {
   function wireMainNavigation(){const nav=document.getElementById('nav');if(!nav)return;const contactsButton=nav.querySelector('button[data-view="leads"]');if(contactsButton)contactsButton.onclick=e=>{e.preventDefault();location.href=`contacts.html?v=${VERSION}`;};const jobsButton=nav.querySelector('button[data-view="jobs"]');if(jobsButton)jobsButton.onclick=e=>{e.preventDefault();location.href=`jobs.html?v=${VERSION}`;};const syncCompact=()=>{const active=nav.querySelector('button.active[data-view]');document.body.classList.toggle('bro-main-compact',(active?.dataset.view||'today')!=='today');};syncCompact();new MutationObserver(syncCompact).observe(nav,{attributes:true,subtree:true,attributeFilter:['class']});const requested=new URLSearchParams(location.search).get('view');if(requested&&requested!=='today')setTimeout(()=>{const target=nav.querySelector(`button[data-view="${CSS.escape(requested)}"]`);if(target)target.click();},0);}
   function makeSaveBarsSticky(root=document){root.querySelectorAll('button').forEach(button=>{if(button.textContent.trim().toLowerCase()!=='save changes')return;const bar=button.closest('.toolbar,.dialog-actions,.toolbar2')||button.parentElement;if(bar)bar.classList.add('bro-sticky-save-bar');});}
   function loadScriptOnce(id,src){if(document.getElementById(id))return;const s=document.createElement('script');s.id=id;s.src=src;document.body.appendChild(s);}
-  function loadPageFixes(){const path=(location.pathname.split('/').pop()||'').toLowerCase();if(path==='jobs.html'){loadScriptOnce('jobsStageFixScript',`jobs-stage-fix.js?v=${VERSION}`);loadScriptOnce('jobsFinancialsScript',`jobs-financials.js?v=${VERSION}`);loadScriptOnce('jobsPaymentsScript',`jobs-payments.js?v=${VERSION}`);loadScriptOnce('jobsAddendumsScript',`jobs-addendums.js?v=${VERSION}`);}if(path==='inquiry.html')loadScriptOnce('inquiryFinancialsScript',`inquiry-financials.js?v=${VERSION}`);}
+  function loadPageFixes(){const path=(location.pathname.split('/').pop()||'').toLowerCase();if(path==='jobs.html'){loadScriptOnce('jobsStageFixScript',`jobs-stage-fix.js?v=${VERSION}`);loadScriptOnce('jobsFinancialsScript',`jobs-financials.js?v=${VERSION}`);loadScriptOnce('jobsPaymentsScript',`jobs-payments.js?v=${VERSION}`);loadScriptOnce('jobsAddendumsScript',`jobs-addendums.js?v=${VERSION}`);loadScriptOnce('jobsDragDropScript',`jobs-drag-drop.js?v=${VERSION}`);}if(path==='inquiry.html')loadScriptOnce('inquiryFinancialsScript',`inquiry-financials.js?v=${VERSION}`);}
   document.addEventListener('DOMContentLoaded',()=>{installSharedStyles();addStandaloneNav();wireMainNavigation();makeSaveBarsSticky();new MutationObserver(()=>makeSaveBarsSticky()).observe(document.body,{childList:true,subtree:true});loadPageFixes();});
 })();
