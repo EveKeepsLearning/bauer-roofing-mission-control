@@ -34,4 +34,6 @@
       await originalSave();
     };
   }
+
+  if(typeof inquiry!=='undefined' && inquiry && $('quotedPrice')) $('quotedPrice').value=inquiry.quoted_price??'';
 })();
