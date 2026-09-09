@@ -66,4 +66,7 @@
       if(ok) await originalSaveJob();
     };
   }
+
+  const currentId=$('editJobId')?.value;
+  if(currentId && typeof jobs!=='undefined') fillFinancials(jobs.find(x=>x.id===currentId));
 })();
