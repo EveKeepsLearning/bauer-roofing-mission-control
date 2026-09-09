@@ -16,6 +16,13 @@
   function adjustedContract(){return contractAmount()+approvedAddendumTotal();}
   function balanceDue(){return Math.max(0,adjustedContract()-paymentTotal());}
 
+  function showAddendumNotice(text,type='error'){
+    const n=$('addendumDialogNotice');
+    if(!n)return;
+    n.textContent=text||'';
+    n.className=text?`notice ${type}`:'notice hidden';
+  }
+
   function ensureFinancialRows(){
     const balance=$('editBalanceDue');
     if(!balance||$('editAdjustedContract')) return;
@@ -53,7 +60,7 @@
 
     const dialog=document.createElement('dialog');
     dialog.id='addendumDialog';
-    dialog.innerHTML=`<form method="dialog" class="card document-dialog"><h2 id="addendumDialogTitle">Add Contract Addendum</h2><input id="addendumId" type="hidden"><div class="form-grid"><div><label>Addendum date</label><input id="addendumDate" type="date"></div><div><label>Status</label><select id="addendumStatus"><option>Approved</option><option>Awaiting Signature</option><option>Draft</option><option>Rejected / Void</option></select></div><div class="wide"><label>Description / scope change</label><input id="addendumDescription" placeholder="Example: Add 4 sheets of decking"></div><div><label>Amount added or deducted</label><input id="addendumAmount" type="number" step="0.01" inputmode="decimal" placeholder="Use a negative number for a credit"></div><div></div><div class="wide"><label>OneDrive link</label><input id="addendumUrl" type="url" placeholder="Optional link to signed addendum"></div><div class="wide"><label>Notes</label><textarea id="addendumNotes" rows="3"></textarea></div></div><div class="toolbar"><button class="btn primary" type="button" id="saveAddendumBtn">Save Addendum</button><button class="btn" value="cancel">Cancel</button></div></form>`;
+    dialog.innerHTML=`<form method="dialog" class="card document-dialog"><h2 id="addendumDialogTitle">Add Contract Addendum</h2><div id="addendumDialogNotice" class="notice hidden" style="margin-bottom:10px"></div><input id="addendumId" type="hidden"><div class="form-grid"><div><label>Addendum date</label><input id="addendumDate" type="date"></div><div><label>Status</label><select id="addendumStatus"><option>Approved</option><option>Awaiting Signature</option><option>Draft</option><option>Rejected / Void</option></select></div><div class="wide"><label>Description / scope change</label><input id="addendumDescription" placeholder="Example: Add 4 sheets of decking"></div><div><label>Amount added or deducted</label><input id="addendumAmount" type="number" step="0.01" inputmode="decimal" placeholder="Use a negative number for a credit"></div><div></div><div class="wide"><label>OneDrive link</label><input id="addendumUrl" type="url" placeholder="Optional link to signed addendum"></div><div class="wide"><label>Notes</label><textarea id="addendumNotes" rows="3"></textarea></div></div><div class="toolbar"><button class="btn primary" type="button" id="saveAddendumBtn">Save Addendum</button><button class="btn" value="cancel">Cancel</button></div></form>`;
     document.body.appendChild(dialog);
     $('addAddendumBtn').onclick=()=>openAddendum();
     $('saveAddendumBtn').onclick=saveAddendum;
@@ -91,6 +98,7 @@
 
   function openAddendum(a=null){
     ensureUi();
+    showAddendumNotice('');
     const x=a||{};
     $('addendumDialogTitle').textContent=a?'Edit Contract Addendum':'Add Contract Addendum';
     $('addendumId').value=x.id||'';
@@ -104,20 +112,29 @@
   }
 
   async function saveAddendum(){
+    const btn=$('saveAddendumBtn');
+    showAddendumNotice('');
     const id=$('addendumId').value;
     const description=$('addendumDescription').value.trim();
-    if(!currentJobId||!description){if(typeof notice==='function')notice('Addendum description is required.','error');return;}
+    if(!currentJobId){showAddendumNotice('This addendum is not connected to a job. Close it and reopen the job.');return;}
+    if(!description){showAddendumNotice('Addendum description is required.');return;}
     const amount=Number($('addendumAmount').value||0);
-    if(!Number.isFinite(amount)){if(typeof notice==='function')notice('Enter a valid addendum amount.','error');return;}
+    if(!Number.isFinite(amount)){showAddendumNotice('Enter a valid addendum amount.');return;}
+    const {data:authData,error:authError}=await db.auth.getUser();
+    if(authError||!authData?.user?.id){showAddendumNotice('Your login session could not be verified. Refresh BRO and try again.');return;}
     const row={job_id:currentJobId,addendum_date:$('addendumDate').value||null,description,amount,status:$('addendumStatus').value||'Approved',onedrive_url:$('addendumUrl').value.trim()||null,notes:$('addendumNotes').value.trim()||null,updated_at:new Date().toISOString()};
-    let res;
-    if(id) res=await db.from('job_contract_addendums').update(row).eq('id',id).select('*').single();
-    else res=await db.from('job_contract_addendums').insert(row).select('*').single();
-    if(res.error){if(typeof notice==='function')notice(res.error.message,'error');return;}
-    $('addendumDialog').close();
-    await loadFinancialDetails(currentJobId);
-    if(typeof notice==='function')notice(id?'Addendum updated.':'Addendum added.','success');
-    await refreshCardBalances();
+    if(!id) row.owner_id=authData.user.id;
+    btn.disabled=true;btn.textContent='Saving…';
+    try{
+      let res;
+      if(id) res=await db.from('job_contract_addendums').update(row).eq('id',id).select('*').single();
+      else res=await db.from('job_contract_addendums').insert(row).select('*').single();
+      if(res.error){showAddendumNotice(res.error.message);return;}
+      $('addendumDialog').close();
+      await loadFinancialDetails(currentJobId);
+      if(typeof notice==='function')notice(id?'Addendum updated.':'Addendum added.','success');
+      await refreshCardBalances();
+    }finally{btn.disabled=false;btn.textContent='Save Addendum';}
   }
 
   async function deleteAddendum(id){
