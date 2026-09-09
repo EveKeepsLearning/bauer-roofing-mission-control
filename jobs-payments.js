@@ -80,15 +80,18 @@
     if(res.error){if(typeof notice==='function') notice(res.error.message,'error');return;}
     $('paymentDialog').close();
     await loadForJob(jobId);
+    window.dispatchEvent(new CustomEvent('bro:payments-changed',{detail:{jobId}}));
     if(typeof notice==='function') notice(id?'Payment updated.':'Payment added.','success');
   }
 
   async function deletePayment(id){
     const p=currentPayments.find(x=>x.id===id);if(!p)return;
     if(!confirm(`Delete this ${fmt(p.amount)} payment record?`))return;
+    const jobId=$('editJobId')?.value;
     const {error}=await db.from('job_payments').delete().eq('id',id);
     if(error){if(typeof notice==='function') notice(error.message,'error');return;}
-    await loadForJob($('editJobId')?.value);
+    await loadForJob(jobId);
+    window.dispatchEvent(new CustomEvent('bro:payments-changed',{detail:{jobId}}));
     if(typeof notice==='function') notice('Payment removed.','success');
   }
 
