@@ -1,5 +1,5 @@
 window.BAUER_CONFIG = {
-  APP_VERSION: '20260909-2',
+  APP_VERSION: '20260909-4',
   APP_URL: 'https://evekeepslearning.github.io/bauer-roofing-mission-control/',
   SUPABASE_URL: 'https://eufimdrdimpkzowlupre.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_F-nEDaSaUQPwy2rTKy71LA_H4gxArBt',
@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (contactsButton) {
     contactsButton.onclick = event => {
       event.preventDefault();
-      window.location.href = 'contacts.html?v=20260909-2';
+      window.location.href = 'contacts.html?v=20260909-4';
     };
   }
 
@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (jobsButton) {
     jobsButton.onclick = event => {
       event.preventDefault();
-      window.location.href = 'jobs.html?v=20260909-2';
+      window.location.href = 'jobs.html?v=20260909-4';
     };
   }
 });
