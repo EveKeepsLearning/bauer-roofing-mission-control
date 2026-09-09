@@ -1,5 +1,5 @@
 window.BAUER_CONFIG = {
-  APP_VERSION: '20260909-8',
+  APP_VERSION: '20260909-9',
   APP_URL: 'https://evekeepslearning.github.io/bauer-roofing-mission-control/',
   SUPABASE_URL: 'https://eufimdrdimpkzowlupre.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_F-nEDaSaUQPwy2rTKy71LA_H4gxArBt',
@@ -7,7 +7,7 @@ window.BAUER_CONFIG = {
 };
 
 (function(){
-  const VERSION='20260909-8';
+  const VERSION='20260909-9';
   const NAV_ITEMS=[
     ['today','Today','index.html?view=today'],
     ['phone','Phone Message','index.html?view=phone'],
@@ -46,6 +46,8 @@ window.BAUER_CONFIG = {
       body.bro-main-compact #appView>header .toolbar .btn{padding-top:5px!important;padding-bottom:5px!important}
       body.bro-main-compact #appView>header #nav{padding-top:3px!important;padding-bottom:3px!important}
       body.bro-main-compact #appView>header #nav button,body.bro-main-compact #appView>header #nav a{padding:6px 9px!important;font-size:13px!important}
+      .bro-sticky-savebar{position:sticky!important;bottom:0!important;z-index:950!important;background:rgba(255,255,255,.96)!important;border-top:1px solid #dfe5ec!important;box-shadow:0 -4px 12px rgba(31,48,72,.08)!important;padding:9px 10px!important;margin-left:-10px!important;margin-right:-10px!important;backdrop-filter:blur(5px)}
+      dialog .bro-sticky-savebar{bottom:0!important;border-radius:0 0 10px 10px}
     `;
     document.head.appendChild(style);
   }
@@ -84,9 +86,31 @@ window.BAUER_CONFIG = {
     },0);
   }
 
+  function installStickySaveBars(root=document){
+    const buttons=[...root.querySelectorAll('button,input[type="submit"]')];
+    buttons.forEach(button=>{
+      const text=String(button.textContent||button.value||'').trim().toLowerCase();
+      if(text!=='save changes')return;
+      const bar=button.closest('.toolbar,.dialog-actions,.toolbar2,.form-actions,.actions')||button.parentElement;
+      if(bar)bar.classList.add('bro-sticky-savebar');
+    });
+  }
+
   document.addEventListener('DOMContentLoaded',()=>{
     installSharedStyles();
     addStandaloneNav();
     wireMainNavigation();
+    installStickySaveBars();
+    new MutationObserver(mutations=>{
+      mutations.forEach(m=>m.addedNodes.forEach(node=>{
+        if(node.nodeType!==1)return;
+        installStickySaveBars(node);
+        const text=String(node.textContent||'').trim().toLowerCase();
+        if(node.matches?.('button,input[type="submit"]')&&text==='save changes'){
+          const bar=node.closest('.toolbar,.dialog-actions,.toolbar2,.form-actions,.actions')||node.parentElement;
+          if(bar)bar.classList.add('bro-sticky-savebar');
+        }
+      }));
+    }).observe(document.body,{childList:true,subtree:true});
   });
 })();
