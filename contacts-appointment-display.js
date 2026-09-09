@@ -8,7 +8,7 @@
   }
 
   async function enhanceAppointmentDisplay(){
-    if(!window.db) return;
+    if(typeof db==='undefined'||!db) return;
     const links=[...document.querySelectorAll('#contactDetail .history-section a.history-item[href*="inquiry.html?id="]')];
     if(!links.length) return;
     const ids=links.map(a=>{
@@ -37,7 +37,7 @@
       if(!right) return;
       const appt=byLead.get(leadId);
       if(appt) right.textContent=appointmentLabel(appt.appointment_at);
-      else if(['Appointment Scheduled','Appointment Wanted'].includes(right.textContent.trim())) right.textContent='';
+      else if(['Appointment Scheduled','Appointment Wanted','New Inquiry'].includes(right.textContent.trim())) right.textContent='';
     });
   }
 
