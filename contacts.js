@@ -1,149 +1,18 @@
 'use strict';
-
-const cfg = window.BAUER_CONFIG || {};
-const $ = id => document.getElementById(id);
-let db = null;
-let session = null;
-let selected = null;
-let searchTimer = null;
-
+const cfg=window.BAUER_CONFIG||{};const $=id=>document.getElementById(id);let db=null;let session=null;let selected=null;let searchTimer=null;
 function esc(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function notice(text,type=''){const n=$('notice');n.textContent=text;n.className=`notice ${type}`.trim();}
-function dateLabel(value){if(!value)return '—';const d=new Date(value);return Number.isNaN(d.getTime())?String(value):d.toLocaleDateString();}
+function dateLabel(value){if(!value)return'—';const d=new Date(value);return Number.isNaN(d.getTime())?String(value):d.toLocaleDateString();}
 function phoneDigits(value){return String(value||'').replace(/\D/g,'');}
-
-async function searchContacts(){
-  const query=String($('contactSearchInput').value||'').trim();
-  $('contactDetail').classList.add('hidden');
-  if(!query){$('searchResults').innerHTML='<div class="empty-state">Start typing a name, address, phone number, lead number, job number, email, or other detail.</div>';return;}
-  $('searchResults').innerHTML='<div class="empty-state">Searching…</div>';
-  const {data,error}=await db.rpc('bauer_contact_search',{p_query:query});
-  if(error){notice(error.message,'error');$('searchResults').innerHTML='<div class="empty-state">Search could not be completed.</div>';return;}
-  const rows=data||[];
-  $('searchResults').innerHTML=rows.length?rows.map((row,index)=>`<button class="result" type="button" data-result-index="${index}">
-    <div><div class="result-name">${esc(row.display_name)}${row.source_type==='MarketSharp Archive'?'<span class="archive-badge">Older history</span>':''}</div><div class="result-meta">${esc(row.context_summary||'')}</div></div>
-    <div><div>${esc(row.phone||'')}</div><div class="result-meta">${esc(row.email||'')}</div></div>
-    <div><div>${esc([row.street_address,row.city,row.state,row.zip].filter(Boolean).join(', '))}</div><div class="result-meta">${esc(row.source_type==='BRO'?'Bauer Roofing Operations':'Preserved MarketSharp history')}</div></div>
-  </button>`).join(''):'<div class="empty-state">No contacts matched that search.</div>';
-  $('searchResults').querySelectorAll('[data-result-index]').forEach(button=>button.addEventListener('click',()=>openResult(rows[Number(button.dataset.resultIndex)])));
-}
-
-async function openResult(row){
-  selected=row;
-  if(row.source_type==='BRO') await openBroContact(row.contact_id);
-  else await openArchiveContact(row.marketsharp_contact_id);
-}
-
-function contactHeader(contact,sourceLabel){
-  return `<div class="detail-head"><div><h2>${esc(contact.name)}</h2><div class="sub">${esc(sourceLabel)}</div></div><div class="detail-actions"><button class="btn primary" type="button" id="detailInquiryBtn">+ Inquiry</button></div></div>
-  <div class="contact-facts">
-    <div class="fact"><label>Phone</label><div>${contact.phone?`<a href="tel:${esc(phoneDigits(contact.phone))}">${esc(contact.phone)}</a>`:'—'}</div></div>
-    <div class="fact"><label>Email</label><div>${contact.email?`<a href="mailto:${esc(contact.email)}">${esc(contact.email)}</a>`:'—'}</div></div>
-    <div class="fact"><label>Address</label><div>${esc([contact.street_address,contact.city,contact.state,contact.zip].filter(Boolean).join(', ')||'—')}</div></div>
-    <div class="fact"><label>Notes</label><div>${esc(contact.notes||'—')}</div></div>
-  </div>`;
-}
-
-async function openBroContact(id){
-  const [contactRes,leadRes,jobRes]=await Promise.all([
-    db.from('contacts').select('*').eq('id',id).single(),
-    db.from('leads').select('*').eq('contact_id',id).is('deleted_at',null).order('created_at',{ascending:false}),
-    db.from('jobs').select('*').eq('customer_id',id).is('deleted_at',null).order('created_at',{ascending:false})
-  ]);
-  if(contactRes.error)return notice(contactRes.error.message,'error');
-  const c=contactRes.data, leads=leadRes.data||[], jobs=jobRes.data||[];
-  selected={source_type:'BRO',contact_id:id,display_name:c.name};
-  const leadHtml=leads.length?leads.map(l=>`<div class="history-item"><div class="history-grid"><div><b>Inquiry ${esc(l.lead_number||'')}</b><div class="result-meta">${esc(dateLabel(l.lead_date||l.created_at))}</div></div><div><b>${esc(l.work_category||'Inquiry')}</b><div>${esc(l.street_address||'')}</div><div class="result-meta">${esc(l.notes||'')}</div></div><div>${esc(l.lead_status||l.status||'')}</div></div></div>`).join(''):'<div class="empty-state">No inquiries yet.</div>';
-  const jobHtml=jobs.length?jobs.map(j=>`<div class="history-item"><div class="history-grid"><div><b>Job ${esc(j.job_number||'')}</b><div class="result-meta">${esc(dateLabel(j.contract_date||j.sale_date||j.created_at))}</div></div><div><b>${esc(j.job_type||j.primary_category||'Job')}</b><div>${esc(j.property_address||'')}</div><div class="result-meta">${esc(j.production_notes||'')}</div></div><div>${esc(j.stage||'')}</div></div></div>`).join(''):'<div class="empty-state">No jobs yet.</div>';
-  const detail=$('contactDetail');
-  detail.innerHTML=contactHeader(c,'Bauer Roofing Operations')+`<div class="history-section"><h3>Inquiries</h3>${leadHtml}</div><div class="history-section"><h3>Jobs</h3>${jobHtml}</div>`;
-  detail.classList.remove('hidden');
-  $('detailInquiryBtn').onclick=()=>openInquiryForBroContact(c);
-  detail.scrollIntoView({behavior:'smooth',block:'start'});
-}
-
-async function openArchiveContact(msId){
-  const [contactRes,leadRes,jobRes]=await Promise.all([
-    db.from('marketsharp_contacts').select('*').eq('marketsharp_contact_id',msId).single(),
-    db.from('marketsharp_inquiries').select('*').eq('marketsharp_contact_id',msId).order('inquiry_date_text',{ascending:false}),
-    db.from('marketsharp_jobs').select('*').eq('marketsharp_contact_id',msId).order('sale_date_text',{ascending:false})
-  ]);
-  if(contactRes.error)return notice(contactRes.error.message,'error');
-  const m=contactRes.data;
-  if(m.operations_contact_id)return openBroContact(m.operations_contact_id);
-  const name=String(m.business_name||'').trim()||[m.first_name,m.last_name].filter(Boolean).join(' ').trim()||'Unnamed contact';
-  const c={name,phone:m.phone,email:m.primary_email,street_address:m.address_line_one,city:m.city,state:m.state,zip:m.zip,notes:'Older preserved MarketSharp contact.'};
-  const leads=leadRes.data||[], jobs=jobRes.data||[];
-  selected={source_type:'MarketSharp Archive',marketsharp_contact_id:msId,display_name:name};
-  const leadHtml=leads.length?leads.map(l=>`<div class="history-item"><div class="history-grid"><div><b>Inquiry ${esc(l.bauer_lead_number||'')}</b><div class="result-meta">${esc(dateLabel(l.inquiry_date_text))}</div></div><div><b>${esc(l.source||'MarketSharp inquiry')}</b><div>${esc(l.property_address||'')}</div><div class="result-meta">${esc(l.description||l.notes||'')}</div></div><div>${l.operations_lead_id?'In BRO':'Archived history'}</div></div></div>`).join(''):'<div class="empty-state">No archived inquiries.</div>';
-  const jobHtml=jobs.length?jobs.map(j=>`<div class="history-item"><div class="history-grid"><div><b>Job ${esc(j.job_number||'')}</b><div class="result-meta">${esc(dateLabel(j.sale_date_text||j.start_date_text))}</div></div><div><b>${esc(j.job_type||j.job_name||'MarketSharp job')}</b><div>${esc(j.address_line_one||'')}</div><div class="result-meta">${esc(j.job_description||j.notes||'')}</div></div><div>${esc(j.job_status||'Archived history')}</div></div></div>`).join(''):'<div class="empty-state">No archived jobs.</div>';
-  const detail=$('contactDetail');
-  detail.innerHTML=contactHeader(c,'Older MarketSharp history — searchable here in Contacts')+`<div class="history-section"><h3>Inquiries</h3>${leadHtml}</div><div class="history-section"><h3>Jobs</h3>${jobHtml}</div>`;
-  detail.classList.remove('hidden');
-  $('detailInquiryBtn').onclick=()=>promoteArchiveAndOpenInquiry(m,c);
-  detail.scrollIntoView({behavior:'smooth',block:'start'});
-}
-
-function fillInquiry(contact){
-  $('inquiryContactId').value=contact.id;
-  $('inquiryContactName').value=contact.name;
-  $('inquiryAddress').value=contact.street_address||'';
-  $('inquiryLeadNumber').value='';
-  $('inquirySource').value='Repeat Business';
-  $('inquiryWorkCategory').value='Roofing';
-  $('inquiryAssigned').value='Roy';
-  $('inquiryNotes').value='';
-  $('inquiryDialog').showModal();
-}
-
+async function searchContacts(){const query=String($('contactSearchInput').value||'').trim();$('contactDetail').classList.add('hidden');if(!query){$('searchResults').innerHTML='<div class="empty-state">Start typing a name, address, phone number, inquiry number, job number, email, or other detail.</div>';return;}$('searchResults').innerHTML='<div class="empty-state">Searching…</div>';const {data,error}=await db.rpc('bauer_contact_search',{p_query:query});if(error){notice(error.message,'error');$('searchResults').innerHTML='<div class="empty-state">Search could not be completed.</div>';return;}const rows=data||[];$('searchResults').innerHTML=rows.length?rows.map((row,index)=>`<button class="result" type="button" data-result-index="${index}"><div><div class="result-name">${esc(row.display_name)}${row.source_type==='MarketSharp Archive'?'<span class="archive-badge">Older history</span>':''}</div><div class="result-meta">${esc(row.context_summary||'')}</div></div><div><div>${esc(row.phone||'')}</div><div class="result-meta">${esc(row.email||'')}</div></div><div><div>${esc([row.street_address,row.city,row.state,row.zip].filter(Boolean).join(', '))}</div><div class="result-meta">${esc(row.source_type==='BRO'?'Bauer Roofing Operations':'Preserved MarketSharp history')}</div></div></button>`).join(''):'<div class="empty-state">No contacts matched that search.</div>';$('searchResults').querySelectorAll('[data-result-index]').forEach(button=>button.addEventListener('click',()=>openResult(rows[Number(button.dataset.resultIndex)])));}
+async function openResult(row){selected=row;if(row.source_type==='BRO')await openBroContact(row.contact_id);else await openArchiveContact(row.marketsharp_contact_id);}
+function contactHeader(contact,sourceLabel){return `<div class="detail-head"><div><h2>${esc(contact.name)}</h2><div class="sub">${esc(sourceLabel)}</div></div><div class="detail-actions"><button class="btn primary" type="button" id="detailInquiryBtn">+ Inquiry</button></div></div><div class="contact-facts"><div class="fact"><label>Phone</label><div>${contact.phone?`<a href="tel:${esc(phoneDigits(contact.phone))}">${esc(contact.phone)}</a>`:'—'}</div></div><div class="fact"><label>Email</label><div>${contact.email?`<a href="mailto:${esc(contact.email)}">${esc(contact.email)}</a>`:'—'}</div></div><div class="fact"><label>Address</label><div>${esc([contact.street_address,contact.city,contact.state,contact.zip].filter(Boolean).join(', ')||'—')}</div></div><div class="fact"><label>Notes</label><div>${esc(contact.notes||'—')}</div></div></div>`;}
+async function openBroContact(id){const [contactRes,leadRes,jobRes]=await Promise.all([db.from('contacts').select('*').eq('id',id).single(),db.from('leads').select('*').eq('contact_id',id).is('deleted_at',null).order('created_at',{ascending:false}),db.from('jobs').select('*').eq('customer_id',id).is('deleted_at',null).order('created_at',{ascending:false})]);if(contactRes.error)return notice(contactRes.error.message,'error');const c=contactRes.data,leads=leadRes.data||[],jobs=jobRes.data||[];selected={source_type:'BRO',contact_id:id,display_name:c.name};const leadHtml=leads.length?leads.map(l=>`<a class="history-item" style="display:block;color:inherit;text-decoration:none;cursor:pointer" href="inquiry.html?id=${encodeURIComponent(l.id)}&contact=${encodeURIComponent(id)}"><div class="history-grid"><div><b>Inquiry #${esc(l.lead_number||'')}</b><div class="result-meta">${esc(dateLabel(l.lead_date||l.inquiry_at||l.created_at))}</div></div><div><b>${esc(l.product_interest||l.work_category||'Inquiry')}</b><div>${esc(l.street_address||'')}</div><div class="result-meta">${esc(l.product_description||l.notes||'')}</div></div><div>${esc(l.lead_status||l.status||'')} →</div></div></a>`).join(''):'<div class="empty-state">No inquiries yet.</div>';const jobHtml=jobs.length?jobs.map(j=>`<a class="history-item" style="display:block;color:inherit;text-decoration:none;cursor:pointer" href="jobs.html?job=${encodeURIComponent(j.id)}"><div class="history-grid"><div><b>Job ${esc(j.job_number||'')}</b><div class="result-meta">${esc(dateLabel(j.contract_date||j.sale_date||j.created_at))}</div></div><div><b>${esc(j.job_type||j.primary_category||'Job')}</b><div>${esc(j.property_address||'')}</div><div class="result-meta">${esc(j.production_notes||'')}</div></div><div>${esc(j.stage||'')} →</div></div></a>`).join(''):'<div class="empty-state">No jobs yet.</div>';const detail=$('contactDetail');detail.innerHTML=contactHeader(c,'Bauer Roofing Operations')+`<div class="history-section"><h3>Inquiries</h3>${leadHtml}</div><div class="history-section"><h3>Jobs</h3>${jobHtml}</div>`;detail.classList.remove('hidden');$('detailInquiryBtn').onclick=()=>openInquiryForBroContact(c);detail.scrollIntoView({behavior:'smooth',block:'start'});}
+async function openArchiveContact(msId){const [contactRes,leadRes,jobRes]=await Promise.all([db.from('marketsharp_contacts').select('*').eq('marketsharp_contact_id',msId).single(),db.from('marketsharp_inquiries').select('*').eq('marketsharp_contact_id',msId).order('inquiry_date_text',{ascending:false}),db.from('marketsharp_jobs').select('*').eq('marketsharp_contact_id',msId).order('sale_date_text',{ascending:false})]);if(contactRes.error)return notice(contactRes.error.message,'error');const m=contactRes.data;if(m.operations_contact_id)return openBroContact(m.operations_contact_id);const name=String(m.business_name||'').trim()||[m.first_name,m.last_name].filter(Boolean).join(' ').trim()||'Unnamed contact';const c={name,phone:m.phone,email:m.primary_email,street_address:m.address_line_one,city:m.city,state:m.state,zip:m.zip,notes:'Older preserved MarketSharp contact.'};const leads=leadRes.data||[],jobs=jobRes.data||[];selected={source_type:'MarketSharp Archive',marketsharp_contact_id:msId,display_name:name};const leadHtml=leads.length?leads.map(l=>l.operations_lead_id?`<a class="history-item" style="display:block;color:inherit;text-decoration:none" href="inquiry.html?id=${encodeURIComponent(l.operations_lead_id)}"><div class="history-grid"><div><b>Inquiry #${esc(l.bauer_lead_number||'')}</b><div class="result-meta">${esc(dateLabel(l.inquiry_date_text))}</div></div><div><b>${esc(l.source||'MarketSharp inquiry')}</b><div>${esc(l.property_address||'')}</div><div class="result-meta">${esc(l.description||l.notes||'')}</div></div><div>Open in BRO →</div></div></a>`:`<div class="history-item"><div class="history-grid"><div><b>Inquiry #${esc(l.bauer_lead_number||'')}</b><div class="result-meta">${esc(dateLabel(l.inquiry_date_text))}</div></div><div><b>${esc(l.source||'MarketSharp inquiry')}</b><div>${esc(l.property_address||'')}</div><div class="result-meta">${esc(l.description||l.notes||'')}</div></div><div>Archived history</div></div></div>`).join(''):'<div class="empty-state">No archived inquiries.</div>';const jobHtml=jobs.length?jobs.map(j=>j.operations_job_id?`<a class="history-item" style="display:block;color:inherit;text-decoration:none" href="jobs.html?job=${encodeURIComponent(j.operations_job_id)}"><div class="history-grid"><div><b>Job ${esc(j.job_number||'')}</b><div class="result-meta">${esc(dateLabel(j.sale_date_text||j.start_date_text))}</div></div><div><b>${esc(j.job_type||j.job_name||'MarketSharp job')}</b><div>${esc(j.address_line_one||'')}</div><div class="result-meta">${esc(j.job_description||j.notes||'')}</div></div><div>Open in BRO →</div></div></a>`:`<div class="history-item"><div class="history-grid"><div><b>Job ${esc(j.job_number||'')}</b><div class="result-meta">${esc(dateLabel(j.sale_date_text||j.start_date_text))}</div></div><div><b>${esc(j.job_type||j.job_name||'MarketSharp job')}</b><div>${esc(j.address_line_one||'')}</div><div class="result-meta">${esc(j.job_description||j.notes||'')}</div></div><div>${esc(j.job_status||'Archived history')}</div></div></div>`).join(''):'<div class="empty-state">No archived jobs.</div>';const detail=$('contactDetail');detail.innerHTML=contactHeader(c,'Older MarketSharp history — searchable here in Contacts')+`<div class="history-section"><h3>Inquiries</h3>${leadHtml}</div><div class="history-section"><h3>Jobs</h3>${jobHtml}</div>`;detail.classList.remove('hidden');$('detailInquiryBtn').onclick=()=>promoteArchiveAndOpenInquiry(m,c);detail.scrollIntoView({behavior:'smooth',block:'start'});}
+function fillInquiry(contact){$('inquiryContactId').value=contact.id;$('inquiryContactName').value=contact.name;$('inquiryAddress').value=contact.street_address||'';$('inquiryLeadNumber').value='';$('inquirySource').value='Repeat Business';$('inquiryWorkCategory').value='Roofing';$('inquiryAssigned').value='Roy';$('inquiryNotes').value='';$('inquiryDialog').showModal();}
 async function openInquiryForBroContact(contact){fillInquiry(contact);}
-
-async function promoteArchiveAndOpenInquiry(msContact,c){
-  const insert=await db.from('contacts').insert({name:c.name,phone:c.phone||null,email:c.email||null,street_address:c.street_address||null,city:c.city||null,state:c.state||null,zip:c.zip||null,notes:`Created from preserved MarketSharp contact ${msContact.marketsharp_contact_id} when new work was requested.`}).select('*').single();
-  if(insert.error)return notice(insert.error.message,'error');
-  const link=await db.from('marketsharp_contacts').update({operations_contact_id:insert.data.id,updated_at:new Date().toISOString()}).eq('marketsharp_contact_id',msContact.marketsharp_contact_id);
-  if(link.error)return notice(`Contact was created but archive link failed: ${link.error.message}`,'error');
-  fillInquiry(insert.data);
-}
-
-async function saveNewContact(){
-  const name=String($('newContactName').value||'').trim();
-  if(!name)return notice('Name or company is required.','error');
-  const row={name,phone:$('newContactPhone').value.trim()||null,email:$('newContactEmail').value.trim()||null,street_address:$('newContactStreet').value.trim()||null,city:$('newContactCity').value.trim()||null,state:$('newContactState').value.trim()||null,zip:$('newContactZip').value.trim()||null,notes:$('newContactNotes').value.trim()||null};
-  const {data,error}=await db.from('contacts').insert(row).select('*').single();
-  if(error)return notice(error.message,'error');
-  $('contactDialog').close();
-  notice('Contact added.','success');
-  $('contactSearchInput').value=data.name;
-  await searchContacts();
-  await openBroContact(data.id);
-}
-
-async function saveInquiry(){
-  const contactId=$('inquiryContactId').value;
-  const contactRes=await db.from('contacts').select('*').eq('id',contactId).single();
-  if(contactRes.error)return notice(contactRes.error.message,'error');
-  const c=contactRes.data;
-  const row={contact_id:c.id,lead_number:$('inquiryLeadNumber').value.trim()||null,homeowner_name:c.name,street_address:$('inquiryAddress').value.trim()||c.street_address||null,phone:c.phone||null,email:c.email||null,source:$('inquirySource').value.trim()||'Repeat Business',import_source:'Contact Inquiry',work_category:$('inquiryWorkCategory').value,lead_status:'Appointment Wanted',assigned_to:$('inquiryAssigned').value.trim()||'Roy',notes:$('inquiryNotes').value.trim()||null,lead_date:new Date().toLocaleDateString('en-CA')};
-  const {error}=await db.from('leads').insert(row);
-  if(error)return notice(error.message,'error');
-  $('inquiryDialog').close();
-  notice('Inquiry added under this contact.','success');
-  await openBroContact(c.id);
-}
-
-async function start(){
-  if(!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY)return notice('Database configuration is missing.','error');
-  db=supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
-  const auth=await db.auth.getSession();session=auth.data.session;
-  if(!session){window.location.href='index.html';return;}
-  $('contactSearchInput').focus();
-}
-
-$('contactSearchBtn').onclick=searchContacts;
-$('contactSearchInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();searchContacts();}});
-$('contactSearchInput').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{if($('contactSearchInput').value.trim().length>=2)searchContacts();},300);});
-$('addContactBtn').onclick=()=>{$('newContactName').value='';$('newContactPhone').value='';$('newContactEmail').value='';$('newContactStreet').value='';$('newContactCity').value='';$('newContactState').value='SC';$('newContactZip').value='';$('newContactNotes').value='';$('contactDialog').showModal();};
-$('saveNewContactBtn').onclick=saveNewContact;
-$('saveInquiryBtn').onclick=saveInquiry;
-start();
+async function promoteArchiveAndOpenInquiry(msContact,c){const insert=await db.from('contacts').insert({name:c.name,phone:c.phone||null,email:c.email||null,street_address:c.street_address||null,city:c.city||null,state:c.state||null,zip:c.zip||null,notes:`Created from preserved MarketSharp contact ${msContact.marketsharp_contact_id} when new work was requested.`}).select('*').single();if(insert.error)return notice(insert.error.message,'error');const link=await db.from('marketsharp_contacts').update({operations_contact_id:insert.data.id,updated_at:new Date().toISOString()}).eq('marketsharp_contact_id',msContact.marketsharp_contact_id);if(link.error)return notice(`Contact was created but archive link failed: ${link.error.message}`,'error');fillInquiry(insert.data);}
+async function saveNewContact(){const name=String($('newContactName').value||'').trim();if(!name)return notice('Name or company is required.','error');const row={name,phone:$('newContactPhone').value.trim()||null,email:$('newContactEmail').value.trim()||null,street_address:$('newContactStreet').value.trim()||null,city:$('newContactCity').value.trim()||null,state:$('newContactState').value.trim()||null,zip:$('newContactZip').value.trim()||null,notes:$('newContactNotes').value.trim()||null};const {data,error}=await db.from('contacts').insert(row).select('*').single();if(error)return notice(error.message,'error');$('contactDialog').close();notice('Contact added.','success');$('contactSearchInput').value=data.name;await searchContacts();await openBroContact(data.id);}
+async function saveInquiry(){const contactId=$('inquiryContactId').value;const contactRes=await db.from('contacts').select('*').eq('id',contactId).single();if(contactRes.error)return notice(contactRes.error.message,'error');const c=contactRes.data;const row={contact_id:c.id,lead_number:$('inquiryLeadNumber').value.trim()||null,homeowner_name:c.name,street_address:$('inquiryAddress').value.trim()||c.street_address||null,phone:c.phone||null,email:c.email||null,source:$('inquirySource').value.trim()||'Repeat Business',import_source:'Contact Inquiry',work_category:$('inquiryWorkCategory').value,lead_status:'Appointment Wanted',assigned_to:$('inquiryAssigned').value.trim()||'Roy',notes:$('inquiryNotes').value.trim()||null,lead_date:new Date().toLocaleDateString('en-CA')};const {data,error}=await db.from('leads').insert(row).select('*').single();if(error)return notice(error.message,'error');$('inquiryDialog').close();location.href=`inquiry.html?id=${encodeURIComponent(data.id)}&contact=${encodeURIComponent(c.id)}`;}
+async function start(){if(!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY)return notice('Database configuration is missing.','error');db=supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);const auth=await db.auth.getSession();session=auth.data.session;if(!session){window.location.href='index.html';return;}const direct=new URLSearchParams(location.search).get('contact');if(direct){await openBroContact(direct);}else $('contactSearchInput').focus();}
+$('contactSearchBtn').onclick=searchContacts;$('contactSearchInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();searchContacts();}});$('contactSearchInput').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{if($('contactSearchInput').value.trim().length>=2)searchContacts();},300);});$('addContactBtn').onclick=()=>{$('newContactName').value='';$('newContactPhone').value='';$('newContactEmail').value='';$('newContactStreet').value='';$('newContactCity').value='';$('newContactState').value='SC';$('newContactZip').value='';$('newContactNotes').value='';$('contactDialog').showModal();};$('saveNewContactBtn').onclick=saveNewContact;$('saveInquiryBtn').onclick=saveInquiry;start();
