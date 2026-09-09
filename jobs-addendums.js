@@ -164,6 +164,12 @@
     refreshCardBalances();
   }
 
+  window.addEventListener('bro:payments-changed',async e=>{
+    const jobId=e.detail?.jobId;
+    if(jobId&&jobId===currentJobId) await loadFinancialDetails(jobId);
+    await refreshCardBalances();
+  });
+
   ensureUi();
   installCard();
   if(typeof openJob==='function'){
