@@ -68,20 +68,42 @@
     $('paymentDialog').showModal();
   }
 
+  async function advanceForDeposit(jobId,paymentType){
+    if(String(paymentType||'').toLowerCase()!=='deposit') return false;
+    const localJob=typeof jobs!=='undefined'?jobs.find(j=>j.id===jobId):null;
+    let currentStage=localJob?.stage||'';
+    if(!currentStage){
+      const res=await db.from('jobs').select('stage').eq('id',jobId).single();
+      if(res.error) return false;
+      currentStage=res.data?.stage||'';
+    }
+    const normalized=String(currentStage||'').trim().toLowerCase();
+    const earlyStages=['','awarded','new','sold','contract'];
+    if(!earlyStages.includes(normalized)) return false;
+    const {error}=await db.from('jobs').update({stage:'Contract / Deposit',deposit_status:'Received',updated_at:new Date().toISOString()}).eq('id',jobId);
+    if(error){if(typeof notice==='function') notice(`Payment saved, but stage could not update: ${error.message}`,'error');return false;}
+    if(localJob){localJob.stage='Contract / Deposit';localJob.deposit_status='Received';}
+    if($('editStage')) $('editStage').value='Contract / Deposit';
+    if(typeof renderAll==='function') renderAll();
+    return true;
+  }
+
   async function savePayment(){
     const jobId=$('editJobId')?.value,id=$('paymentId').value;
     if(!jobId) return;
     const amount=Number($('paymentAmount').value||0);
     if(!(amount>0)){if(typeof notice==='function') notice('Payment amount must be greater than zero.','error');return;}
-    const row={job_id:jobId,payment_date:$('paymentDate').value||null,payment_type:$('paymentType').value||'Payment',amount,payment_method:$('paymentMethod').value||null,notes:$('paymentNotes').value.trim()||null,updated_at:new Date().toISOString()};
+    const paymentType=$('paymentType').value||'Payment';
+    const row={job_id:jobId,payment_date:$('paymentDate').value||null,payment_type:paymentType,amount,payment_method:$('paymentMethod').value||null,notes:$('paymentNotes').value.trim()||null,updated_at:new Date().toISOString()};
     let res;
     if(id) res=await db.from('job_payments').update(row).eq('id',id).select('*').single();
     else res=await db.from('job_payments').insert(row).select('*').single();
     if(res.error){if(typeof notice==='function') notice(res.error.message,'error');return;}
+    const moved=await advanceForDeposit(jobId,paymentType);
     $('paymentDialog').close();
     await loadForJob(jobId);
     window.dispatchEvent(new CustomEvent('bro:payments-changed',{detail:{jobId}}));
-    if(typeof notice==='function') notice(id?'Payment updated.':'Payment added.','success');
+    if(typeof notice==='function') notice(moved?'Deposit saved. Job moved to Contract / Deposit.':(id?'Payment updated.':'Payment added.'),'success');
   }
 
   async function deletePayment(id){
