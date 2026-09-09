@@ -68,24 +68,14 @@
     $('paymentDialog').showModal();
   }
 
-  async function advanceForDeposit(jobId,paymentType){
-    if(String(paymentType||'').toLowerCase()!=='deposit') return false;
+  async function syncJobStage(jobId){
+    const res=await db.from('jobs').select('stage,deposit_status').eq('id',jobId).single();
+    if(res.error) return null;
     const localJob=typeof jobs!=='undefined'?jobs.find(j=>j.id===jobId):null;
-    let currentStage=localJob?.stage||'';
-    if(!currentStage){
-      const res=await db.from('jobs').select('stage').eq('id',jobId).single();
-      if(res.error) return false;
-      currentStage=res.data?.stage||'';
-    }
-    const normalized=String(currentStage||'').trim().toLowerCase();
-    const earlyStages=['','awarded','new','sold','contract'];
-    if(!earlyStages.includes(normalized)) return false;
-    const {error}=await db.from('jobs').update({stage:'Contract / Deposit',deposit_status:'Received',updated_at:new Date().toISOString()}).eq('id',jobId);
-    if(error){if(typeof notice==='function') notice(`Payment saved, but stage could not update: ${error.message}`,'error');return false;}
-    if(localJob){localJob.stage='Contract / Deposit';localJob.deposit_status='Received';}
-    if($('editStage')) $('editStage').value='Contract / Deposit';
+    if(localJob){localJob.stage=res.data.stage;localJob.deposit_status=res.data.deposit_status;}
+    if($('editStage')) $('editStage').value=res.data.stage||'Awarded';
     if(typeof renderAll==='function') renderAll();
-    return true;
+    return res.data;
   }
 
   async function savePayment(){
@@ -99,11 +89,13 @@
     if(id) res=await db.from('job_payments').update(row).eq('id',id).select('*').single();
     else res=await db.from('job_payments').insert(row).select('*').single();
     if(res.error){if(typeof notice==='function') notice(res.error.message,'error');return;}
-    const moved=await advanceForDeposit(jobId,paymentType);
     $('paymentDialog').close();
     await loadForJob(jobId);
+    const stageState=await syncJobStage(jobId);
     window.dispatchEvent(new CustomEvent('bro:payments-changed',{detail:{jobId}}));
-    if(typeof notice==='function') notice(moved?'Deposit saved. Job moved to Contract / Deposit.':(id?'Payment updated.':'Payment added.'),'success');
+    const moved=stageState?.stage==='Contract / Deposit';
+    const paidInFull=stageState?.deposit_status==='Paid in Full';
+    if(typeof notice==='function') notice(paidInFull?'Payment saved. Job is paid in full.':(moved?'Payment saved. Job is in Contract / Deposit.':(id?'Payment updated.':'Payment added.')),'success');
   }
 
   async function deletePayment(id){
@@ -113,6 +105,7 @@
     const {error}=await db.from('job_payments').delete().eq('id',id);
     if(error){if(typeof notice==='function') notice(error.message,'error');return;}
     await loadForJob(jobId);
+    await syncJobStage(jobId);
     window.dispatchEvent(new CustomEvent('bro:payments-changed',{detail:{jobId}}));
     if(typeof notice==='function') notice('Payment removed.','success');
   }
