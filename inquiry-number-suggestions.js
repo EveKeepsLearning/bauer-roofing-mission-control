@@ -56,9 +56,8 @@
   }
 
   function scan(){
-    const contactInput=document.getElementById('inquiryLeadNumber');
-    if(contactInput)decorate(contactInput);
-    document.querySelectorAll('input[data-bro-suggest-number="1"]').forEach(decorate);
+    ['inquiryLeadNumber','leadNumber'].forEach(id=>decorate(document.getElementById(id)));
+    document.querySelectorAll('input[data-number-input],input[data-bro-suggest-number="1"]').forEach(decorate);
   }
 
   function install(){ensureStyles();scan();new MutationObserver(scan).observe(document.body,{childList:true,subtree:true});}
