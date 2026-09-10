@@ -23,6 +23,7 @@
     const style=document.createElement('style');
     style.id='broTimeBlockStyles';
     style.textContent=`
+      #currentTask{display:none!important}
       .bro-time-block{margin:7px 0 11px;border:1px solid #dfe5ec;border-radius:10px;background:#fff;overflow:hidden}
       .bro-time-block-head{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:#f6f8fb;border-bottom:1px solid #e3e8ef;font-size:12px;font-weight:800;color:#415168;letter-spacing:.035em}
       .bro-time-block-head .bro-block-hint{font-size:10px;font-weight:600;color:#8994a3;letter-spacing:0}
@@ -36,6 +37,7 @@
       .bro-exact-time-heading{font-size:11px;font-weight:800;color:#5e6d80;padding:5px 8px;text-transform:uppercase;letter-spacing:.06em}
       .bro-exact-time-section>.task{cursor:grab}
       .bro-exact-time-note{font-size:10px;color:#8b96a5;margin-left:6px;text-transform:none;letter-spacing:0;font-weight:600}
+      .bro-in-progress-task{box-shadow:inset 3px 0 0 #246fe5}
     `;
     document.head.appendChild(style);
   }
@@ -55,6 +57,19 @@
     return [...list.children].filter(node=>node.classList.contains('task')&&node.dataset?.taskId);
   }
 
+  function harvestInProgressNode(list){
+    const current=document.getElementById('currentTask');
+    if(!current)return null;
+    const node=current.querySelector('.task[data-task-id]');
+    if(!node)return null;
+    const task=taskForNode(node);
+    if(!isTodayTask(task))return null;
+    node.classList.add('bro-in-progress-task');
+    list.appendChild(node);
+    current.innerHTML='';
+    return node;
+  }
+
   function makeBlock(block){
     const wrap=document.createElement('section');
     wrap.className='bro-time-block';
@@ -64,7 +79,8 @@
   }
 
   function wireDraggable(node){
-    if(!node?.dataset?.taskId)return;
+    if(!node?.dataset?.taskId||node.dataset.broDragWired==='1')return;
+    node.dataset.broDragWired='1';
     node.draggable=true;
     node.addEventListener('dragstart',event=>{
       draggedTaskId=node.dataset.taskId;
@@ -81,6 +97,7 @@
     if(!list||typeof state==='undefined')return;
     arranging=true;
     try{
+      harvestInProgressNode(list);
       const existing=[...list.querySelectorAll('.bro-time-block,.bro-exact-time-section')];
       const savedNodes=[];
       existing.forEach(group=>group.querySelectorAll(':scope .task[data-task-id]').forEach(n=>savedNodes.push(n)));
@@ -103,6 +120,7 @@
 
       nodes.forEach(node=>{
         const task=taskForNode(node);if(!task)return;
+        node.classList.toggle('bro-in-progress-task',String(task.status||'')==='In Progress');
         wireDraggable(node);
         const hhmm=String(task.due_time||'').slice(0,5);
         if(task.due_time&&!BLOCK_TIMES.has(hhmm)){
@@ -152,7 +170,9 @@
     if(typeof state==='undefined'||typeof db==='undefined')return;
     installStyles();installDropEvents();
     const list=document.getElementById('todayTaskList');
-    if(list){new MutationObserver(()=>setTimeout(arrange,0)).observe(list,{childList:true});}
+    const current=document.getElementById('currentTask');
+    if(list)new MutationObserver(()=>setTimeout(arrange,0)).observe(list,{childList:true});
+    if(current)new MutationObserver(()=>setTimeout(arrange,0)).observe(current,{childList:true,subtree:true});
     setTimeout(arrange,150);
   }
 
