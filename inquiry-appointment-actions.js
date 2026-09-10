@@ -7,6 +7,30 @@
   }
   function hasGoogleLink(a){return !!String(a?.google_calendar_event_id||'').trim()&&String(a?.google_calendar_status||'').trim().toLowerCase()!=='sync error';}
   function syncButtonLabel(a){return hasGoogleLink(a)?'Update Google Calendar':'Save & Add to Google Calendar';}
+  function ensureDialogNotice(){
+    let box=$('appointmentActionNotice');
+    if(box)return box;
+    const dialog=$('appointmentDialog');
+    const toolbar=dialog?.querySelector('.toolbar');
+    if(!dialog||!toolbar)return null;
+    box=document.createElement('div');
+    box.id='appointmentActionNotice';
+    box.style.display='none';
+    box.style.margin='14px 0 10px';
+    box.style.padding='10px 12px';
+    box.style.borderRadius='8px';
+    box.style.fontWeight='700';
+    toolbar.insertAdjacentElement('beforebegin',box);
+    return box;
+  }
+  function dialogNotice(text,type=''){
+    const box=ensureDialogNotice();if(!box)return;
+    if(!text){box.textContent='';box.style.display='none';return;}
+    box.textContent=text;box.style.display='block';
+    if(type==='error'){box.style.background='#fff3f2';box.style.border='1px solid #f3b3ae';box.style.color='#b3261e';}
+    else if(type==='success'){box.style.background='#effaf2';box.style.border='1px solid #9fd3ae';box.style.color='#188038';}
+    else{box.style.background='#f3f6f9';box.style.border='1px solid #dfe5ec';box.style.color='#425166';}
+  }
   function setGoogleState(text,type=''){
     const state=$('appointmentGoogleState');if(!state)return;
     state.textContent=text||'';
@@ -17,6 +41,7 @@
     const del=$('deleteAppointmentBtn'),google=$('googleAppointmentBtn');
     if(del)del.style.display=a?'inline-flex':'none';
     if(google)google.textContent=syncButtonLabel(a);
+    dialogNotice('');
     if(hasGoogleLink(a))setGoogleState('Added to Google Calendar','success');
     else if(String(a?.google_calendar_status||'').toLowerCase()==='sync error')setGoogleState('Google Calendar: needs retry','error');
     else setGoogleState('Not added to Google Calendar');
@@ -24,6 +49,7 @@
   function installButtons(){
     const save=$('saveAppointmentBtn');
     if(!save||$('googleAppointmentBtn'))return;
+    ensureDialogNotice();
     const google=document.createElement('button');google.type='button';google.id='googleAppointmentBtn';google.className='btn';google.textContent='Save & Add to Google Calendar';
     const del=document.createElement('button');del.type='button';del.id='deleteAppointmentBtn';del.className='btn danger';del.textContent='Delete Appointment';del.style.display='none';
     const state=document.createElement('span');state.id='appointmentGoogleState';state.className='sub';state.style.marginLeft='4px';
@@ -59,7 +85,7 @@
   }
   async function saveAndSyncGoogle(){
     const btn=$('googleAppointmentBtn');if(!btn)return;
-    btn.disabled=true;
+    btn.disabled=true;dialogNotice('Saving appointment…');
     try{
       setGoogleState('Saving appointment…');
       let saved=await saveAppointmentRecord();
@@ -70,6 +96,7 @@
         saved=reset.data;appointments=appointments.map(a=>a.id===saved.id?saved:a);
       }
       setGoogleState(hasGoogleLink(saved)?'Updating Google Calendar…':'Adding to Google Calendar…');
+      dialogNotice(hasGoogleLink(saved)?'Updating Google Calendar…':'Adding to Google Calendar…');
       btn.textContent=hasGoogleLink(saved)?'Updating Google…':'Adding to Google…';
       const result=await window.BROCalendarSync.syncAppointment(saved);
       if(!result?.ok)throw result?.error||new Error('Google Calendar update failed.');
@@ -80,10 +107,10 @@
       if(!refreshed.data?.google_calendar_event_id)throw new Error('Google created the event, but BRO could not save the Google link. Please do not click Add again.');
       appointments=appointments.map(a=>a.id===saved.id?refreshed.data:a);
       refreshActions(refreshed.data);renderAppointments();setGoogleState('Added to Google Calendar','success');
-      notice(hasGoogleLink(saved)?'Appointment updated in Google Calendar.':'Appointment saved and added to Google Calendar.','success');
-      setTimeout(()=>$('appointmentDialog')?.close(),700);
+      dialogNotice('Appointment added to Google Calendar.','success');
+      setTimeout(()=>$('appointmentDialog')?.close(),900);
     }catch(err){
-      const message=err?.message||String(err);setGoogleState(`Google Calendar: Error — ${message}`,'error');notice(`Could not add appointment to Google Calendar: ${message}`,'error');btn.textContent='Try Google Calendar Again';return;
+      const message=err?.message||String(err);setGoogleState('Google Calendar: Error','error');dialogNotice(`Google Calendar error: ${message}`,'error');btn.textContent='Try Google Calendar Again';return;
     }finally{btn.disabled=false;if(btn.textContent!=='Try Google Calendar Again')btn.textContent=syncButtonLabel(currentAppointment());}
   }
   async function deleteAppointmentConfirmed(){
@@ -91,7 +118,7 @@
     const linked=!!String(a.google_calendar_event_id||'').trim();
     const extra=linked?'\n\nBRO will also remove the linked Google event if one exists.':'';
     if(!confirm(`Delete this appointment?${extra}\n\nThis cannot be undone.`))return;
-    const btn=$('deleteAppointmentBtn');btn.disabled=true;btn.textContent='Deleting…';
+    const btn=$('deleteAppointmentBtn');btn.disabled=true;btn.textContent='Deleting…';dialogNotice('Deleting appointment…');
     let googleWarning='';
     try{
       if(linked&&window.BROCalendarSync?.deleteAppointment){
@@ -101,9 +128,9 @@
       const now=new Date().toISOString();
       const {error}=await db.from('appointments').update({deleted_at:now,appointment_status:'Canceled',google_calendar_status:linked?(googleWarning?'Google Delete Error':'Canceled'):a.google_calendar_status,updated_at:now}).eq('id',a.id);
       if(error)throw error;
-      appointments=appointments.filter(x=>x.id!==a.id);$('appointmentDialog').close();renderAppointments();
-      notice(googleWarning?`Appointment deleted from BRO. Google Calendar warning: ${googleWarning}`:'Appointment deleted.','success');
-    }catch(err){notice(`Could not delete appointment from BRO: ${err?.message||String(err)}`,'error');}
+      appointments=appointments.filter(x=>x.id!==a.id);renderAppointments();
+      if(googleWarning){dialogNotice(`Deleted from BRO. Google Calendar warning: ${googleWarning}`,'error');setTimeout(()=>$('appointmentDialog')?.close(),1800);}else{dialogNotice('Appointment deleted.','success');setTimeout(()=>$('appointmentDialog')?.close(),700);}
+    }catch(err){dialogNotice(`Could not delete appointment from BRO: ${err?.message||String(err)}`,'error');}
     finally{btn.disabled=false;btn.textContent='Delete Appointment';}
   }
   document.addEventListener('DOMContentLoaded',()=>setTimeout(installButtons,0));
