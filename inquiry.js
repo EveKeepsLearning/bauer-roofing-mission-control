@@ -6,6 +6,7 @@ let inquiry=null;
 let appointments=[];
 let linkedJob=null;
 let resolvedContactId='';
+let contactRecord=null;
 const params=new URLSearchParams(location.search);
 const inquiryId=params.get('id');
 const requestedContactId=params.get('contact');
@@ -17,35 +18,44 @@ function dateTimeLabel(v){if(!v)return'—';const d=new Date(v);return Number.is
 function norm(v){return String(v||'').trim().toLowerCase();}
 function phoneDigits(v){return String(v||'').replace(/\D/g,'');}
 function exactContactId(){return inquiry?.contact_id||requestedContactId||linkedJob?.customer_id||resolvedContactId||'';}
-function fullAddress(){return [inquiry?.street_address,inquiry?.city,inquiry?.state,inquiry?.zip].filter(Boolean).join(', ');}
+function propertyAddress(){return [inquiry?.street_address,inquiry?.city,inquiry?.state,inquiry?.zip].filter(Boolean).join(', ');}
+function contactAddress(){return contactRecord?[contactRecord.street_address,contactRecord.city,contactRecord.state,contactRecord.zip].filter(Boolean).join(', '):'';}
 
 function renderCustomerSummary(){
   const box=$('customerSummary');
   if(!box||!inquiry)return;
   const number=inquiry.lead_number?`Inquiry #${esc(inquiry.lead_number)}`:'Inquiry number not assigned';
-  const name=esc(inquiry.homeowner_name||'Unnamed customer');
-  const addr=esc(fullAddress()||'No property address');
+  const displayName=contactRecord?.name||inquiry.homeowner_name||'Unnamed customer';
+  const phone=contactRecord?.phone||inquiry.phone||'';
+  const email=contactRecord?.email||inquiry.email||'';
+  const cAddr=contactAddress();
+  const pAddr=propertyAddress();
+  const differentAddresses=cAddr&&pAddr&&norm(cAddr)!==norm(pAddr);
   box.innerHTML=`
     <div class="customer-summary-main">
       <div class="customer-kicker">${number}</div>
-      <div class="customer-name">${name}</div>
-      <div class="customer-address">${addr}</div>
+      <div class="customer-name">${esc(displayName)}</div>
+      <div class="customer-address">${esc(cAddr||pAddr||'No address')}</div>
+      ${differentAddresses?`<div class="customer-address"><b>Property:</b> ${esc(pAddr)}</div>`:''}
     </div>
     <div class="customer-contact-grid">
-      <div><span>Phone</span>${inquiry.phone?`<a href="tel:${esc(phoneDigits(inquiry.phone))}">${esc(inquiry.phone)}</a>`:'<b>—</b>'}</div>
-      <div><span>Email</span>${inquiry.email?`<a href="mailto:${esc(inquiry.email)}">${esc(inquiry.email)}</a>`:'<b>—</b>'}</div>
+      <div><span>Phone</span>${phone?`<a href="tel:${esc(phoneDigits(phone))}">${esc(phone)}</a>`:'<b>—</b>'}</div>
+      <div><span>Email</span>${email?`<a href="mailto:${esc(email)}">${esc(email)}</a>`:'<b>—</b>'}</div>
       <div><span>Assigned</span><b>${esc(inquiry.assigned_to||inquiry.salesperson||'—')}</b></div>
       <div><span>Source</span><b>${esc(inquiry.source||'—')}</b></div>
     </div>
     <div class="customer-quick-actions">
-      ${inquiry.phone?`<a class="btn small" href="tel:${esc(phoneDigits(inquiry.phone))}">Call</a><a class="btn small" href="sms:${esc(phoneDigits(inquiry.phone))}">Text</a>`:''}
-      ${inquiry.email?`<a class="btn small" href="mailto:${esc(inquiry.email)}">Email</a>`:''}
+      ${phone?`<a class="btn small" href="tel:${esc(phoneDigits(phone))}">Call</a><a class="btn small" href="sms:${esc(phoneDigits(phone))}">Text</a>`:''}
+      ${email?`<a class="btn small" href="mailto:${esc(email)}">Email</a>`:''}
+      <button class="btn small" id="editContactFromInquiry" type="button">Edit Contact</button>
     </div>`;
+  $('editContactFromInquiry')?.addEventListener('click',openContactEditor);
 }
 
 function fill(){
   if(!inquiry)return;
-  $('title').textContent=inquiry.lead_number?`Inquiry #${inquiry.lead_number} — ${inquiry.homeowner_name||'Unnamed customer'}`:`Inquiry — ${inquiry.homeowner_name||'Unnamed customer'}`;
+  const displayName=contactRecord?.name||inquiry.homeowner_name||'Unnamed customer';
+  $('title').textContent=inquiry.lead_number?`Inquiry #${inquiry.lead_number} — ${displayName}`:`Inquiry — ${displayName}`;
   $('subtitle').textContent=inquiry.lead_number?'Customer and inquiry details':'No inquiry number has been assigned yet';
   $('leadNumber').value=inquiry.lead_number||'';
   $('inquiryAt').value=localInput(inquiry.inquiry_at||inquiry.received_at);
@@ -99,14 +109,23 @@ async function findExactContact(){
   return candidates.length===1?candidates[0].id:'';
 }
 
+async function loadContact(cid){
+  if(!cid){contactRecord=null;return null;}
+  const {data,error}=await db.from('contacts').select('*').eq('id',cid).single();
+  if(error){contactRecord=null;return null;}
+  contactRecord=data;
+  return data;
+}
+
 async function ensureContactId(){
   const known=exactContactId();
   if(known){
     if(!inquiry.contact_id)await linkContact(known);
+    await loadContact(known);
     return known;
   }
   const match=await findExactContact();
-  if(match)return linkContact(match);
+  if(match){await linkContact(match);await loadContact(match);return match;}
   const name=String(inquiry?.homeowner_name||'').trim();
   if(!name)throw new Error('This inquiry needs a customer name before a contact can be created.');
   const row={
@@ -121,7 +140,77 @@ async function ensureContactId(){
   };
   const {data,error}=await db.from('contacts').insert(row).select('*').single();
   if(error)throw error;
+  contactRecord=data;
   return linkContact(data.id);
+}
+
+function installContactEditor(){
+  if($('contactEditDialog'))return;
+  const d=document.createElement('dialog');
+  d.id='contactEditDialog';
+  d.innerHTML=`<form method="dialog" class="card" style="min-width:min(720px,92vw)">
+    <h2 style="margin-top:0">Edit Contact</h2>
+    <div class="sub" style="margin-bottom:12px">This edits the customer contact. The property/job-site address remains editable in the inquiry below.</div>
+    <div class="grid">
+      <div class="wide"><label>Name / Company</label><input id="contactEditName"></div>
+      <div><label>Phone</label><input id="contactEditPhone"></div>
+      <div><label>Email</label><input id="contactEditEmail"></div>
+      <div class="wide"><label>Contact / Mailing Address</label><input id="contactEditStreet"></div>
+      <div><label>City</label><input id="contactEditCity"></div>
+      <div><label>State</label><input id="contactEditState"></div>
+      <div><label>ZIP</label><input id="contactEditZip"></div>
+    </div>
+    <div class="toolbar" style="margin-top:16px"><button class="btn primary" id="saveContactEdit" type="button">Save Contact</button><button class="btn" value="cancel">Cancel</button></div>
+  </form>`;
+  document.body.appendChild(d);
+  $('saveContactEdit').addEventListener('click',saveContactEdit);
+}
+
+async function openContactEditor(){
+  try{
+    notice('Loading contact…');
+    const cid=await ensureContactId();
+    if(!contactRecord)await loadContact(cid);
+    const c=contactRecord||{};
+    $('contactEditName').value=c.name||inquiry.homeowner_name||'';
+    $('contactEditPhone').value=c.phone||inquiry.phone||'';
+    $('contactEditEmail').value=c.email||inquiry.email||'';
+    $('contactEditStreet').value=c.street_address||'';
+    $('contactEditCity').value=c.city||'';
+    $('contactEditState').value=c.state||'SC';
+    $('contactEditZip').value=c.zip||'';
+    notice('');
+    $('contactEditDialog').showModal();
+  }catch(err){notice(`Could not edit contact: ${err?.message||String(err)}`,'error');}
+}
+
+async function saveContactEdit(){
+  const cid=exactContactId();
+  if(!cid)return notice('No customer contact is linked yet.','error');
+  const contactPatch={
+    name:$('contactEditName').value.trim(),
+    phone:$('contactEditPhone').value.trim()||null,
+    email:$('contactEditEmail').value.trim()||null,
+    street_address:$('contactEditStreet').value.trim()||null,
+    city:$('contactEditCity').value.trim()||null,
+    state:$('contactEditState').value.trim()||null,
+    zip:$('contactEditZip').value.trim()||null
+  };
+  if(!contactPatch.name)return notice('Contact name or company is required.','error');
+  const btn=$('saveContactEdit');btn.disabled=true;btn.textContent='Saving…';
+  try{
+    const {data,error}=await db.from('contacts').update(contactPatch).eq('id',cid).select('*').single();
+    if(error)throw error;
+    contactRecord=data;
+    const leadPatch={homeowner_name:data.name,phone:data.phone,email:data.email,updated_at:new Date().toISOString()};
+    const {data:leadData,error:leadError}=await db.from('leads').update(leadPatch).eq('id',inquiryId).select('*').single();
+    if(leadError)throw leadError;
+    inquiry=leadData;
+    $('contactEditDialog').close();
+    fill();
+    notice('Contact updated.','success');
+  }catch(err){notice(`Could not save contact: ${err?.message||String(err)}`,'error');}
+  finally{btn.disabled=false;btn.textContent='Save Contact';}
 }
 
 async function goToContact(){
@@ -144,9 +233,9 @@ async function saveInquiry(){const patch={lead_number:$('leadNumber').value.trim
 async function saveAppointment(){const id=$('appointmentId').value;const row={lead_id:inquiryId,appointment_at:$('appointmentAt').value?new Date($('appointmentAt').value).toISOString():null,assigned_to:$('appointmentAssigned').value.trim()||null,appointment_type:$('appointmentType').value.trim()||null,appointment_result:$('appointmentResult').value.trim()||null,appointment_result_note:$('appointmentResultNote').value.trim()||null,notes:$('appointmentNotes').value.trim()||null,updated_at:new Date().toISOString()};let res;if(id)res=await db.from('appointments').update(row).eq('id',id).select('*').single();else res=await db.from('appointments').insert(row).select('*').single();if(res.error)return notice(res.error.message,'error');if(id)appointments=appointments.map(a=>a.id===id?res.data:a);else appointments.unshift(res.data);$('appointmentDialog').close();renderAppointments();notice(id?'Appointment updated.':'Appointment added.','success');}
 function installContextMenu(){if($('inquiryContext'))return;const style=document.createElement('style');style.textContent='.inquiry-ctx{position:fixed;z-index:6000;min-width:220px;background:#fff;border:1px solid #cfd8e3;border-radius:9px;box-shadow:0 10px 28px rgba(20,35,55,.18);padding:5px;display:none}.inquiry-ctx button{display:block;width:100%;border:0;background:#fff;text-align:left;padding:8px 9px;border-radius:6px;cursor:pointer}.inquiry-ctx button:hover{background:#eef4fb}';document.head.appendChild(style);const menu=document.createElement('div');menu.id='inquiryContext';menu.className='inquiry-ctx';document.body.appendChild(menu);}
 function hideContext(){const m=$('inquiryContext');if(m)m.style.display='none';}
-function showContext(e,appt=null){const m=$('inquiryContext');if(!m||!inquiry)return;const items=[];if(appt)items.push(['Edit appointment',()=>openAppointment(appt)]);items.push(['Open this customer contact',()=>goToContact()]);if(inquiry.phone)items.push(['Call customer',()=>location.href=`tel:${phoneDigits(inquiry.phone)}`],['Text customer',()=>location.href=`sms:${phoneDigits(inquiry.phone)}`]);if(inquiry.email)items.push(['Email customer',()=>location.href=`mailto:${inquiry.email}`]);if(!appt)items.push(['Add appointment',()=>openAppointment()],['Save inquiry',()=>saveInquiry()]);if(linkedJob)items.push(['Open job',()=>location.href=`jobs.html?job=${encodeURIComponent(linkedJob.id)}`]);items.push(['Copy inquiry number',()=>navigator.clipboard?.writeText(inquiry.lead_number||'')],['Copy address',()=>navigator.clipboard?.writeText(fullAddress())]);m.innerHTML=items.map((x,i)=>`<button type="button" data-mi="${i}">${esc(x[0])}</button>`).join('');m.querySelectorAll('button').forEach((b,i)=>b.onclick=()=>{hideContext();items[i][1]();});m.style.display='block';requestAnimationFrame(()=>{const r=m.getBoundingClientRect();m.style.left=Math.max(8,Math.min(e.clientX,innerWidth-r.width-8))+'px';m.style.top=Math.max(8,Math.min(e.clientY,innerHeight-r.height-8))+'px';});}
-async function load(){if(!inquiryId)return notice('No inquiry was selected.','error');const [iRes,aRes,jRes]=await Promise.all([db.from('leads').select('*').eq('id',inquiryId).single(),db.from('appointments').select('*').eq('lead_id',inquiryId).is('deleted_at',null).order('appointment_at',{ascending:false}),db.from('jobs').select('*').eq('lead_id',inquiryId).is('deleted_at',null).order('created_at',{ascending:false}).limit(1)]);if(iRes.error)return notice(iRes.error.message,'error');inquiry=iRes.data;appointments=aRes.data||[];linkedJob=(jRes.data||[])[0]||null;fill();renderAppointments();if(linkedJob){$('jobBtn').style.display='inline-flex';$('jobBtn').onclick=()=>location.href=`jobs.html?job=${encodeURIComponent(linkedJob.id)}`;}}
-async function start(){installContextMenu();db=supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);const {data,error}=await db.auth.getSession();if(error)return notice(error.message,'error');if(!data.session){location.href='index.html';return;}await load();}
+function showContext(e,appt=null){const m=$('inquiryContext');if(!m||!inquiry)return;const items=[];if(appt)items.push(['Edit appointment',()=>openAppointment(appt)]);items.push(['Edit customer contact',()=>openContactEditor()],['Open this customer contact',()=>goToContact()]);const phone=contactRecord?.phone||inquiry.phone;const email=contactRecord?.email||inquiry.email;if(phone)items.push(['Call customer',()=>location.href=`tel:${phoneDigits(phone)}`],['Text customer',()=>location.href=`sms:${phoneDigits(phone)}`]);if(email)items.push(['Email customer',()=>location.href=`mailto:${email}`]);if(!appt)items.push(['Add appointment',()=>openAppointment()],['Save inquiry',()=>saveInquiry()]);if(linkedJob)items.push(['Open job',()=>location.href=`jobs.html?job=${encodeURIComponent(linkedJob.id)}`]);items.push(['Copy inquiry number',()=>navigator.clipboard?.writeText(inquiry.lead_number||'')],['Copy property address',()=>navigator.clipboard?.writeText(propertyAddress())]);m.innerHTML=items.map((x,i)=>`<button type="button" data-mi="${i}">${esc(x[0])}</button>`).join('');m.querySelectorAll('button').forEach((b,i)=>b.onclick=()=>{hideContext();items[i][1]();});m.style.display='block';requestAnimationFrame(()=>{const r=m.getBoundingClientRect();m.style.left=Math.max(8,Math.min(e.clientX,innerWidth-r.width-8))+'px';m.style.top=Math.max(8,Math.min(e.clientY,innerHeight-r.height-8))+'px';});}
+async function load(){if(!inquiryId)return notice('No inquiry was selected.','error');const [iRes,aRes,jRes]=await Promise.all([db.from('leads').select('*').eq('id',inquiryId).single(),db.from('appointments').select('*').eq('lead_id',inquiryId).is('deleted_at',null).order('appointment_at',{ascending:false}),db.from('jobs').select('*').eq('lead_id',inquiryId).is('deleted_at',null).order('created_at',{ascending:false}).limit(1)]);if(iRes.error)return notice(iRes.error.message,'error');inquiry=iRes.data;appointments=aRes.data||[];linkedJob=(jRes.data||[])[0]||null;const cid=exactContactId();if(cid)await loadContact(cid);fill();renderAppointments();if(linkedJob){$('jobBtn').style.display='inline-flex';$('jobBtn').onclick=()=>location.href=`jobs.html?job=${encodeURIComponent(linkedJob.id)}`;}}
+async function start(){installContextMenu();installContactEditor();db=supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);const {data,error}=await db.auth.getSession();if(error)return notice(error.message,'error');if(!data.session){location.href='index.html';return;}await load();}
 $('saveInquiryBtn').onclick=saveInquiry;
 $('addAppointmentBtn').onclick=()=>openAppointment();
 $('saveAppointmentBtn').onclick=saveAppointment;
