@@ -23,9 +23,30 @@
   function clean(v){return String(v||'').trim();}
   function splitName(l){let first=clean(l?.first_name),last=clean(l?.last_name);if(first||last)return{first,last};const name=clean(l?.homeowner_name);if(!name)return{first:'',last:''};const parts=name.split(/\s+/).filter(Boolean);if(parts.length===1)return{first:parts[0],last:''};return{first:parts.slice(0,-1).join(' '),last:parts[parts.length-1]};}
   function contactLocation(l,includeLeadNumber){const {first,last}=splitName(l);const name=last&&first?`${last}, ${first}`:last||first||clean(l?.homeowner_name);const parts=[name,clean(l?.phone),clean(l?.phone_secondary),clean(l?.email)].filter(Boolean);if(includeLeadNumber&&clean(l?.lead_number))parts.push(`#${clean(l.lead_number)}`);return parts.join('  ');}
+  function sourceCode(l){
+    const raw=clean(l?.source);if(!raw)return 'UNK';
+    if(/^[A-Za-z]{2,5}$/.test(raw))return raw;
+    const key=raw.toLowerCase();
+    const map={'angi ads':'AA','website form':'WF','internet':'INT','repeat business':'RB','direct mail':'DM','referral':'Ref','homeadvisor (angi leads)':'HA','angi leads':'HA'};
+    return map[key]||raw.split(/\s+/).filter(Boolean).map(x=>x[0]).join('').slice(0,4).toUpperCase()||'UNK';
+  }
+  function inquiryTypeCode(a,l){
+    const raw=clean(a?.appointment_type)||clean(l?.work_category)||clean(l?.product_interest);if(!raw)return 'M';
+    if(/^[A-Za-z]{1,4}$/.test(raw))return raw;
+    const key=raw.toLowerCase();
+    if(key.includes('siding'))return 'Sid';
+    if(key.includes('measure'))return 'M';
+    if(key.includes('presentation'))return 'M';
+    if(key.includes('repair'))return 'F';
+    return raw.split(/\s+/).filter(Boolean).map(x=>x[0]).join('').slice(0,4).toUpperCase()||'M';
+  }
+  function googleTitle(a,l){
+    const street=clean(l?.street_address),zip=clean(l?.zip),property=[street,zip].filter(Boolean).join(', ');
+    return `${sourceCode(l)}-${inquiryTypeCode(a,l)}-${property}`;
+  }
   function payloadFor(a,l,action='upsert'){
     const isNewGoogleEvent=!clean(a?.google_calendar_event_id);
-    return{secret:getSecret(),action,appointment_id:a?.id||null,google_event_id:a?.google_calendar_event_id||null,start_time:a?.appointment_at||null,lead_number:l?.lead_number||null,customer_name:l?.homeowner_name||null,first_name:l?.first_name||null,last_name:l?.last_name||null,phone:l?.phone||null,phone_secondary:l?.phone_secondary||null,email:l?.email||null,street_address:l?.street_address||null,city:l?.city||null,state:l?.state||null,zip:l?.zip||null,location:contactLocation(l,isNewGoogleEvent),work_category:l?.work_category||l?.product_interest||null,source:l?.source||null,assigned_to:a?.assigned_to||l?.assigned_to||l?.salesperson||'Roy',notes:a?.notes||null};
+    return{secret:getSecret(),action,appointment_id:a?.id||null,google_event_id:a?.google_calendar_event_id||null,start_time:a?.appointment_at||null,title:isNewGoogleEvent?googleTitle(a,l):null,lead_number:l?.lead_number||null,customer_name:l?.homeowner_name||null,first_name:l?.first_name||null,last_name:l?.last_name||null,phone:l?.phone||null,phone_secondary:l?.phone_secondary||null,email:l?.email||null,street_address:l?.street_address||null,city:l?.city||null,state:l?.state||null,zip:l?.zip||null,location:contactLocation(l,isNewGoogleEvent),work_category:l?.work_category||l?.product_interest||null,source:l?.source||null,assigned_to:a?.assigned_to||l?.assigned_to||l?.salesperson||'Roy',notes:a?.notes||null};
   }
   async function post(payload){if(!ENDPOINT)throw new Error('Google Calendar sync endpoint is not configured.');const response=await fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload),redirect:'follow'});const text=await response.text();let data;try{data=JSON.parse(text);}catch(_){throw new Error('Google Calendar returned an unreadable response.');}if(!data?.ok){const msg=String(data?.error||'Google Calendar sync failed.');if(msg.includes('appointment_id is required'))throw new Error('The deployed Apps Script is still using the older handler. In Apps Script choose Deploy → Manage deployments → Edit → New version → Deploy.');throw new Error(msg);}return data;}
   async function loadLead(database,leadId){if(!leadId)return null;const{data,error}=await database.from('leads').select('id,lead_number,homeowner_name,first_name,last_name,spouse_name,street_address,city,state,zip,phone,phone_secondary,email,source,work_category,product_interest,assigned_to,salesperson').eq('id',leadId).single();if(error)throw error;return data;}
