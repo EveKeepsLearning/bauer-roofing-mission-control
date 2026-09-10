@@ -30,15 +30,16 @@
       .bro-time-block-head .bro-block-hint{font-size:10px;font-weight:600;color:#8994a3;letter-spacing:0}
       .bro-time-block-body{min-height:42px;padding:3px 0}
       .bro-time-block-body.bro-drag-over{background:#eaf3ff;box-shadow:inset 0 0 0 2px #3b82f6}
-      .bro-time-block-body>.task{cursor:grab;margin:0!important;border-radius:0!important}
-      .bro-time-block-body>.task:active{cursor:grabbing}
-      .bro-time-block-body>.task button,.bro-time-block-body>.task a,.bro-time-block-body>.task input,.bro-time-block-body>.task label{cursor:pointer}
+      .bro-time-block-body>.task{cursor:default!important;margin:0!important;border-radius:0!important;position:relative}
+      .bro-time-block-body>.task button,.bro-time-block-body>.task a,.bro-time-block-body>.task input,.bro-time-block-body>.task label{cursor:pointer!important}
       .bro-time-block-body>.task.bro-dragging{opacity:.4}
+      .bro-task-drag-handle{float:right;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin:0 0 5px 8px;border:1px solid #d6dee8;border-radius:7px;background:#f5f7fa;color:#697789;font-size:16px;line-height:1;cursor:grab;user-select:none}
+      .bro-task-drag-handle:active{cursor:grabbing}
       .bro-time-block-empty{padding:10px;color:#98a2b1;font-size:12px;font-style:italic}
       .bro-exact-time-section{margin:8px 0 12px;border-top:1px dashed #cfd7e2;padding-top:6px}
       .bro-exact-time-heading{font-size:11px;font-weight:800;color:#5e6d80;padding:5px 8px;text-transform:uppercase;letter-spacing:.06em}
-      .bro-exact-time-section>.task{cursor:grab}
-      .bro-exact-time-section>.task button,.bro-exact-time-section>.task a,.bro-exact-time-section>.task input,.bro-exact-time-section>.task label{cursor:pointer}
+      .bro-exact-time-section>.task{cursor:default!important;position:relative}
+      .bro-exact-time-section>.task button,.bro-exact-time-section>.task a,.bro-exact-time-section>.task input,.bro-exact-time-section>.task label{cursor:pointer!important}
       .bro-exact-time-note{font-size:10px;color:#8b96a5;margin-left:6px;text-transform:none;letter-spacing:0;font-weight:600}
       .bro-in-progress-task{box-shadow:inset 3px 0 0 #246fe5}
     `;
@@ -77,41 +78,34 @@
     const wrap=document.createElement('section');
     wrap.className='bro-time-block';
     wrap.dataset.timeBlock=block.key;
-    wrap.innerHTML=`<div class="bro-time-block-head"><span>${block.label}</span><span class="bro-block-hint">drag tasks here</span></div><div class="bro-time-block-body" data-block-drop="${block.key}"></div>`;
+    wrap.innerHTML=`<div class="bro-time-block-head"><span>${block.label}</span><span class="bro-block-hint">drag by handle</span></div><div class="bro-time-block-body" data-block-drop="${block.key}"></div>`;
     return wrap;
   }
 
   function wireDraggable(node){
     if(!node?.dataset?.taskId)return;
-    if(node.dataset.broDragWired!=='1'){
-      node.dataset.broDragWired='1';
-      node.draggable=true;
-      node.addEventListener('dragstart',event=>{
-        if(event.target.closest?.('button,a,input,textarea,select,label')){
-          event.preventDefault();
-          return;
-        }
-        draggedTaskId=node.dataset.taskId;
-        node.classList.add('bro-dragging');
-        event.dataTransfer.effectAllowed='move';
-        event.dataTransfer.setData('text/plain',draggedTaskId);
-      });
-      node.addEventListener('dragend',()=>{node.classList.remove('bro-dragging');draggedTaskId='';document.querySelectorAll('.bro-drag-over').forEach(el=>el.classList.remove('bro-drag-over'));});
-    }
-
-    node.querySelectorAll('button,a,input,textarea,select,label').forEach(control=>{
-      control.draggable=false;
-      if(control.dataset.broNoCardDrag==='1')return;
-      control.dataset.broNoCardDrag='1';
-      const suspendDrag=()=>{node.draggable=false;};
-      const restoreDrag=()=>{setTimeout(()=>{node.draggable=true;},0);};
-      control.addEventListener('pointerdown',suspendDrag,true);
-      control.addEventListener('mousedown',suspendDrag,true);
-      control.addEventListener('pointerup',restoreDrag,true);
-      control.addEventListener('mouseup',restoreDrag,true);
-      control.addEventListener('pointercancel',restoreDrag,true);
-      control.addEventListener('mouseleave',restoreDrag,true);
+    node.draggable=false;
+    node.removeAttribute('draggable');
+    if(node.querySelector(':scope > .bro-task-drag-handle'))return;
+    const handle=document.createElement('span');
+    handle.className='bro-task-drag-handle';
+    handle.textContent='⠿';
+    handle.title='Drag task to another time block';
+    handle.setAttribute('aria-label','Drag task to another time block');
+    handle.draggable=true;
+    handle.addEventListener('dragstart',event=>{
+      event.stopPropagation();
+      draggedTaskId=node.dataset.taskId;
+      node.classList.add('bro-dragging');
+      event.dataTransfer.effectAllowed='move';
+      event.dataTransfer.setData('text/plain',draggedTaskId);
     });
+    handle.addEventListener('dragend',()=>{
+      node.classList.remove('bro-dragging');
+      draggedTaskId='';
+      document.querySelectorAll('.bro-drag-over').forEach(el=>el.classList.remove('bro-drag-over'));
+    });
+    node.insertBefore(handle,node.firstChild);
   }
 
   function arrange(){
