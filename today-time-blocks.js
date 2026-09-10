@@ -25,23 +25,26 @@
     style.id='broTimeBlockStyles';
     style.textContent=`
       #currentTask{display:none!important}
-      .bro-time-block{margin:7px 0 11px;border:1px solid #dfe5ec;border-radius:10px;background:#fff;overflow:hidden}
-      .bro-time-block-head{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:#f6f8fb;border-bottom:1px solid #e3e8ef;font-size:12px;font-weight:800;color:#415168;letter-spacing:.035em}
-      .bro-time-block-head .bro-block-hint{font-size:10px;font-weight:600;color:#8994a3;letter-spacing:0}
-      .bro-time-block-body{min-height:42px;padding:3px 0}
+      .bro-time-block{margin:10px 0 14px;border:1px solid #d9e2ec;border-radius:12px;background:#f8fafc;overflow:hidden}
+      .bro-time-block-head{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:#eef3f8;border-bottom:1px solid #d9e2ec;font-size:12px;font-weight:800;color:#415168;letter-spacing:.035em}
+      .bro-time-block-head .bro-block-hint{font-size:10px;font-weight:600;color:#7d8998;letter-spacing:0}
+      .bro-time-block-body{min-height:46px;padding:8px}
       .bro-time-block-body.bro-drag-over{background:#eaf3ff;box-shadow:inset 0 0 0 2px #3b82f6}
-      .bro-time-block-body>.task{cursor:default!important;margin:0!important;border-radius:0!important;position:relative}
-      .bro-time-block-body>.task button,.bro-time-block-body>.task a,.bro-time-block-body>.task input,.bro-time-block-body>.task label{cursor:pointer!important}
-      .bro-time-block-body>.task.bro-dragging{opacity:.4}
-      .bro-task-drag-handle{float:right;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin:0 0 5px 8px;border:1px solid #d6dee8;border-radius:7px;background:#f5f7fa;color:#697789;font-size:16px;line-height:1;cursor:grab;user-select:none}
+      .bro-time-block-body>.task,.bro-exact-time-section>.task{cursor:default!important;position:relative;margin:0 0 8px!important;padding:11px 12px!important;border:1px solid #d6dee8!important;border-radius:10px!important;background:#fff!important;box-shadow:0 2px 7px rgba(31,48,72,.07)!important}
+      .bro-time-block-body>.task:last-child,.bro-exact-time-section>.task:last-child{margin-bottom:0!important}
+      .bro-time-block-body>.task:hover,.bro-exact-time-section>.task:hover{border-color:#bcc9d8!important;box-shadow:0 4px 11px rgba(31,48,72,.10)!important}
+      .bro-time-block-body>.task button,.bro-time-block-body>.task a,.bro-time-block-body>.task input,.bro-time-block-body>.task label,.bro-exact-time-section>.task button,.bro-exact-time-section>.task a,.bro-exact-time-section>.task input,.bro-exact-time-section>.task label{cursor:pointer!important}
+      .bro-time-block-body>.task.bro-dragging,.bro-exact-time-section>.task.bro-dragging{opacity:.45}
+      .bro-task-drag-handle{float:right;display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:28px;margin:0 0 6px 10px;padding:0 8px;border:1px solid #cdd7e3;border-radius:7px;background:#f4f7fa;color:#56677b;font-size:12px;font-weight:700;line-height:1;cursor:grab;user-select:none}
+      .bro-task-drag-handle:hover{background:#eaf0f6;border-color:#b8c5d4}
       .bro-task-drag-handle:active{cursor:grabbing}
       .bro-time-block-empty{padding:10px;color:#98a2b1;font-size:12px;font-style:italic}
-      .bro-exact-time-section{margin:8px 0 12px;border-top:1px dashed #cfd7e2;padding-top:6px}
-      .bro-exact-time-heading{font-size:11px;font-weight:800;color:#5e6d80;padding:5px 8px;text-transform:uppercase;letter-spacing:.06em}
-      .bro-exact-time-section>.task{cursor:default!important;position:relative}
-      .bro-exact-time-section>.task button,.bro-exact-time-section>.task a,.bro-exact-time-section>.task input,.bro-exact-time-section>.task label{cursor:pointer!important}
+      .bro-exact-time-section{margin:10px 0 14px;border:1px solid #d9e2ec;border-radius:12px;background:#f8fafc;padding:8px}
+      .bro-exact-time-heading{font-size:11px;font-weight:800;color:#5e6d80;padding:2px 4px 8px;text-transform:uppercase;letter-spacing:.06em}
       .bro-exact-time-note{font-size:10px;color:#8b96a5;margin-left:6px;text-transform:none;letter-spacing:0;font-weight:600}
-      .bro-in-progress-task{box-shadow:inset 3px 0 0 #246fe5}
+      .bro-in-progress-task{box-shadow:inset 4px 0 0 #246fe5,0 2px 7px rgba(31,48,72,.07)!important}
+      .task-subtasks{margin-top:8px;padding-top:7px;border-top:1px solid #edf1f5}
+      .task-subtask{display:flex;align-items:center;gap:7px;padding:3px 0}
     `;
     document.head.appendChild(style);
   }
@@ -78,7 +81,7 @@
     const wrap=document.createElement('section');
     wrap.className='bro-time-block';
     wrap.dataset.timeBlock=block.key;
-    wrap.innerHTML=`<div class="bro-time-block-head"><span>${block.label}</span><span class="bro-block-hint">drag by handle</span></div><div class="bro-time-block-body" data-block-drop="${block.key}"></div>`;
+    wrap.innerHTML=`<div class="bro-time-block-head"><span>${block.label}</span><span class="bro-block-hint">drag with Move</span></div><div class="bro-time-block-body" data-block-drop="${block.key}"></div>`;
     return wrap;
   }
 
@@ -87,12 +90,14 @@
     node.draggable=false;
     node.removeAttribute('draggable');
     if(node.querySelector(':scope > .bro-task-drag-handle'))return;
-    const handle=document.createElement('span');
+    const handle=document.createElement('button');
+    handle.type='button';
     handle.className='bro-task-drag-handle';
-    handle.textContent='⠿';
+    handle.textContent='Move';
     handle.title='Drag task to another time block';
     handle.setAttribute('aria-label','Drag task to another time block');
     handle.draggable=true;
+    handle.addEventListener('click',event=>event.preventDefault());
     handle.addEventListener('dragstart',event=>{
       event.stopPropagation();
       draggedTaskId=node.dataset.taskId;
@@ -132,7 +137,7 @@
       });
       const exact=document.createElement('section');
       exact.className='bro-exact-time-section';
-      exact.innerHTML='<div class="bro-exact-time-heading">Exact-time commitments <span class="bro-exact-time-note">kept exact unless you drag them into a block</span></div>';
+      exact.innerHTML='<div class="bro-exact-time-heading">Exact-time commitments <span class="bro-exact-time-note">kept exact unless moved into a block</span></div>';
       list.insertBefore(exact,insertBefore);
 
       nodes.forEach(node=>{
