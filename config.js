@@ -1,13 +1,14 @@
 window.BAUER_CONFIG = {
-  APP_VERSION: '20260910-4',
+  APP_VERSION: '20260910-8',
   APP_URL: 'https://evekeepslearning.github.io/bauer-roofing-mission-control/',
   SUPABASE_URL: 'https://eufimdrdimpkzowlupre.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_F-nEDaSaUQPwy2rTKy71LA_H4gxArBt',
-  GOOGLE_MAPS_API_KEY: 'AIzaSyB4xjCbhk3FOUAPVl-80_hGH4qqXKYicVQ'
+  GOOGLE_MAPS_API_KEY: 'AIzaSyB4xjCbhk3FOUAPVl-80_hGH4qqXKYicVQ',
+  CALENDAR_SYNC_WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbyKPbw5ZJkiMtfnmHidLD92Z3-jD6zbCzNzv9HsX6nxgmW9WmXTn7Sj4owvfQV4foaIFQ/exec'
 };
 
 (function(){
-  const VERSION='20260910-4';
+  const VERSION='20260910-8';
   const NAV_ITEMS=[
     ['today','Today','index.html?view=today'],
     ['phone','Phone Message','index.html?view=phone'],
@@ -26,5 +27,5 @@ window.BAUER_CONFIG = {
   function makeSaveBarsSticky(root=document){root.querySelectorAll('button').forEach(button=>{if(button.textContent.trim().toLowerCase()!=='save changes')return;const bar=button.closest('.toolbar,.dialog-actions,.toolbar2')||button.parentElement;if(bar)bar.classList.add('bro-sticky-save-bar');});}
   function loadScriptOnce(id,src){if(document.getElementById(id))return;const s=document.createElement('script');s.id=id;s.src=src;document.body.appendChild(s);}
   function loadPageFixes(){const path=(location.pathname.split('/').pop()||'').toLowerCase();if(path==='jobs.html'){loadScriptOnce('jobsStageFixScript',`jobs-stage-fix.js?v=${VERSION}`);loadScriptOnce('jobsFinancialsScript',`jobs-financials.js?v=${VERSION}`);loadScriptOnce('jobsPaymentsScript',`jobs-payments.js?v=${VERSION}`);loadScriptOnce('jobsAddendumsScript',`jobs-addendums.js?v=${VERSION}`);loadScriptOnce('jobsDragDropScript',`jobs-drag-drop.js?v=${VERSION}`);loadScriptOnce('jobsContextMenuScript',`jobs-context-menu.js?v=${VERSION}`);}if(path==='contacts.html')loadScriptOnce('contactsContextMenuScript',`contacts-context-menu.js?v=${VERSION}`);if(path==='inquiry.html')loadScriptOnce('inquiryFinancialsScript',`inquiry-financials.js?v=${VERSION}`);}
-  document.addEventListener('DOMContentLoaded',()=>{installSharedStyles();loadScriptOnce('mobileCompactScript',`mobile-compact.js?v=${VERSION}`);addStandaloneNav();wireMainNavigation();makeSaveBarsSticky();new MutationObserver(()=>makeSaveBarsSticky()).observe(document.body,{childList:true,subtree:true});loadPageFixes();});
+  document.addEventListener('DOMContentLoaded',()=>{installSharedStyles();loadScriptOnce('calendarSyncClientScript',`calendar-sync-client.js?v=${VERSION}`);loadScriptOnce('mobileCompactScript',`mobile-compact.js?v=${VERSION}`);addStandaloneNav();wireMainNavigation();makeSaveBarsSticky();new MutationObserver(()=>makeSaveBarsSticky()).observe(document.body,{childList:true,subtree:true});loadPageFixes();});
 })();
