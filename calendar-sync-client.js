@@ -46,13 +46,51 @@
     if(includeLeadNumber&&clean(l?.lead_number))parts.push(`#${clean(l.lead_number)}`);
     return parts.join('  ');
   }
+  function sourceCode(l){
+    const raw=clean(l?.source);
+    if(!raw)return 'UNK';
+    if(/^[A-Za-z]{2,5}$/.test(raw))return raw;
+    const key=raw.toLowerCase();
+    const map={
+      'angi ads':'AA',
+      'website form':'WF',
+      'internet':'INT',
+      'repeat business':'RB',
+      'direct mail':'DM',
+      'referral':'Ref',
+      'homeadvisor (angi leads)':'HA',
+      'angi leads':'HA'
+    };
+    return map[key]||raw.split(/\s+/).filter(Boolean).map(x=>x[0]).join('').slice(0,4).toUpperCase()||'UNK';
+  }
+  function appointmentTypeCode(a,l){
+    const raw=clean(a?.appointment_type)||clean(l?.work_category)||clean(l?.product_interest);
+    if(!raw)return 'M';
+    if(/^[A-Za-z]{1,4}$/.test(raw))return raw;
+    const key=raw.toLowerCase();
+    if(key.includes('siding'))return 'Sid';
+    if(key.includes('measure'))return 'M';
+    if(key.includes('presentation'))return 'M';
+    if(key.includes('repair'))return 'F';
+    return raw.split(/\s+/).filter(Boolean).map(x=>x[0]).join('').slice(0,4).toUpperCase()||'M';
+  }
+  function googleTitle(a,l){
+    const source=sourceCode(l);
+    const type=appointmentTypeCode(a,l);
+    const street=clean(l?.street_address);
+    const zip=clean(l?.zip);
+    const property=[street,zip].filter(Boolean).join(', ');
+    return [source,type,property].filter(Boolean).join('-');
+  }
   function payloadFor(a,l){
+    const isNewGoogleEvent=!clean(a?.google_calendar_event_id);
     return {
       secret:getSecret(),
       action:isCanceled(a)?'cancel':'upsert',
       appointment_id:a.id,
       google_event_id:a.google_calendar_event_id||null,
       start_time:a.appointment_at||null,
+      title:isNewGoogleEvent?googleTitle(a,l):null,
       lead_number:l?.lead_number||null,
       customer_name:l?.homeowner_name||null,
       first_name:l?.first_name||null,
@@ -64,7 +102,7 @@
       city:l?.city||null,
       state:l?.state||null,
       zip:l?.zip||null,
-      location:contactLocation(l,!a.google_calendar_event_id),
+      location:contactLocation(l,isNewGoogleEvent),
       work_category:l?.work_category||l?.product_interest||null,
       source:l?.source||null,
       assigned_to:a.assigned_to||l?.assigned_to||l?.salesperson||'Roy',
@@ -87,6 +125,9 @@
     return data;
   }
   async function syncAppointment(database,a){
+    if(!database)return {ok:false,error:new Error('BRO database connection is not ready.')};
+    if(!a?.id)return {ok:false,error:new Error('Appointment ID is missing.')};
+    if(!getSecret()&&!configureSecret())return {ok:false,error:new Error('Google Calendar sync secret was not entered.')};
     const lead=await loadLead(database,a.lead_id);
     try{
       const result=await post(payloadFor(a,lead));
@@ -99,43 +140,28 @@
       return {ok:false,error,appointment:a,lead};
     }
   }
-  async function pushPending(database){
-    const {data,error}=await database.from('appointments')
-      .select('id,lead_id,appointment_at,appointment_status,appointment_type,assigned_to,notes,deleted_at,google_calendar_status,google_calendar_event_id,updated_at')
-      .in('google_calendar_status',['Needs Sync','Sync Error']).order('updated_at',{ascending:true}).limit(25);
-    if(error)throw error;
-    const rows=data||[],results=[];
-    for(const a of rows)results.push(await syncAppointment(database,a));
-    return {total:results.length,failed:results.filter(r=>!r.ok).length,results};
+  async function deleteAppointment(database,a){
+    if(!database)return {ok:false,error:new Error('BRO database connection is not ready.')};
+    if(!a?.id)return {ok:false,error:new Error('Appointment ID is missing.')};
+    if(!a.google_calendar_event_id)return {ok:true,skipped:true};
+    if(!getSecret()&&!configureSecret())return {ok:false,error:new Error('Google Calendar sync secret was not entered.')};
+    try{return {ok:true,result:await post({...payloadFor({...a,appointment_status:'Canceled'},null),action:'cancel'})};}
+    catch(error){return {ok:false,error};}
   }
   async function pullGoogle(database){
     const windowRange=rollingWindow();
     let payload;
-    try{
-      payload=await post({secret:getSecret(),action:'list',start_time:windowRange.start,end_time:windowRange.end,calendar_id:GOOGLE_CALENDAR_ID});
-    }catch(error){
+    try{payload=await post({secret:getSecret(),action:'list',start_time:windowRange.start,end_time:windowRange.end,calendar_id:GOOGLE_CALENDAR_ID});}
+    catch(error){
       const msg=String(error?.message||error);
-      if(msg.includes('Unknown action: list')||msg.includes('appointment_id is required')){
-        throw new Error('The deployed Apps Script is still an older version. Redeploy the existing web app using Version → New version so Google → BRO reading works.');
-      }
+      if(msg.includes('Unknown action: list')||msg.includes('appointment_id is required'))throw new Error('The deployed Apps Script is still an older version. Redeploy the existing web app using Version → New version so Google → BRO reading works.');
       throw error;
     }
     const events=Array.isArray(payload.events)?payload.events:Array.isArray(payload.result?.events)?payload.result.events:[];
     if(!events.length)return {total:0};
     const now=new Date().toISOString();
     const rows=events.filter(e=>e&&e.google_event_id&&e.start_at).map(e=>({
-      google_event_id:String(e.google_event_id),
-      google_calendar_id:String(e.google_calendar_id||GOOGLE_CALENDAR_ID),
-      calendar_name:String(e.calendar_name||'Bauer Roofing'),
-      summary:e.summary||null,
-      description:e.description||null,
-      location_raw:e.location_raw||e.location||null,
-      start_at:e.start_at,
-      end_at:e.end_at||null,
-      color_id:e.color_id||null,
-      raw_payload:e.raw_payload||e,
-      synced_at:now,
-      updated_at:now
+      google_event_id:String(e.google_event_id),google_calendar_id:String(e.google_calendar_id||GOOGLE_CALENDAR_ID),calendar_name:String(e.calendar_name||'Bauer Roofing'),summary:e.summary||null,description:e.description||null,location_raw:e.location_raw||e.location||null,start_at:e.start_at,end_at:e.end_at||null,color_id:e.color_id||null,raw_payload:e.raw_payload||e,synced_at:now,updated_at:now
     }));
     const {error}=await database.from('calendar_events').upsert(rows,{onConflict:'google_calendar_id,google_event_id'});
     if(error)throw error;
@@ -150,38 +176,19 @@
       if(!getSecret())return {ok:false,needsSecret:true};
     }
     running=true;
-    try{
-      const pulled=await pullGoogle(database);
-      const pushed=await pushPending(database);
-      const ok=pushed.failed===0;
-      return {ok,pulled:pulled.total,pushed:pushed.total,failed:pushed.failed};
-    }catch(error){return {ok:false,error};}
+    try{const pulled=await pullGoogle(database);return {ok:true,pulled:pulled.total,pushed:0,failed:0};}
+    catch(error){return {ok:false,error};}
     finally{running=false;}
   }
-  async function refreshVisibleCalendar(){
-    try{if(typeof window.loadWeek==='function')await window.loadWeek();else if(typeof loadWeek==='function')await loadWeek();}catch(error){console.warn('Calendar refresh failed:',error);}
-  }
+  async function refreshVisibleCalendar(){try{if(typeof window.loadWeek==='function')await window.loadWeek();else if(typeof loadWeek==='function')await loadWeek();}catch(error){console.warn('Calendar refresh failed:',error);}}
   function installCalendarButton(){
-    const button=document.getElementById('syncCalendarBtn');
-    if(!button)return;
-    button.onclick=async()=>{
-      const old=button.textContent;
-      button.disabled=true;button.textContent='Syncing…';
-      const status=document.getElementById('syncStatus');
-      if(status)status.textContent='Reading Google Calendar…';
-      const result=await processPending({promptForSecret:true});
-      if(result.ok){
-        await refreshVisibleCalendar();
-        if(status)status.textContent=(result.pulled||result.pushed)?`Google refreshed • ${result.pulled||0} read • ${result.pushed||0} sent`:'Google Calendar is up to date';
-      }else if(status){status.textContent=`Sync problem: ${result.error?.message||result.failed+' failed'}`;}
-      button.disabled=false;button.textContent=old||'Sync';
-    };
+    const button=document.getElementById('syncCalendarBtn');if(!button)return;
+    button.onclick=async()=>{const old=button.textContent;button.disabled=true;button.textContent='Syncing…';const status=document.getElementById('syncStatus');if(status)status.textContent='Reading Google Calendar…';const result=await processPending({promptForSecret:true});if(result.ok){await refreshVisibleCalendar();if(status)status.textContent=result.pulled?`Google refreshed • ${result.pulled} read`:'Google Calendar is up to date';}else if(status){status.textContent=`Sync problem: ${result.error?.message||'Unable to sync'}`;}button.disabled=false;button.textContent=old||'Sync';};
   }
   function startAuto(){
-    setTimeout(async()=>{const r=await processPending();if(r.ok&&(r.pulled||r.pushed))await refreshVisibleCalendar();},3000);
-    setInterval(async()=>{const r=await processPending();if(r.ok&&(r.pulled||r.pushed))await refreshVisibleCalendar();},60000);
+    setTimeout(async()=>{const r=await processPending();if(r.ok&&r.pulled)await refreshVisibleCalendar();},3000);
+    setInterval(async()=>{const r=await processPending();if(r.ok&&r.pulled)await refreshVisibleCalendar();},60000);
   }
-  window.BROCalendarSync={processPending,configureSecret,clearSecret,syncAppointment:(a)=>syncAppointment(getDb(),a),pullGoogle:()=>pullGoogle(getDb())};
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(installCalendarButton,0);startAuto();});
-  else{setTimeout(installCalendarButton,0);startAuto();}
+  window.BROCalendarSync={processPending,configureSecret,clearSecret,syncAppointment:(a)=>syncAppointment(getDb(),a),deleteAppointment:(a)=>deleteAppointment(getDb(),a),pullGoogle:()=>pullGoogle(getDb())};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(installCalendarButton,0);startAuto();});else{setTimeout(installCalendarButton,0);startAuto();}
 })();
