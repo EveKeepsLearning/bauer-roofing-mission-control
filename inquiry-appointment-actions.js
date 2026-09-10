@@ -89,8 +89,8 @@
   async function deleteAppointmentConfirmed(){
     const a=currentAppointment();if(!a)return;
     const linked=!!String(a.google_calendar_event_id||'').trim();
-    const where=linked?' from BRO. BRO will also try to remove it from Google Calendar':' from BRO';
-    if(!confirm(`Delete this appointment${where}?\n\nThis cannot be undone.`))return;
+    const extra=linked?'\n\nBRO will also remove the linked Google event if one exists.':'';
+    if(!confirm(`Delete this appointment?${extra}\n\nThis cannot be undone.`))return;
     const btn=$('deleteAppointmentBtn');btn.disabled=true;btn.textContent='Deleting…';
     let googleWarning='';
     try{
