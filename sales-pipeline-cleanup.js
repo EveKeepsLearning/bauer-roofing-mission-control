@@ -29,14 +29,18 @@
     return d;
   }
 
+  function hasSentEstimate(card){
+    return /Estimate:\s*Sent/i.test(card.textContent||'');
+  }
+
   function applyCleanup(){
     const cutoff=monthCutoff();
-    ['.p-appointment','.p-estneed'].forEach(selector=>{
+    ['.p-appointment','.p-estneed','.p-follow'].forEach(selector=>{
       const col=board.querySelector(selector);
       if(!col)return;
       col.querySelectorAll('.sales-card').forEach(card=>{
         const d=appointmentDate(card);
-        if(d&&d<cutoff)card.remove();
+        if(d&&d<cutoff&&!hasSentEstimate(card))card.remove();
       });
     });
     board.querySelectorAll('.pipe-col').forEach(col=>{
