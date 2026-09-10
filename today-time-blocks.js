@@ -17,6 +17,7 @@
   const todayISO=()=>new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});
   const minutes=t=>{const m=String(t||'').match(/^(\d{1,2}):(\d{2})/);return m?(Number(m[1])+Number(m[2])/60):null;};
   const blockForTime=t=>{const n=minutes(t);if(n==null)return BLOCKS[0];return BLOCKS.find(b=>n>=b.start&&n<b.end)||BLOCKS[0];};
+  function currentHourET(){const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());const h=Number(parts.find(p=>p.type==='hour')?.value||0),m=Number(parts.find(p=>p.type==='minute')?.value||0);return h+m/60;}
 
   function installStyles(){
     if(document.getElementById('broTimeBlockStyles'))return;
@@ -131,9 +132,16 @@
         }
       });
 
-      blockEls.forEach(el=>{
+      const nowHour=currentHourET();
+      blockEls.forEach((el,key)=>{
         const body=el.querySelector('.bro-time-block-body');
-        if(!body.querySelector('.task'))body.innerHTML='<div class="bro-time-block-empty">No tasks in this block</div>';
+        const block=BLOCKS.find(b=>b.key===key);
+        const hasTasks=!!body.querySelector('.task');
+        if(!hasTasks&&block&&nowHour>=block.end){
+          el.style.display='none';
+        }else if(!hasTasks){
+          body.innerHTML='<div class="bro-time-block-empty">No tasks in this block</div>';
+        }
       });
       if(!exact.querySelector('.task'))exact.style.display='none';
     }finally{arranging=false;}
@@ -173,6 +181,7 @@
     const current=document.getElementById('currentTask');
     if(list)new MutationObserver(()=>setTimeout(arrange,0)).observe(list,{childList:true});
     if(current)new MutationObserver(()=>setTimeout(arrange,0)).observe(current,{childList:true,subtree:true});
+    setInterval(()=>setTimeout(arrange,0),60000);
     setTimeout(arrange,150);
   }
 
