@@ -21,6 +21,7 @@
   function isCanceled(a){const s=String(a?.appointment_status||'').trim().toLowerCase();return !!a?.deleted_at||['cancelled','canceled'].includes(s);}
   function rollingWindow(){const start=new Date();start.setHours(0,0,0,0);start.setDate(start.getDate()-LOOKBACK_DAYS);const end=new Date();end.setHours(23,59,59,999);end.setDate(end.getDate()+FUTURE_DAYS);return{start:start.toISOString(),end:end.toISOString()};}
   function clean(v){return String(v||'').trim();}
+  function normalizeGoogleId(v){return clean(v).replace(/@google\.com$/i,'');}
   function splitName(l){let first=clean(l?.first_name),last=clean(l?.last_name);if(first||last)return{first,last};const name=clean(l?.homeowner_name);if(!name)return{first:'',last:''};const parts=name.split(/\s+/).filter(Boolean);if(parts.length===1)return{first:parts[0],last:''};return{first:parts.slice(0,-1).join(' '),last:parts[parts.length-1]};}
   function contactLocation(l,includeLeadNumber){const {first,last}=splitName(l);const name=last&&first?`${last}, ${first}`:last||first||clean(l?.homeowner_name);const parts=[name,clean(l?.phone),clean(l?.phone_secondary),clean(l?.email)].filter(Boolean);if(includeLeadNumber&&clean(l?.lead_number))parts.push(`#${clean(l.lead_number)}`);return parts.join('  ');}
   function sourceCode(l){
@@ -44,9 +45,29 @@
     const street=clean(l?.street_address),zip=clean(l?.zip),property=[street,zip].filter(Boolean).join(', ');
     return `${sourceCode(l)}-${inquiryTypeCode(a,l)}-${property}`;
   }
-  function payloadFor(a,l,action='upsert'){
+  async function loadGoogleSnapshot(database,a){
+    const raw=clean(a?.google_calendar_event_id);if(!raw)return null;
+    const base=normalizeGoogleId(raw);
+    const ids=[...new Set([raw,base,base?`${base}@google.com`:null].filter(Boolean))];
+    const {data,error}=await database.from('calendar_events').select('google_event_id,summary,location_raw,description,start_at,end_at,synced_at').in('google_event_id',ids).order('synced_at',{ascending:false}).limit(1);
+    if(error)throw error;
+    return data?.[0]||null;
+  }
+  function payloadFor(a,l,action='upsert',existingGoogle=null){
     const isNewGoogleEvent=!clean(a?.google_calendar_event_id);
-    return{secret:getSecret(),action,appointment_id:a?.id||null,google_event_id:a?.google_calendar_event_id||null,start_time:a?.appointment_at||null,title:isNewGoogleEvent?googleTitle(a,l):null,lead_number:l?.lead_number||null,customer_name:l?.homeowner_name||null,first_name:l?.first_name||null,last_name:l?.last_name||null,phone:l?.phone||null,phone_secondary:l?.phone_secondary||null,email:l?.email||null,street_address:l?.street_address||null,city:l?.city||null,state:l?.state||null,zip:l?.zip||null,location:contactLocation(l,isNewGoogleEvent),work_category:l?.work_category||l?.product_interest||null,source:l?.source||null,assigned_to:a?.assigned_to||l?.assigned_to||l?.salesperson||'Roy',notes:a?.notes||null};
+    let title=null,location=null;
+    if(action==='upsert'){
+      if(isNewGoogleEvent){
+        title=googleTitle(a,l);
+        location=contactLocation(l,true);
+      }else{
+        if(!existingGoogle)throw new Error('BRO could not verify the existing Google event. Nothing was changed in Google Calendar. Run Calendar Sync and try again.');
+        title=clean(existingGoogle.summary);
+        if(!title)throw new Error('BRO could not verify the existing Google event title. Nothing was changed in Google Calendar.');
+        location=existingGoogle.location_raw==null?'':String(existingGoogle.location_raw);
+      }
+    }
+    return{secret:getSecret(),action,appointment_id:a?.id||null,google_event_id:a?.google_calendar_event_id||null,start_time:a?.appointment_at||null,title,lead_number:l?.lead_number||null,customer_name:l?.homeowner_name||null,first_name:l?.first_name||null,last_name:l?.last_name||null,phone:l?.phone||null,phone_secondary:l?.phone_secondary||null,email:l?.email||null,street_address:l?.street_address||null,city:l?.city||null,state:l?.state||null,zip:l?.zip||null,location,work_category:l?.work_category||l?.product_interest||null,source:l?.source||null,assigned_to:a?.assigned_to||l?.assigned_to||l?.salesperson||'Roy',notes:a?.notes||null};
   }
   async function post(payload){if(!ENDPOINT)throw new Error('Google Calendar sync endpoint is not configured.');const response=await fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload),redirect:'follow'});const text=await response.text();let data;try{data=JSON.parse(text);}catch(_){throw new Error('Google Calendar returned an unreadable response.');}if(!data?.ok){const msg=String(data?.error||'Google Calendar sync failed.');if(msg.includes('appointment_id is required'))throw new Error('The deployed Apps Script is still using the older handler. In Apps Script choose Deploy → Manage deployments → Edit → New version → Deploy.');throw new Error(msg);}return data;}
   async function loadLead(database,leadId){if(!leadId)return null;const{data,error}=await database.from('leads').select('id,lead_number,homeowner_name,first_name,last_name,spouse_name,street_address,city,state,zip,phone,phone_secondary,email,source,work_category,product_interest,assigned_to,salesperson').eq('id',leadId).single();if(error)throw error;return data;}
@@ -56,8 +77,17 @@
     const lead=await loadLead(database,a.lead_id);
     try{
       const action=isCanceled(a)?'cancel':'upsert';
-      const result=await post(payloadFor(a,lead,action));
-      if(action==='upsert'&&!clean(result?.google_event_id))throw new Error('Google did not confirm creation of this calendar event. The appointment was saved in BRO but was NOT marked as added to Google.');
+      let existingGoogle=null;
+      if(action==='upsert'&&clean(a.google_calendar_event_id)){
+        existingGoogle=await loadGoogleSnapshot(database,a);
+        if(!existingGoogle){
+          await pullGoogle(database);
+          existingGoogle=await loadGoogleSnapshot(database,a);
+        }
+        if(!existingGoogle)throw new Error('BRO could not verify the existing Google event, so the update was stopped to protect your Google Calendar. Click Sync on the Calendar page, then try again.');
+      }
+      const result=await post(payloadFor(a,lead,action,existingGoogle));
+      if(action==='upsert'&&!clean(result?.google_event_id))throw new Error('Google did not confirm creation or update of this calendar event. The appointment was saved in BRO but Google Calendar was not marked as updated.');
       const patch={google_calendar_status:isCanceled(a)?'Canceled':'Synced',google_calendar_event_id:result.google_event_id||a.google_calendar_event_id||null,updated_at:new Date().toISOString()};
       const{data:updated,error}=await database.from('appointments').update(patch).eq('id',a.id).select('*').single();
       if(error)throw error;
@@ -68,7 +98,7 @@
       return{ok:false,error,appointment:a,lead};
     }
   }
-  async function deleteAppointment(database,a){if(!a?.id)return{ok:false,error:new Error('Appointment ID is missing.')};if(!a.google_calendar_event_id)return{ok:true,result:{action:'not_on_google'}};if(!getSecret()&&!configureSecret())return{ok:false,error:new Error('Google Calendar sync secret was not entered.')};const lead=await loadLead(database,a.lead_id);try{const result=await post(payloadFor(a,lead,'cancel'));return{ok:true,result,appointment:a,lead};}catch(error){return{ok:false,error,appointment:a,lead};}}
+  async function deleteAppointment(database,a){if(!a?.id)return{ok:false,error:new Error('Appointment ID is missing.')};if(!a.google_calendar_event_id)return{ok:true,result:{action:'not_on_google'}};if(!getSecret()&&!configureSecret())return{ok:false,error:new Error('Google Calendar sync secret was not entered.')};const lead=await loadLead(database,a.lead_id);try{const result=await post(payloadFor(a,lead,'cancel',null));return{ok:true,result,appointment:a,lead};}catch(error){return{ok:false,error,appointment:a,lead};}}
   async function pullGoogle(database){if(!getSecret())return{total:0};const range=rollingWindow();const payload=await post({secret:getSecret(),action:'list',start_time:range.start,end_time:range.end,calendar_id:GOOGLE_CALENDAR_ID});const events=Array.isArray(payload.events)?payload.events:Array.isArray(payload.result?.events)?payload.result.events:[];if(!events.length)return{total:0};const now=new Date().toISOString();const rows=events.filter(e=>e&&e.google_event_id&&e.start_at).map(e=>({google_event_id:String(e.google_event_id),google_calendar_id:String(e.google_calendar_id||GOOGLE_CALENDAR_ID),calendar_name:String(e.calendar_name||'Bauer Roofing'),summary:e.summary||null,description:e.description||null,location_raw:e.location_raw||e.location||null,start_at:e.start_at,end_at:e.end_at||null,color_id:e.color_id||null,raw_payload:e.raw_payload||e,synced_at:now,updated_at:now}));const{error}=await database.from('calendar_events').upsert(rows,{onConflict:'google_calendar_id,google_event_id'});if(error)throw error;return{total:rows.length};}
   async function processPending(options={}){if(running)return{ok:true,skipped:true};const database=getDb();if(!database)return{ok:false,error:new Error('BRO database connection is not ready.')};if(!getSecret()){if(options.promptForSecret&&!configureSecret())return{ok:false,error:new Error('Google Calendar sync secret was not entered.')};if(!getSecret())return{ok:false,needsSecret:true};}running=true;try{const pulled=await pullGoogle(database);return{ok:true,pulled:pulled.total,pushed:0,failed:0};}catch(error){return{ok:false,error};}finally{running=false;}}
   async function refreshVisibleCalendar(){try{if(typeof window.loadWeek==='function')await window.loadWeek();}catch(error){console.warn('Calendar refresh failed:',error);}}
