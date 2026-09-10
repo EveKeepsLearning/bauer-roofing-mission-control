@@ -39,10 +39,12 @@
     if(parts.length===1)return {first:parts[0],last:''};
     return {first:parts.slice(0,-1).join(' '),last:parts[parts.length-1]};
   }
-  function contactLocation(l){
+  function contactLocation(l,includeLeadNumber=false){
     const {first,last}=splitName(l);
     const name=last&&first?`${last}, ${first}`:last||first||clean(l?.homeowner_name);
-    return [name,clean(l?.phone),clean(l?.phone_secondary),clean(l?.email)].filter(Boolean).join('  ');
+    const parts=[name,clean(l?.phone),clean(l?.phone_secondary),clean(l?.email)].filter(Boolean);
+    if(includeLeadNumber&&clean(l?.lead_number))parts.push(`#${clean(l.lead_number)}`);
+    return parts.join('  ');
   }
   function payloadFor(a,l){
     return {
@@ -62,7 +64,7 @@
       city:l?.city||null,
       state:l?.state||null,
       zip:l?.zip||null,
-      location:contactLocation(l),
+      location:contactLocation(l,!a.google_calendar_event_id),
       work_category:l?.work_category||l?.product_interest||null,
       source:l?.source||null,
       assigned_to:a.assigned_to||l?.assigned_to||l?.salesperson||'Roy',
@@ -112,8 +114,9 @@
     try{
       payload=await post({secret:getSecret(),action:'list',start_time:windowRange.start,end_time:windowRange.end,calendar_id:GOOGLE_CALENDAR_ID});
     }catch(error){
-      if(String(error?.message||error).includes('Unknown action: list')){
-        throw new Error('Google Calendar reader is not enabled yet. Update the Apps Script with the list action, then redeploy it.');
+      const msg=String(error?.message||error);
+      if(msg.includes('Unknown action: list')||msg.includes('appointment_id is required')){
+        throw new Error('The deployed Apps Script is still an older version. Redeploy the existing web app using Version → New version so Google → BRO reading works.');
       }
       throw error;
     }
