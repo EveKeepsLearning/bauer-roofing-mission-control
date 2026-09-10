@@ -24,11 +24,25 @@
   }
   function clearSecret(){localStorage.removeItem(SECRET_KEY);}
   function isCanceled(a){const s=String(a?.appointment_status||'').trim().toLowerCase();return !!a?.deleted_at||['cancelled','canceled'].includes(s);}
-  function address(l){return [l?.street_address,l?.city,l?.state,l?.zip].filter(Boolean).join(', ');}
   function rollingWindow(){
     const start=new Date();start.setHours(0,0,0,0);start.setDate(start.getDate()-LOOKBACK_DAYS);
     const end=new Date();end.setHours(23,59,59,999);end.setDate(end.getDate()+FUTURE_DAYS);
     return {start:start.toISOString(),end:end.toISOString()};
+  }
+  function clean(v){return String(v||'').trim();}
+  function splitName(l){
+    let first=clean(l?.first_name),last=clean(l?.last_name);
+    if(first||last)return {first,last};
+    const name=clean(l?.homeowner_name);
+    if(!name)return {first:'',last:''};
+    const parts=name.split(/\s+/).filter(Boolean);
+    if(parts.length===1)return {first:parts[0],last:''};
+    return {first:parts.slice(0,-1).join(' '),last:parts[parts.length-1]};
+  }
+  function contactLocation(l){
+    const {first,last}=splitName(l);
+    const name=last&&first?`${last}, ${first}`:last||first||clean(l?.homeowner_name);
+    return [name,clean(l?.phone),clean(l?.phone_secondary),clean(l?.email)].filter(Boolean).join('  ');
   }
   function payloadFor(a,l){
     return {
@@ -39,13 +53,16 @@
       start_time:a.appointment_at||null,
       lead_number:l?.lead_number||null,
       customer_name:l?.homeowner_name||null,
+      first_name:l?.first_name||null,
+      last_name:l?.last_name||null,
       phone:l?.phone||null,
+      phone_secondary:l?.phone_secondary||null,
       email:l?.email||null,
       street_address:l?.street_address||null,
       city:l?.city||null,
       state:l?.state||null,
       zip:l?.zip||null,
-      location:address(l),
+      location:contactLocation(l),
       work_category:l?.work_category||l?.product_interest||null,
       source:l?.source||null,
       assigned_to:a.assigned_to||l?.assigned_to||l?.salesperson||'Roy',
@@ -63,7 +80,7 @@
   }
   async function loadLead(database,leadId){
     if(!leadId)return null;
-    const {data,error}=await database.from('leads').select('id,lead_number,homeowner_name,street_address,city,state,zip,phone,email,source,work_category,product_interest,assigned_to,salesperson').eq('id',leadId).single();
+    const {data,error}=await database.from('leads').select('id,lead_number,homeowner_name,first_name,last_name,spouse_name,street_address,city,state,zip,phone,phone_secondary,email,source,work_category,product_interest,assigned_to,salesperson').eq('id',leadId).single();
     if(error)throw error;
     return data;
   }
