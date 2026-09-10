@@ -1,5 +1,5 @@
 window.BAUER_CONFIG = {
-  APP_VERSION: '20260910-29',
+  APP_VERSION: '20260910-30',
   APP_URL: 'https://evekeepslearning.github.io/bauer-roofing-mission-control/',
   SUPABASE_URL: 'https://eufimdrdimpkzowlupre.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_F-nEDaSaUQPwy2rTKy71LA_H4gxArBt',
@@ -8,7 +8,7 @@ window.BAUER_CONFIG = {
 };
 
 (function(){
-  const VERSION='20260910-29';
+  const VERSION='20260910-30';
   const NAV_ITEMS=[
     ['today','Today','index.html?view=today'],
     ['phone','Phone Message','index.html?view=phone'],
