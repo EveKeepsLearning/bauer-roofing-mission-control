@@ -9,7 +9,23 @@
 <script src="config.js?v=20260911-67"></script>
 <style>
 body{background:#f3f6f9}.all-jobs-shell{width:min(1450px,96vw);margin:22px auto 60px}.all-jobs-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px}.all-jobs-head h1{margin:0 0 4px}.directory-card{background:#fff;border:1px solid #dfe5ec;border-radius:14px;padding:18px;box-shadow:0 2px 8px rgba(31,48,72,.05)}.directory-tools{display:grid;grid-template-columns:minmax(260px,1fr) 190px 190px;gap:10px;align-items:end}.directory-tools input,.directory-tools select{margin:0}.directory-summary{display:flex;gap:10px;flex-wrap:wrap;margin:15px 0}.summary-pill{background:#eef3f8;border-radius:999px;padding:6px 10px;font-size:12px;color:#4d5d70}.table-wrap{overflow:auto;border:1px solid #e1e7ee;border-radius:10px}.all-jobs-table{width:100%;border-collapse:collapse;min-width:1050px}.all-jobs-table th,.all-jobs-table td{padding:11px 10px;border-bottom:1px solid #e8edf2;text-align:left;vertical-align:top}.all-jobs-table th{background:#eef3f8;position:sticky;top:0}.all-jobs-table tr:hover{background:#f7faff}.status-badge{display:inline-flex;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:750;background:#e8f1ff;color:#215a9c}.status-badge.closed{background:#eef1f4;color:#596574}.status-badge.canceled{background:#fff0f0;color:#8b1f1f}.status-badge.archived{background:#f3edff;color:#64439a}.empty{text-align:center;padding:35px;color:#687588}@media(max-width:760px){.all-jobs-head{display:block}.all-jobs-head .btn{margin-top:10px}.directory-tools{grid-template-columns:1fr}}
-.all-jobs-table tr[data-open-job]{cursor:pointer}.all-jobs-table tr[data-open-job]:focus-visible{outline:3px solid #1f6fd5;outline-offset:-3px}</style>
+.all-jobs-table tr[data-open-job]{cursor:pointer}.all-jobs-table tr[data-open-job]:focus-visible{outline:3px solid #1f6fd5;outline-offset:-3px}
+/* Jobs: searchable record directory */
+.all-jobs-head h1{font-size:30px;color:#20354f;letter-spacing:-.035em}.all-jobs-head .sub{color:#64748b}
+.directory-card{border-radius:16px;border-top:4px solid #c28a29;padding:20px;box-shadow:0 4px 18px rgba(35,59,88,.06)}
+.directory-tools{padding:15px;background:#f7f9fc;border:1px solid #e5ebf3;border-radius:12px;gap:14px}
+.directory-tools label{font-size:11px;font-weight:750;color:#62758d}.directory-tools input,.directory-tools select{margin-top:6px;background:white;border-radius:9px;padding:10px;font-size:14px}
+.directory-summary{gap:8px;margin:18px 0}.summary-pill{background:#f0f4f9;border:1px solid #e1e8f1;padding:8px 12px;color:#526881}.summary-pill b{font-size:15px;color:#233b58;margin-right:3px}
+.summary-pill:first-child{background:#eaf3ff;border-color:#d3e5fc}.summary-pill:nth-child(3){background:#eaf7ef}.summary-pill:nth-child(5){background:#fff1ed}
+.all-jobs-table th{font-size:11px;text-transform:uppercase;letter-spacing:.055em;color:#5d728c;background:#f2f6fb;padding:13px 12px}
+.all-jobs-table td{font-size:13px;padding:14px 12px;color:#334963;line-height:1.45}
+.all-jobs-table td:first-child b{color:#205f9f}.all-jobs-table tbody tr:nth-child(even){background:#fafcfe}
+.all-jobs-table tr[data-open-job]:hover{background:#edf5ff;box-shadow:inset 4px 0 #3479cc}
+.all-jobs-table tr[data-open-job]:focus-visible{outline:3px solid #3479cc;outline-offset:-3px;background:#edf5ff}
+.status-badge{white-space:normal}.all-jobs-table td:last-child .btn{white-space:nowrap}
+@media(max-width:760px){.directory-card{padding:12px}.directory-tools{padding:12px}.all-jobs-head h1{font-size:26px}}
+
+</style>
 </head>
 <body>
 <main class="all-jobs-shell">
