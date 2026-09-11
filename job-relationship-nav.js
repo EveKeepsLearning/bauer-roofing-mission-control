@@ -2,102 +2,12 @@
 (function(){
   if(window.__broJobRelationshipNavLoaded)return;
   window.__broJobRelationshipNavLoaded=true;
-
   function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-
-  function ensureStyles(){
-    if(document.getElementById('broJobRelationshipNavStyles'))return;
-    const s=document.createElement('style');
-    s.id='broJobRelationshipNavStyles';
-    s.textContent=`
-      .bro-job-relationship-nav{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:9px 10px;margin:8px 0 14px;background:#f6f9fc;border:1px solid #dfe6ee;border-radius:9px}
-      .bro-job-relationship-nav .bro-rel-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#607187;margin-right:3px}
-      .bro-job-relationship-nav .bro-rel-note{font-size:12px;color:#687588}
-    `;
-    document.head.appendChild(s);
-  }
-
-  function ensureUi(){
-    const dialog=document.getElementById('jobDialog');
-    if(!dialog)return null;
-    let bar=document.getElementById('broJobRelationshipNav');
-    if(bar)return bar;
-    bar=document.createElement('div');
-    bar.id='broJobRelationshipNav';
-    bar.className='bro-job-relationship-nav';
-    const canceled=document.getElementById('canceledInfo');
-    if(canceled)canceled.insertAdjacentElement('afterend',bar);
-    else dialog.querySelector('h2')?.insertAdjacentElement('afterend',bar);
-    const doc=document.querySelector('#jobDialog .doc-section');
-    if(doc&&!doc.id)doc.id='jobDocumentsSection';
-    return bar;
-  }
-
-  async function resolveLinks(job){
-    let contactId=job?.customer_id||'';
-    let leadId=job?.lead_id||'';
-    let lead=null;
-
-    if(leadId){
-      const r=await db.from('leads').select('id,contact_id,lead_number').eq('id',leadId).maybeSingle();
-      if(!r.error)lead=r.data||null;
-    }
-    if(!lead&&job?.lead_number){
-      const r=await db.from('leads').select('id,contact_id,lead_number').eq('lead_number',String(job.lead_number)).is('deleted_at',null).order('created_at',{ascending:false}).limit(1);
-      if(!r.error&&r.data?.length){lead=r.data[0];leadId=lead.id;}
-    }
-    if(!contactId&&lead?.contact_id)contactId=lead.contact_id;
-
-    return {contactId,leadId};
-  }
-
-  async function render(jobId){
-    const bar=ensureUi();
-    if(!bar||typeof db==='undefined')return;
-    const job=typeof jobs!=='undefined'?(jobs||[]).find(j=>String(j.id)===String(jobId)):null;
-    if(!job)return;
-
-    bar.innerHTML='<span class="bro-rel-label">Connected records</span><span class="bro-rel-note">Loading…</span>';
-    try{
-      const {contactId,leadId}=await resolveLinks(job);
-      const pieces=['<span class="bro-rel-label">Connected records</span>'];
-      if(contactId)pieces.push(`<a class="btn small" href="contacts.html?contact=${encodeURIComponent(contactId)}">Contact</a>`);
-      if(leadId)pieces.push(`<a class="btn small" href="inquiry.html?id=${encodeURIComponent(leadId)}${contactId?`&contact=${encodeURIComponent(contactId)}`:''}">Inquiry</a>`);
-      pieces.push('<button class="btn small" type="button" data-bro-job-section="payments">Payments</button>');
-      pieces.push('<button class="btn small" type="button" data-bro-job-section="documents">Documents</button>');
-      if(!contactId&&!leadId)pieces.push('<span class="bro-rel-note">No Contact or Inquiry link is stored on this job yet.</span>');
-      bar.innerHTML=pieces.join('');
-    }catch(error){
-      bar.innerHTML=`<span class="bro-rel-label">Connected records</span><span class="bro-rel-note">Could not load links: ${esc(error?.message||String(error))}</span>`;
-    }
-  }
-
-  function install(){
-    ensureStyles();
-    ensureUi();
-
-    document.body.addEventListener('click',event=>{
-      const button=event.target.closest('[data-bro-job-section]');
-      if(!button)return;
-      const id=button.dataset.broJobSection==='payments'?'jobPaymentsSection':'jobDocumentsSection';
-      const target=document.getElementById(id);
-      if(target)target.scrollIntoView({behavior:'smooth',block:'start'});
-    });
-
-    if(typeof openJob==='function'&&!window.__broJobRelationshipOpenWrapped){
-      window.__broJobRelationshipOpenWrapped=true;
-      const originalOpen=openJob;
-      openJob=function(id){
-        const result=originalOpen(id);
-        setTimeout(()=>render(id),0);
-        return result;
-      };
-    }
-
-    const current=document.getElementById('editJobId')?.value;
-    if(current)render(current);
-  }
-
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});
-  else install();
+  function ensureStyles(){if(document.getElementById('broJobRelationshipNavStyles'))return;const s=document.createElement('style');s.id='broJobRelationshipNavStyles';s.textContent='.bro-job-relationship-nav{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:9px 10px;margin:8px 0 14px;background:#f6f9fc;border:1px solid #dfe6ee;border-radius:9px}.bro-job-relationship-nav .bro-rel-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#607187;margin-right:3px}.bro-job-relationship-nav .bro-rel-note{font-size:12px;color:#687588}';document.head.appendChild(s);}
+  function ensureUi(){const dialog=document.getElementById('jobDialog');if(!dialog)return null;let bar=document.getElementById('broJobRelationshipNav');if(!bar){bar=document.createElement('div');bar.id='broJobRelationshipNav';bar.className='bro-job-relationship-nav';const canceled=document.getElementById('canceledInfo');if(canceled)canceled.insertAdjacentElement('afterend',bar);else dialog.querySelector('h2')?.insertAdjacentElement('afterend',bar);}const docList=document.getElementById('jobDocumentList');const docSection=docList?.closest('.doc-section,section');if(docSection)docSection.id='jobDocumentsSection';return bar;}
+  async function resolveLinks(job){let contactId=job?.customer_id||'';let leadId=job?.lead_id||'';let lead=null;if(leadId){const r=await db.from('leads').select('id,contact_id,lead_number').eq('id',leadId).maybeSingle();if(!r.error)lead=r.data||null;}if(!lead&&job?.lead_number){const r=await db.from('leads').select('id,contact_id,lead_number').eq('lead_number',String(job.lead_number)).is('deleted_at',null).order('created_at',{ascending:false}).limit(1);if(!r.error&&r.data?.length){lead=r.data[0];leadId=lead.id;}}if(!contactId&&lead?.contact_id)contactId=lead.contact_id;return{contactId,leadId};}
+  async function render(jobId){const bar=ensureUi();if(!bar||typeof db==='undefined')return;const job=typeof jobs!=='undefined'?(jobs||[]).find(j=>String(j.id)===String(jobId)):null;if(!job)return;bar.innerHTML='<span class="bro-rel-label">Connected records</span><span class="bro-rel-note">Loading…</span>';try{const{contactId,leadId}=await resolveLinks(job);const pieces=['<span class="bro-rel-label">Connected records</span>'];if(contactId)pieces.push(`<a class="btn small" href="contacts.html?contact=${encodeURIComponent(contactId)}">Contact</a>`);if(leadId)pieces.push(`<a class="btn small" href="inquiry.html?id=${encodeURIComponent(leadId)}${contactId?`&contact=${encodeURIComponent(contactId)}`:''}">Inquiry</a>`);pieces.push('<button class="btn small" type="button" data-bro-job-section="payments">Payments</button>');pieces.push('<button class="btn small" type="button" data-bro-job-section="documents">Documents</button>');if(!contactId&&!leadId)pieces.push('<span class="bro-rel-note">No Contact or Inquiry link is stored on this job yet.</span>');bar.innerHTML=pieces.join('');}catch(error){bar.innerHTML=`<span class="bro-rel-label">Connected records</span><span class="bro-rel-note">Could not load links: ${esc(error?.message||String(error))}</span>`;}}
+  function jump(section){const id=section==='payments'?'jobPaymentsSection':'jobDocumentsSection';let target=document.getElementById(id);if(section==='documents'&&!target){const list=document.getElementById('jobDocumentList');target=list?.closest('.doc-section,section')||list;}if(section==='payments'&&!target){const list=document.getElementById('jobPaymentList');target=list?.closest('.doc-section,section')||list;}if(target){target.scrollIntoView({behavior:'smooth',block:'start'});target.animate?.([{outline:'3px solid rgba(31,111,213,.25)'},{outline:'0 solid transparent'}],{duration:900});}}
+  function install(){ensureStyles();ensureUi();document.body.addEventListener('click',event=>{const button=event.target.closest('[data-bro-job-section]');if(!button)return;event.preventDefault();jump(button.dataset.broJobSection);});if(typeof openJob==='function'&&!window.__broJobRelationshipOpenWrapped){window.__broJobRelationshipOpenWrapped=true;const originalOpen=openJob;openJob=function(id){const result=originalOpen(id);setTimeout(()=>render(id),0);return result;};}const current=document.getElementById('editJobId')?.value;if(current)render(current);}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 })();
