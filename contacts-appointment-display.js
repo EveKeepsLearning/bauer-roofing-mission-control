@@ -36,8 +36,8 @@
       const right=a.querySelector('.history-grid')?.children?.[2];
       if(!right) return;
       const appt=byLead.get(leadId);
-      if(appt) right.textContent=appointmentLabel(appt.appointment_at);
-      else if(['Appointment Scheduled','Appointment Wanted','New Inquiry'].includes(right.textContent.trim())) right.textContent='';
+      const next=appt?appointmentLabel(appt.appointment_at):(['Appointment Scheduled','Appointment Wanted','New Inquiry'].includes(right.textContent.trim())?'':right.textContent.trim());
+      if(right.textContent.trim()!==next) right.textContent=next;
     });
   }
 
@@ -49,16 +49,8 @@
     };
   }
 
-  const detail=document.getElementById('contactDetail');
-  if(detail){
-    let timer=null;
-    const observer=new MutationObserver(()=>{
-      clearTimeout(timer);
-      timer=setTimeout(enhanceAppointmentDisplay,30);
-    });
-    observer.observe(detail,{childList:true,subtree:true});
-  }
-
+  // Do not observe #contactDetail and rewrite it from inside the observer.
+  // That pattern can continuously retrigger itself and make inquiry links unresponsive.
   setTimeout(enhanceAppointmentDisplay,250);
   setTimeout(enhanceAppointmentDisplay,750);
 })();
