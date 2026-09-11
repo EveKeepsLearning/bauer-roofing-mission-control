@@ -4,7 +4,7 @@
     if(v===null||v===undefined||v==='') return 'Not entered';
     const n=Number(v);
     if(!Number.isFinite(n)) return String(v);
-    return n.toLocaleString(undefined,{style:'currency',currency:'USD'});
+    return n.toLocaleString(undefined,{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:2});
   }
 
   function ensureAmountDueField(){
@@ -12,7 +12,7 @@
     const contractDate=document.getElementById('editContractDate');
     if(!contractDate) return;
     const wrap=document.createElement('div');
-    wrap.innerHTML='<label>Amount due</label><input id="editAmountDue" type="number" min="0" step="0.01" placeholder="Current balance owed">';
+    wrap.innerHTML='<label>Amount due</label><input id="editAmountDue" type="text" readonly style="font-weight:800;background:#eef3f8" placeholder="$0.00">';
     contractDate.closest('div')?.insertAdjacentElement('afterend',wrap);
   }
 
@@ -31,28 +31,20 @@
     const baseOpenJob=openJob;
     openJob=function(id){
       ensureAmountDueField();
-      baseOpenJob(id);
+      const result=baseOpenJob(id);
       const j=jobs.find(x=>x.id===id);
       const input=document.getElementById('editAmountDue');
-      if(input) input.value=(j?.amount_due??'');
+      if(input) input.value=(j?.amount_due===null||j?.amount_due===undefined)?'':money(j.amount_due);
+      return result;
     };
   }
 
-  if(typeof saveJob==='function'){
-    const baseSaveJob=saveJob;
-    const btn=document.getElementById('saveJobBtn');
-    if(btn){
-      btn.onclick=async()=>{
-        const id=document.getElementById('editJobId')?.value;
-        const raw=document.getElementById('editAmountDue')?.value;
-        const amountDue=raw===''?null:Number(raw);
-        if(raw!==''&&!Number.isFinite(amountDue)) return notice('Enter a valid amount due.','error');
-        const res=await db.from('jobs').update({amount_due:amountDue}).eq('id',id);
-        if(res.error) return notice(res.error.message,'error');
-        await baseSaveJob();
-      };
-    }
-  }
+  window.addEventListener('bro:payments-changed',()=>{
+    const id=document.getElementById('editJobId')?.value;
+    const j=typeof jobs!=='undefined'?jobs.find(x=>x.id===id):null;
+    const input=document.getElementById('editAmountDue');
+    if(input&&j)input.value=money(j.amount_due);
+  });
 
   setTimeout(()=>{if(typeof renderAll==='function')renderAll();},400);
 })();
