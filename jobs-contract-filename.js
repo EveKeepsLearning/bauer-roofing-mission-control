@@ -46,6 +46,17 @@
 (function(){
   const REPAIR='#4054b2';
   const REROOF='#1296d4';
+  const STAGE_NUMBERS={
+    'Awarded':1,
+    'Contract / Deposit':2,
+    'Material Ordered':3,
+    'Ready to Schedule':4,
+    'Scheduled':5,
+    'Material Delivered':6,
+    'In Production':7,
+    'Work Complete':8,
+    'Final Payment / Closeout':9
+  };
 
   function kind(j){
     const raw=String((typeof jobType==='function'?jobType(j):(j?.job_type||j?.primary_category||''))||'').toLowerCase();
@@ -54,19 +65,38 @@
     return'';
   }
 
+  function stageNumber(j){
+    const label=typeof stageLabel==='function'?stageLabel(j):'';
+    return STAGE_NUMBERS[label]||99;
+  }
+
+  function numberedStage(j){
+    const label=typeof stageLabel==='function'?stageLabel(j):'';
+    const n=stageNumber(j);
+    return n===99?label:`${n}. ${label}`;
+  }
+
+  function numberedNext(j){
+    const label=typeof nextStep==='function'?nextStep(j):'';
+    const n=stageNumber(j);
+    return n===99?label:`${n}. ${label}`;
+  }
+
   function installStyles(){
     if(document.getElementById('broJobTypeColors'))return;
     const style=document.createElement('style');
     style.id='broJobTypeColors';
     style.textContent=`
-      .job-card.bro-repair{border:3px solid ${REPAIR}!important;padding:8px!important}
-      .job-card.bro-reroof{border:3px solid ${REROOF}!important;padding:8px!important}
+      .job-card.bro-repair{border:3px solid ${REPAIR}!important;padding:8px!important;background:#e8eaf7!important}
+      .job-card.bro-reroof{border:3px solid ${REROOF}!important;padding:8px!important;background:#e8f6fb!important}
+      .job-card.bro-repair:hover{background:#dfe2f3!important}
+      .job-card.bro-reroof:hover{background:#def1f8!important}
       .jobs-table tr.bro-repair td:first-child{border-left:6px solid ${REPAIR}!important}
       .jobs-table tr.bro-reroof td:first-child{border-left:6px solid ${REROOF}!important}
-      .jobs-table tr.bro-repair{background:linear-gradient(90deg,rgba(64,84,178,.08),transparent 24%)}
-      .jobs-table tr.bro-reroof{background:linear-gradient(90deg,rgba(18,150,212,.08),transparent 24%)}
-      .jobs-table tr.bro-repair:hover{background:linear-gradient(90deg,rgba(64,84,178,.15),#f8fbff 28%)}
-      .jobs-table tr.bro-reroof:hover{background:linear-gradient(90deg,rgba(18,150,212,.15),#f8fbff 28%)}
+      .jobs-table tr.bro-repair{background:linear-gradient(90deg,rgba(64,84,178,.11),rgba(64,84,178,.035) 40%,transparent 75%)}
+      .jobs-table tr.bro-reroof{background:linear-gradient(90deg,rgba(18,150,212,.11),rgba(18,150,212,.035) 40%,transparent 75%)}
+      .jobs-table tr.bro-repair:hover{background:linear-gradient(90deg,rgba(64,84,178,.18),rgba(64,84,178,.06) 45%,#f8fbff 80%)}
+      .jobs-table tr.bro-reroof:hover{background:linear-gradient(90deg,rgba(18,150,212,.18),rgba(18,150,212,.06) 45%,#f8fbff 80%)}
     `;
     document.head.appendChild(style);
   }
@@ -78,10 +108,25 @@
       row.classList.remove('bro-repair','bro-reroof');
       const k=kind(j);
       if(k)row.classList.add('bro-'+k);
+      const cells=row.querySelectorAll('td');
+      if(j&&cells.length>=7){
+        cells[3].textContent=numberedStage(j);
+        cells[6].textContent=numberedNext(j);
+      }
     });
   }
 
   installStyles();
+
+  if(typeof tableValue==='function'&&!window.__broWorkflowTableValueWrapped){
+    window.__broWorkflowTableValueWrapped=true;
+    const baseTableValue=tableValue;
+    tableValue=function(j,key){
+      if(key==='stage')return numberedStage(j);
+      if(key==='next')return numberedNext(j);
+      return baseTableValue(j,key);
+    };
+  }
 
   if(typeof card==='function'&&!window.__broJobTypeCardWrapped){
     window.__broJobTypeCardWrapped=true;
