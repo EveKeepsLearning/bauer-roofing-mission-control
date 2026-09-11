@@ -27,7 +27,7 @@ function render(){
   });
   const counts={open:0,closed:0,canceled:0,archived:0};allJobs.forEach(j=>counts[stateOf(j)]++);
   $('allJobSummary').innerHTML=`<span class="summary-pill"><b>${rows.length}</b> shown</span><span class="summary-pill"><b>${allJobs.length}</b> total</span><span class="summary-pill"><b>${counts.open}</b> open</span><span class="summary-pill"><b>${counts.closed}</b> completed / closed</span><span class="summary-pill"><b>${counts.canceled}</b> canceled</span><span class="summary-pill"><b>${counts.archived}</b> archived</span>`;
-  $('allJobsBody').innerHTML=rows.length?rows.map(j=>{const s=stateOf(j);return `<tr><td><b>${esc(j.job_number||'—')}</b></td><td>${esc(j.customer_name||'Unnamed customer')}</td><td>${esc(j.lead_number||'—')}</td><td>${esc(j.property_address||'—')}</td><td>${esc(j.job_type||j.primary_category||j.primary_job_type||'—')}</td><td><span class="status-badge ${s}">${esc(j.stage||s)}</span></td><td>${esc(dateLabel(j.contract_date||j.sale_date))}</td><td><a class="btn small" href="jobs.html?job=${encodeURIComponent(j.id)}">Open Job</a></td></tr>`;}).join(''):'<tr><td colspan="8"><div class="empty">No jobs match this search.</div></td></tr>';
+  $('allJobsBody').innerHTML=rows.length?rows.map(j=>{const s=stateOf(j);return `<tr data-open-job="${esc(j.id)}" tabindex="0" aria-label="Open job ${esc(j.job_number||j.customer_name||'record')}"><td><b>${esc(j.job_number||'—')}</b></td><td>${esc(j.customer_name||'Unnamed customer')}</td><td>${esc(j.lead_number||'—')}</td><td>${esc(j.property_address||'—')}</td><td>${esc(j.job_type||j.primary_category||j.primary_job_type||'—')}</td><td><span class="status-badge ${s}">${esc(j.stage||s)}</span></td><td>${esc(dateLabel(j.contract_date||j.sale_date))}</td><td><a class="btn small" href="jobs.html?job=${encodeURIComponent(j.id)}">Open Job</a></td></tr>`;}).join(''):'<tr><td colspan="8"><div class="empty">No jobs match this search.</div></td></tr>';
 }
 async function start(){
   db=supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
@@ -44,3 +44,14 @@ $('allJobSearch').oninput=render;
 $('allJobStatus').onchange=render;
 $('allJobSort').onchange=render;
 start();
+
+function openDirectoryJob(event){
+  const row=event.target.closest('tr[data-open-job]');
+  if(!row||event.target.closest('a,button,input,select,textarea'))return;
+  if(event.type==='keydown'&&event.key!=='Enter')return;
+  if(event.type==='click'&&(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey))return;
+  event.preventDefault();
+  location.href='jobs.html?job='+encodeURIComponent(row.dataset.openJob);
+}
+$('allJobsBody').addEventListener('click',openDirectoryJob);
+$('allJobsBody').addEventListener('keydown',openDirectoryJob);
