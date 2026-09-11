@@ -25,6 +25,7 @@
       .bulk-edit-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;background:#fff;border:1px solid #dfe5ec;border-radius:10px;margin-bottom:8px;position:sticky;top:42px;z-index:7;box-shadow:0 2px 8px rgba(31,48,72,.06)}
       .bulk-edit-bar .bulk-status{font-size:12px;color:#687588;margin-right:auto}.bulk-save{font-weight:700}
       .jobs-table.bulk-edit-table{min-width:2050px}.jobs-table.bulk-edit-table td{vertical-align:middle;padding:6px 8px}.jobs-table.bulk-edit-table input,.jobs-table.bulk-edit-table select{width:100%;min-width:115px;margin:0;padding:7px 8px;font-size:13px;background:#fff}
+      .jobs-table.bulk-edit-table tr[data-job-id]{cursor:default}.jobs-table.bulk-edit-table input,.jobs-table.bulk-edit-table select,.jobs-table.bulk-edit-table button,.jobs-table.bulk-edit-table a{cursor:pointer}
       .jobs-table.bulk-edit-table .col-job{min-width:92px;width:92px}.jobs-table.bulk-edit-table .col-customer{min-width:210px}.jobs-table.bulk-edit-table .col-stage{min-width:185px}.jobs-table.bulk-edit-table .col-installer{min-width:125px}.jobs-table.bulk-edit-table .col-next{min-width:230px}.jobs-table.bulk-edit-table .col-files{min-width:260px}.jobs-table.bulk-edit-table tr.bro-dirty{box-shadow:inset 0 0 0 2px #d59b23}.jobs-table.bulk-edit-table tr.bro-saving{opacity:.65}.jobs-table.bulk-edit-table .payment-cell{white-space:nowrap}.jobs-table.bulk-edit-table button{padding:6px 9px}.bulk-file-links{display:flex;gap:5px;align-items:center;flex-wrap:wrap}.bulk-file-link{display:inline-block;max-width:155px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.bulk-file-more{font-size:11px;color:#687588}.bulk-readonly{font-size:12px;color:#536176}
       .jobs-table.bulk-edit-table th:first-child{position:sticky;left:0;z-index:6;background:#eef3f8;box-shadow:3px 0 6px rgba(31,48,72,.10)}
       .jobs-table.bulk-edit-table td:first-child{position:sticky;left:0;z-index:4;background:#f8fafc;box-shadow:3px 0 6px rgba(31,48,72,.08)}
@@ -98,7 +99,18 @@
   function install(){
     installStyles();ensureToolbar();
     if(typeof renderTable==='function'&&!window.__broBulkRenderWrapped){window.__broBulkRenderWrapped=true;renderTable=renderEditableTable;}
-    const table=document.querySelector('.jobs-table');if(table&&!table.dataset.broBulkOpen){table.dataset.broBulkOpen='1';table.addEventListener('dblclick',e=>{if(e.target.closest('input,select,button,a'))return;const row=e.target.closest('tr[data-job-id]');if(row&&typeof openJob==='function')openJob(row.dataset.jobId);});}
+    const table=document.querySelector('.jobs-table');
+    if(table&&!table.dataset.broBulkInline){
+      table.dataset.broBulkInline='1';
+      table.addEventListener('click',e=>{
+        if(!e.target.closest('tbody tr[data-job-id]'))return;
+        e.stopPropagation();
+      },true);
+      table.addEventListener('dblclick',e=>{
+        if(e.target.closest('input,select,button,a'))return;
+        const row=e.target.closest('tr[data-job-id]');if(row&&typeof openJob==='function')openJob(row.dataset.jobId);
+      });
+    }
     if(typeof saveDocument==='function'&&!window.__broBulkSaveDocumentWrapped){window.__broBulkSaveDocumentWrapped=true;const base=saveDocument;saveDocument=async function(){const r=await base();setTimeout(renderEditableTable,0);return r;};}
     if(typeof deleteDocument==='function'&&!window.__broBulkDeleteDocumentWrapped){window.__broBulkDeleteDocumentWrapped=true;const base=deleteDocument;deleteDocument=async function(id){const r=await base(id);setTimeout(renderEditableTable,0);return r;};}
     renderEditableTable();
