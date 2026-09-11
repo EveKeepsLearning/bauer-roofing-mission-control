@@ -8,13 +8,7 @@
   const FUTURE_DAYS=365;
   let running=false;
 
-  function getDb(){
-    if(window.db&&typeof window.db.from==='function')return window.db;
-    if(typeof db!=='undefined'&&db&&typeof db.from==='function')return db;
-    if(!window.supabase||!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY)return null;
-    if(!window.__broCalendarDb)window.__broCalendarDb=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
-    return window.__broCalendarDb;
-  }
+  function getDb(){if(window.db&&typeof window.db.from==='function')return window.db;if(typeof db!=='undefined'&&db&&typeof db.from==='function')return db;if(!window.supabase||!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY)return null;if(!window.__broCalendarDb)window.__broCalendarDb=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);return window.__broCalendarDb;}
   function getSecret(){return String(localStorage.getItem(SECRET_KEY)||'').trim();}
   function configureSecret(){const value=prompt('Enter the private BRO_SYNC_SECRET you saved in Google Apps Script. It stays only in this browser and is never saved to GitHub.');if(!value)return false;localStorage.setItem(SECRET_KEY,String(value).trim());return true;}
   function clearSecret(){localStorage.removeItem(SECRET_KEY);}
@@ -57,13 +51,13 @@
     const isNewGoogleEvent=!clean(a?.google_calendar_event_id);
     let title=null,location=null;
     if(action==='upsert'){
+      // BRO owns the appointment title format. Every push, including edits to an
+      // existing Google event, restores: source-job type-street number street name, ZIP.
+      title=googleTitle(a,l);
       if(isNewGoogleEvent){
-        title=googleTitle(a,l);
         location=contactLocation(l,true);
       }else{
         if(!existingGoogle)throw new Error('BRO could not verify the existing Google event. Nothing was changed in Google Calendar. Run Calendar Sync and try again.');
-        title=clean(existingGoogle.summary);
-        if(!title)throw new Error('BRO could not verify the existing Google event title. Nothing was changed in Google Calendar.');
         location=existingGoogle.location_raw==null?'':String(existingGoogle.location_raw);
       }
     }
