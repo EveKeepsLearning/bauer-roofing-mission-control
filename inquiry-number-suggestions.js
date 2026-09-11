@@ -17,10 +17,17 @@
   async function nextAvailableNumber(){
     db=db||window.supabase?.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
     if(!db)throw new Error('Database is not available.');
-    const {data,error}=await db.from('leads').select('lead_number').is('deleted_at',null).not('lead_number','is',null).limit(10000);
-    if(error)throw error;
+    const [leadRes,settingRes]=await Promise.all([
+      db.from('leads').select('lead_number').is('deleted_at',null).not('lead_number','is',null).limit(10000),
+      db.from('settings').select('value').eq('setting','Lead Sheet Highest Number').limit(1)
+    ]);
+    if(leadRes.error)throw leadRes.error;
     const used=new Set();let max=0;
-    for(const r of data||[]){const s=String(r.lead_number||'').trim();if(!/^\d+$/.test(s))continue;const n=Number(s);used.add(n);if(n>max)max=n;}
+    for(const r of leadRes.data||[]){const s=String(r.lead_number||'').trim();if(!/^\d+$/.test(s))continue;const n=Number(s);used.add(n);if(n>max)max=n;}
+    if(!settingRes.error&&settingRes.data?.length){
+      const floor=Number(String(settingRes.data[0].value||'').trim());
+      if(Number.isFinite(floor)&&floor>max)max=floor;
+    }
     let candidate=max+1;while(used.has(candidate))candidate++;
     return String(candidate);
   }
@@ -48,17 +55,26 @@
 
   function decorate(input){
     if(!input||input.dataset.broNumberSuggestionReady)return;
-    if(input.value&&String(input.value).trim())return;
     input.dataset.broNumberSuggestionReady='1';
     const box=document.createElement('div');box.className='bro-number-suggestion';
     input.insertAdjacentElement('afterend',box);
-    refreshSuggestion(input,box);
+    if(!String(input.value||'').trim())refreshSuggestion(input,box);
   }
 
   function scan(){
     ['inquiryLeadNumber','leadNumber'].forEach(id=>decorate(document.getElementById(id)));
     document.querySelectorAll('input[data-number-input],input[data-bro-suggest-number="1"]').forEach(decorate);
   }
+
+  window.BRONextInquiryNumber=nextAvailableNumber;
+  window.BRORefreshInquiryNumberSuggestion=async input=>{
+    if(!input)return;
+    let box=input.nextElementSibling;
+    if(!box||!box.classList?.contains('bro-number-suggestion')){
+      input.dataset.broNumberSuggestionReady='';decorate(input);box=input.nextElementSibling;
+    }
+    await refreshSuggestion(input,box);
+  };
 
   function install(){ensureStyles();scan();new MutationObserver(scan).observe(document.body,{childList:true,subtree:true});}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
