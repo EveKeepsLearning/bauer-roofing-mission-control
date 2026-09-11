@@ -122,8 +122,7 @@
     window.__broWorkflowTableValueWrapped=true;
     const baseTableValue=tableValue;
     tableValue=function(j,key){
-      if(key==='stage')return numberedStage(j);
-      if(key==='next')return numberedNext(j);
+      if(key==='stage'||key==='next')return stageNumber(j);
       return baseTableValue(j,key);
     };
   }
