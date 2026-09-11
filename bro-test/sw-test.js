@@ -1,4 +1,4 @@
-const BUILD='20260911-52-test';
+const BUILD='20260911-53-test';
 self.addEventListener('install',event=>{self.skipWaiting();});
 self.addEventListener('activate',event=>{event.waitUntil(self.clients.claim());});
 self.addEventListener('fetch',event=>{
