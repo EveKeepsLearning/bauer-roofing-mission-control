@@ -1,11 +1,19 @@
 'use strict';
 (function(){
   const $=id=>document.getElementById(id);
-  const fmt=v=>Number(v||0).toLocaleString(undefined,{style:'currency',currency:'USD'});
+  const fmt=v=>Number(v||0).toLocaleString(undefined,{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:2});
+  const parseMoney=v=>{const raw=String(v??'').replace(/[$,\s]/g,'');if(raw==='')return null;const n=Number(raw);return Number.isFinite(n)?n:null;};
   let currentPayments=[];
 
+  function wireMoneyInput(input){
+    if(!input||input.dataset.broMoneyReady)return;
+    input.dataset.broMoneyReady='1';input.type='text';input.inputMode='decimal';
+    input.addEventListener('focus',()=>{const n=parseMoney(input.value);input.value=n==null?'':n.toFixed(2);input.select();});
+    input.addEventListener('blur',()=>{const n=parseMoney(input.value);input.value=n==null?'':fmt(n);});
+  }
+
   function ensureUi(){
-    if($('jobPaymentsSection')) return;
+    if($('jobPaymentsSection')){wireMoneyInput($('paymentAmount'));return;}
     const docSection=document.querySelector('#jobDialog .doc-section');
     if(!docSection) return;
     const section=document.createElement('section');
@@ -16,8 +24,9 @@
 
     const dialog=document.createElement('dialog');
     dialog.id='paymentDialog';
-    dialog.innerHTML=`<form method="dialog" class="card document-dialog"><h2 id="paymentDialogTitle">Add Payment</h2><input id="paymentId" type="hidden"><div class="form-grid"><div><label>Payment date</label><input id="paymentDate" type="date"></div><div><label>Amount</label><input id="paymentAmount" type="number" min="0" step="0.01" inputmode="decimal"></div><div><label>Payment type / milestone</label><select id="paymentType"><option>Deposit</option><option>Payment at Start</option><option>Progress Payment</option><option>Final Payment</option><option>Insurance Payment</option><option>Other</option></select></div><div><label>Payment method</label><select id="paymentMethod"><option value="">Select...</option><option>Check</option><option>Square</option><option>Credit Card</option><option>ACH</option><option>Cash</option><option>Insurance</option><option>Other</option></select></div><div class="wide"><label>Notes</label><textarea id="paymentNotes" rows="3"></textarea></div></div><div class="toolbar"><button class="btn primary" type="button" id="savePaymentBtn">Save Payment</button><button class="btn" value="cancel">Cancel</button></div></form>`;
+    dialog.innerHTML=`<form method="dialog" class="card document-dialog"><h2 id="paymentDialogTitle">Add Payment</h2><input id="paymentId" type="hidden"><div class="form-grid"><div><label>Payment date</label><input id="paymentDate" type="date"></div><div><label>Amount</label><input id="paymentAmount" type="text" inputmode="decimal" placeholder="$0.00"></div><div><label>Payment type / milestone</label><select id="paymentType"><option>Deposit</option><option>Payment at Start</option><option>Progress Payment</option><option>Final Payment</option><option>Insurance Payment</option><option>Other</option></select></div><div><label>Payment method</label><select id="paymentMethod"><option value="">Select...</option><option>Check</option><option>Square</option><option>Credit Card</option><option>ACH</option><option>Cash</option><option>Insurance</option><option>Other</option></select></div><div class="wide"><label>Notes</label><textarea id="paymentNotes" rows="3"></textarea></div></div><div class="toolbar"><button class="btn primary" type="button" id="savePaymentBtn">Save Payment</button><button class="btn" value="cancel">Cancel</button></div></form>`;
     document.body.appendChild(dialog);
+    wireMoneyInput($('paymentAmount'));
     $('addPaymentBtn').onclick=()=>openPayment();
     $('savePaymentBtn').onclick=savePayment;
     document.body.addEventListener('click',e=>{
@@ -28,14 +37,28 @@
     });
   }
 
+  function totals(){
+    const total=currentPayments.reduce((sum,p)=>sum+Number(p.amount||0),0);
+    const contract=parseMoney($('editContractAmount')?.value)||0;
+    return {total,contract,balance:Math.max(0,contract-total)};
+  }
+
   function refreshSummary(){
     ensureUi();
-    const total=currentPayments.reduce((sum,p)=>sum+Number(p.amount||0),0);
-    const contract=Number($('editContractAmount')?.value||0);
-    const balance=Math.max(0,contract-total);
+    const {total,balance}=totals();
     if($('editTotalPaid')) $('editTotalPaid').value=fmt(total);
     if($('editBalanceDue')) $('editBalanceDue').value=fmt(balance);
     if($('jobPaymentSummary')) $('jobPaymentSummary').textContent=`Total paid: ${fmt(total)} • Balance due: ${fmt(balance)}`;
+  }
+
+  async function syncBalance(jobId=$('editJobId')?.value){
+    if(!jobId)return true;
+    const {balance}=totals();
+    const {error}=await db.from('jobs').update({amount_due:balance,updated_at:new Date().toISOString()}).eq('id',jobId);
+    if(error){if(typeof notice==='function')notice('Balance could not be updated: '+error.message,'error');return false;}
+    const local=typeof jobs!=='undefined'?jobs.find(j=>j.id===jobId):null;if(local)local.amount_due=balance;
+    if(typeof renderAll==='function')renderAll();
+    return true;
   }
 
   function renderPayments(){
@@ -53,6 +76,8 @@
     if(error){if(typeof notice==='function') notice(error.message,'error');return;}
     currentPayments=data||[];
     renderPayments();
+    const job=typeof jobs!=='undefined'?jobs.find(j=>j.id===jobId):null;
+    if(job?.contract_amount!=null && job?.amount_due==null) await syncBalance(jobId);
   }
 
   function openPayment(p=null){
@@ -61,7 +86,7 @@
     $('paymentDialogTitle').textContent=p?'Edit Payment':'Add Payment';
     $('paymentId').value=x.id||'';
     $('paymentDate').value=x.payment_date||new Date().toLocaleDateString('en-CA');
-    $('paymentAmount').value=x.amount??'';
+    $('paymentAmount').value=x.amount==null?'':fmt(x.amount);
     $('paymentType').value=x.payment_type||'Deposit';
     $('paymentMethod').value=x.payment_method||'';
     $('paymentNotes').value=x.notes||'';
@@ -81,7 +106,7 @@
   async function savePayment(){
     const jobId=$('editJobId')?.value,id=$('paymentId').value;
     if(!jobId) return;
-    const amount=Number($('paymentAmount').value||0);
+    const amount=parseMoney($('paymentAmount').value);
     if(!(amount>0)){if(typeof notice==='function') notice('Payment amount must be greater than zero.','error');return;}
     const paymentType=$('paymentType').value||'Payment';
     const row={job_id:jobId,payment_date:$('paymentDate').value||null,payment_type:paymentType,amount,payment_method:$('paymentMethod').value||null,notes:$('paymentNotes').value.trim()||null,updated_at:new Date().toISOString()};
@@ -91,6 +116,7 @@
     if(res.error){if(typeof notice==='function') notice(res.error.message,'error');return;}
     $('paymentDialog').close();
     await loadForJob(jobId);
+    await syncBalance(jobId);
     const stageState=await syncJobStage(jobId);
     window.dispatchEvent(new CustomEvent('bro:payments-changed',{detail:{jobId}}));
     const moved=stageState?.stage==='Contract / Deposit';
@@ -105,13 +131,14 @@
     const {error}=await db.from('job_payments').delete().eq('id',id);
     if(error){if(typeof notice==='function') notice(error.message,'error');return;}
     await loadForJob(jobId);
+    await syncBalance(jobId);
     await syncJobStage(jobId);
     window.dispatchEvent(new CustomEvent('bro:payments-changed',{detail:{jobId}}));
     if(typeof notice==='function') notice('Payment removed.','success');
   }
 
   ensureUi();
-  window.BRO_PAYMENTS={loadForJob,refreshSummary};
+  window.BRO_PAYMENTS={loadForJob,refreshSummary,syncBalance,getTotal:()=>totals().total};
   const originalOpen=typeof openJob==='function'?openJob:null;
   if(originalOpen){openJob=function(id){const r=originalOpen(id);loadForJob(id);return r;};}
   const current=$('editJobId')?.value;if(current)loadForJob(current);
