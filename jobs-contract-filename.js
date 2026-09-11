@@ -48,6 +48,7 @@
   const REROOF='#1296d4';
   const STAGE_NUMBERS={
     'Awarded':1,
+    'Deposit':2,
     'Contract / Deposit':2,
     'Material Ordered':3,
     'Ready to Schedule':4,
