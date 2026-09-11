@@ -22,6 +22,16 @@
       left:0!important;
       z-index:6!important;
     }
+    .jobs-table.bulk-edit-table tbody tr[data-job-id]{cursor:default!important;}
   `;
   document.head.appendChild(style);
+
+  const blockSingleClickOpen=e=>{
+    const table=e.target.closest('.jobs-table.bulk-edit-table');
+    if(!table)return;
+    const row=e.target.closest('tbody tr[data-job-id]');
+    if(!row)return;
+    e.stopPropagation();
+  };
+  document.addEventListener('click',blockSingleClickOpen,true);
 })();
