@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Bauer Roofing - Leads.xlsx Sync</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="config.js?v=20260908-15"></script>
+  <style>
+    :root{--bg:#f5f7fa;--card:#fff;--text:#202124;--muted:#5f6368;--line:#dadce0;--blue:#1a73e8;--green:#188038;--greenbg:#e6f4ea;--amber:#9a5b00;--amberbg:#fef7e0;--red:#b3261e;--redbg:#fce8e6;--purple:#6947a3;--purplebg:#f3edff}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif}.wrap{max-width:1180px;margin:0 auto;padding:18px}.top{display:flex;align-items:center;gap:12px;margin-bottom:14px}.top h1{font-size:25px;margin:0}.spacer{flex:1}.card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:18px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.04)}h2,h3{margin:0 0 8px}.sub,.meta{color:var(--muted);font-size:13px;line-height:1.45}.toolbar,.actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.toolbar{margin-top:13px}button,.btn,input,select{font:inherit;border:1px solid var(--line);border-radius:9px;background:#fff;padding:9px 11px}.btn,button{cursor:pointer;text-decoration:none;color:inherit}.primary{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700}.success{background:var(--green);border-color:var(--green);color:#fff;font-weight:700}.small{font-size:12px;padding:7px 9px}button:disabled{opacity:.55;cursor:not-allowed}.notice{padding:12px;border-radius:9px;margin-top:12px;background:var(--amberbg);color:#714400;border:1px solid #efd28b}.notice.error{background:var(--redbg);color:var(--red);border-color:#efb5b1}.hidden{display:none!important}.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;margin:14px 0}.kpi{border:1px solid var(--line);border-top:4px solid var(--blue);border-radius:10px;padding:11px;background:#fff}.kpi b{display:block;font-size:25px}.kpi span{font-size:11px;color:var(--muted);font-weight:700}.kpi.exact{border-top-color:var(--green)}.kpi.likely{border-top-color:var(--purple)}.kpi.create{border-top-color:var(--blue)}.kpi.conflict{border-top-color:var(--red)}.kpi.missing{border-top-color:var(--amber)}.tabs{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}.tab.active{background:#e8f0fe;border-color:#aecbfa;color:#174ea6;font-weight:700}.list{border:1px solid var(--line);border-radius:10px;overflow:hidden;max-height:560px;overflow-y:auto}.row{display:grid;grid-template-columns:minmax(220px,1.5fr) minmax(220px,1.4fr) minmax(160px,.9fr) auto;gap:12px;align-items:center;padding:11px;border-bottom:1px solid var(--line)}.row:last-child{border-bottom:0}.row:hover{background:#fafcff}.name{font-weight:700}.pill{display:inline-block;border-radius:999px;padding:3px 7px;font-size:10px;font-weight:700}.pill.exact{background:var(--greenbg);color:#146c2e}.pill.likely{background:var(--purplebg);color:var(--purple)}.pill.create{background:#e8f0fe;color:#174ea6}.pill.conflict{background:var(--redbg);color:var(--red)}.pill.missing{background:var(--amberbg);color:var(--amber)}.approve{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700}.approve input{width:auto}.progress{height:8px;background:#e8eaed;border-radius:999px;overflow:hidden;margin-top:12px}.progress>div{height:100%;width:0;background:var(--blue)}.pastebox{width:100%;min-height:120px;border:1px solid var(--line);border-radius:9px;padding:10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;margin-top:10px}.step{display:inline-flex;width:26px;height:26px;border-radius:50%;align-items:center;justify-content:center;background:#e8f0fe;color:#174ea6;font-weight:800;margin-right:7px}.empty{padding:24px;color:var(--muted);text-align:center}.file-note{font-size:12px;color:var(--muted)}@media(max-width:850px){.kpis{grid-template-columns:1fr 1fr}.row{grid-template-columns:1fr}.top{align-items:flex-start}.top .spacer{display:none}}@media(max-width:520px){.wrap{padding:10px}.kpis{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div><h1>Leads.xlsx Sync</h1><div class="sub">Reconcile the workbook with Bauer Roofing Operations without duplicating leads or disturbing appointments.</div></div><div class="spacer"></div><a class="btn" href="index.html?view=leads">Back to Leads</a></div>
+
+  <div id="authError" class="notice error hidden"></div>
+
+  <section id="syncApp" class="hidden">
+    <div class="card">
+      <h2><span class="step">1</span>Choose the current Leads.xlsx</h2>
+      <div class="sub">Download the latest copy from OneDrive, then select it here. The file is read locally in your browser and is not changed. In this workbook, Date means the first appointment date except for Angi/HomeAdvisor rows, where it means the original lead date.</div>
+      <div class="toolbar">
+        <input id="xlsxFile" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+        <label>Include leads dated on or after <input id="syncStartDate" type="date"></label>
+        <button id="analyzeBtn" class="primary" disabled>Preview Sync</button>
+      </div>
+      <div id="fileStatus" class="file-note"></div>
+    </div>
+
+    <div id="previewCard" class="card hidden">
+      <h2><span class="step">2</span>Review before importing</h2>
+      <div class="sub">Each lead number is a separate inquiry, even when the homeowner or address is the same. Exact lead-number matches safely repair the First, Spouse, and Last name fields from columns D, E, and F. Contact details are used only to suggest a match to a manually entered lead that has no lead number.</div>
+      <div class="kpis">
+        <div class="kpi exact"><b id="exactCount">0</b><span>EXACT MATCHES</span></div>
+        <div class="kpi likely"><b id="likelyCount">0</b><span>LIKELY MATCHES</span></div>
+        <div class="kpi create"><b id="createCount">0</b><span>NEW TO MISSION CONTROL</span></div>
+        <div class="kpi conflict"><b id="conflictCount">0</b><span>NEEDS REVIEW</span></div>
+        <div class="kpi missing"><b id="missingCount">0</b><span>MISSING FROM EXCEL</span></div>
+      </div>
+      <div class="tabs" id="tabs">
+        <button class="tab active" data-filter="all">All</button><button class="tab" data-filter="exact">Exact</button><button class="tab" data-filter="likely">Likely</button><button class="tab" data-filter="create">New</button><button class="tab" data-filter="conflict">Review</button>
+      </div>
+      <div id="planList" class="list"></div>
+      <div class="toolbar">
+        <button id="applyBtn" class="success">Import Approved Changes</button>
+        <span id="applySummary" class="meta"></span>
+      </div>
+      <div class="progress hidden" id="applyProgress"><div id="applyProgressBar"></div></div>
+      <div id="applyStatus" class="notice hidden"></div>
+    </div>
+
+    <div id="excelCard" class="card hidden">
+      <h2><span class="step">3</span>Add Bauer Roofing Operations leads to Leads.xlsx</h2>
+      <div class="sub">These are recent Bauer Roofing Operations leads not found in the workbook. Select the ones in your paper stack. The tool assigns the workbook's existing reserved lead numbers and creates paste-ready rows.</div>
+      <div class="toolbar"><button id="selectAllMissing" class="small">Select All</button><button id="clearMissing" class="small">Clear</button><span id="reserveStatus" class="meta"></span></div>
+      <div id="missingList" class="list" style="margin-top:10px"></div>
+      <div class="toolbar"><button id="copyRowsBtn" class="primary">Copy Selected Rows for Excel</button><button id="downloadCsvBtn">Download Selected Rows</button></div>
+      <textarea id="pastePreview" class="pastebox hidden" readonly></textarea>
+      <div id="pasteInstructions" class="notice hidden"></div>
+      <div class="toolbar"><button id="confirmExcelBtn" class="success hidden">I Pasted and Saved These Rows in OneDrive</button></div>
+    </div>
+  </section>
+</div>
+<script>
+'use strict';
+const cfg=window.BAUER_CONFIG||{};
+const db=supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let missionLeads=[],missionJobs=[],workbook=null,excelRows=[],reservedRows=[],plan=[],missing=[],activeFilter='all',pendingAssignments=[];
+const SOURCE_MAP={AA:'Angi Ads',HA:'HomeAdvisor (Angi Leads)',RB:'Repeat Business',RF:'Referral',REF:'Referral',Ref:'Referral',INT:'Internet',Int:'Internet',Mail:'Mail',DM:'Direct Mail',Yelp:'Yelp',YELP:'Yelp',SI:'Sign',Si:'Sign',Sign:'Sign',WF:'Website Form',BBB:'BBB',FB:'Facebook'};
+const SOURCE_CODE={'Angi Ads':'AA','Angi':'AA','HomeAdvisor (Angi Leads)':'HA','HomeAdvisor':'HA','Repeat Business':'RB','Referral':'Ref','Internet':'INT','Mail':'Mail','Direct Mail':'DM','Yelp':'Yelp','Sign':'SI','Website Form':'WF','BBB':'BBB','Facebook':'FB'};
+function isoDate(value){if(!value)return null;if(value instanceof Date&&!isNaN(value))return value.toISOString().slice(0,10);if(typeof value==='number'){const d=XLSX.SSF.parse_date_code(value);return d?`${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`:null;}const m=String(value).match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})/);if(m){let y=m[3];if(y.length===2)y='20'+y;return `${y}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;}return null;}
+function phone(value){let d=String(value??'').replace(/\D/g,'');if(d.length===11&&d[0]==='1')d=d.slice(1);return d.length===10?`(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`:String(value??'').trim();}
+function digits(value){let d=String(value??'').replace(/\D/g,'');return d.length===11&&d[0]==='1'?d.slice(1):d;}
+function norm(value){return String(value??'').toLowerCase().replace(/&/g,'and').replace(/[^a-z0-9]/g,'');}
+function displayName(x){return x.homeowner_name||[x.first_name,x.last_name].filter(Boolean).join(' ')||'Unnamed lead';}
+function rowName(x){return [x.first_name,x.last_name].filter(Boolean).join(' ')||'Unnamed lead';}
+function validJobNo(value){const s=String(value??'').trim();return s&&s!=='*'&&!/^canc/i.test(s)?s:null;}
+function amount(value){if(typeof value==='number'&&Number.isFinite(value))return value;const n=Number(String(value??'').replace(/[$,]/g,''));return Number.isFinite(n)&&n>0?n:null;}
+function fingerprint(x){return [x.lead_number,x.lead_date,x.source_code,x.last_name,x.first_name,x.spouse_name,x.street_address,x.zip,x.city,x.phone,x.phone_secondary,x.contract_date,x.job_number,x.salesperson,x.contract_amount,x.material_type,x.material_color,x.material_ordered_date,x.roof_squares,x.installer,x.started_date,x.finished_date,x.permit,x.mfg_warranty,x.bci_warranty,x.change_orders].map(v=>String(v??'')).join('|');}
+function parseWorkbook(file){return file.arrayBuffer().then(buf=>{
+  workbook=XLSX.read(buf,{type:'array',cellDates:true,cellStyles:true});const sheet=workbook.Sheets.Leads;if(!sheet)throw new Error('The workbook does not contain a Leads worksheet.');const data=XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:null});excelRows=[];reservedRows=[];
+  for(let i=2;i<data.length;i++){const r=data[i]||[];const hasCore=[1,2,3,4,5,6,7,8,10,11].some(c=>r[c]!==null&&String(r[c]).trim()!=='');const leadNo=r[0]===null?'':String(r[0]).trim();if(!/^\d+$/.test(leadNo))continue;if(!hasCore){reservedRows.push({row_number:i+1,lead_number:leadNo});continue;}const street=[r[6],r[7]].filter(v=>v!==null&&String(v).trim()).join(' ').trim();const zipRaw=String(r[8]??'').replace(/\.0$/,'').trim();const sourceCode=String(r[2]??'').trim();const x={row_number:i+1,lead_number:leadNo,lead_date:isoDate(r[1]),source_code:sourceCode,source:SOURCE_MAP[sourceCode]||sourceCode,first_name:String(r[3]??'').trim(),spouse_name:String(r[4]??'').trim(),last_name:String(r[5]??'').trim(),street_number:String(r[6]??'').trim(),street_name:String(r[7]??'').trim(),street_address:street,zip:zipRaw?zipRaw.padStart(5,'0'):'',city:String(r[9]??'').trim().replace(/^#N\/A$/,''),phone:phone(r[10]),phone_secondary:phone(r[11]),contract_date:isoDate(r[12]),job_number:validJobNo(r[13]),salesperson:String(r[14]??'').trim(),contract_amount:amount(r[15]),material_type:String(r[16]??'').trim().replace(/^\?+$/,''),material_color:String(r[17]??'').trim().replace(/^\?+$/,''),material_ordered_date:isoDate(r[18]),roof_squares:amount(r[19]),installer:String(r[20]??'').trim().replace(/^X$/,''),started_date:isoDate(r[21]),finished_date:isoDate(r[22]),permit:String(r[23]??'').trim(),mfg_warranty:String(r[24]??'').trim(),bci_warranty:String(r[25]??'').trim(),change_orders:String(r[26]??'').trim()};x.fingerprint=fingerprint(x);excelRows.push(x);}
+  const highestUsed=Math.max(0,...excelRows.map(x=>Number(x.lead_number)||0));reservedRows=reservedRows.filter(x=>Number(x.lead_number)>highestUsed).sort((a,b)=>Number(a.lead_number)-Number(b.lead_number));
+  return {sheetRows:excelRows.length,reserved:reservedRows.length};
+});}
+function scoreLead(x,l){
+  let score=0,reasons=[];
+  const xp=digits(x.phone),lp=digits(l.phone),xf=norm(x.first_name),xs=norm(x.spouse_name),xl=norm(x.last_name),lf=norm(l.first_name),ls=norm(l.spouse_name),ll=norm(l.last_name);
+  if(xp.length>=10&&xp===lp){score+=55;reasons.push('same phone');}
+  if(norm(x.street_address)&&norm(x.street_address)===norm(l.street_address)){score+=45;reasons.push('same address');}
+  if(xf&&xl&&xf===lf&&xl===ll){score+=60;reasons.push('same full name');}
+  else{
+    if(xf&&xf===lf){score+=15;reasons.push('same first name');}
+    if(xl&&xl===ll){score+=25;reasons.push('same last name');}
+  }
+  if(xs&&xs===ls){score+=12;reasons.push('same spouse');}
+  if(xf&&xl&&norm(`${x.first_name} ${x.last_name}`)===norm(l.homeowner_name)){score+=60;reasons.push('same homeowner name');}
+  if(xf&&xl&&xs&&xf===ll&&xs===lf&&xl===ls){score+=60;reasons.push('matches prior name-column layout');}
+  if(x.zip&&String(x.zip)===String(l.zip||'')){score+=8;reasons.push('same ZIP');}
+  return {lead:l,score,reasons};
+}
+function scoreClientIdentity(x,l){
+  let score=0;
+  const xp=digits(x.phone),lp=digits(l.phone),xf=norm(x.first_name),xl=norm(x.last_name),lf=norm(l.first_name),ll=norm(l.last_name);
+  if(xp.length>=10&&xp===lp)score+=60;
+  if(xf&&xl&&xf===lf&&xl===ll)score+=55;
+  if(norm(x.spouse_name)&&norm(x.spouse_name)===norm(l.spouse_name))score+=15;
+  return score;
+}
+function sameProperty(x,l){
+  const sameStreet=norm(x.street_address)&&norm(x.street_address)===norm(l.street_address);
+  const zipCompatible=!x.zip||!l.zip||String(x.zip)===String(l.zip);
+  return Boolean(sameStreet&&zipCompatible);
+}
+function buildPlan(){
+  const start=$('syncStartDate').value;
+  const rows=excelRows.filter(x=>!start||!x.lead_date||x.lead_date>=start);
+  const active=missionLeads.filter(l=>!l.deleted_at);
+  plan=rows.map(x=>{
+    const exact=active.filter(l=>String(l.lead_number||'').trim()===x.lead_number&&x.lead_number);
+    if(exact.length===1)return {kind:'exact',row:x,lead:exact[0],reason:'Same inquiry: Lead #'+x.lead_number,approved:true};
+    if(exact.length>1)return {kind:'conflict',row:x,lead:null,reason:'More than one Bauer Roofing Operations inquiry uses Lead #'+x.lead_number,approved:false};
+
+    // A homeowner can contact Bauer Roofing more than once. Never merge two
+    // inquiries that already have different lead numbers, even when the client,
+    // phone, or property address is identical.
+    const withoutLeadNumber=active.filter(l=>!String(l.lead_number||'').trim());
+    const ranked=withoutLeadNumber.map(l=>scoreLead(x,l)).filter(y=>y.score>=45).sort((a,b)=>b.score-a.score);
+    if(ranked.length&&ranked[0].score>=60&&(!ranked[1]||ranked[0].score-ranked[1].score>=15))return {kind:'likely',row:x,lead:ranked[0].lead,reason:'Possible manually entered inquiry: '+ranked[0].reasons.join(', ')+' ('+ranked[0].score+')',approved:false};
+    if(ranked.length&&ranked[0].score>=45)return {kind:'conflict',row:x,lead:ranked[0].lead,reason:'Possible manual inquiry match is not strong enough: '+ranked[0].reasons.join(', '),approved:false};
+
+    const numberedOtherInquiries=active
+      .filter(l=>String(l.lead_number||'').trim()&&String(l.lead_number||'').trim()!==x.lead_number)
+    const relatedClient=numberedOtherInquiries.map(lead=>({lead,score:scoreClientIdentity(x,lead)})).filter(item=>item.score>=55).sort((a,b)=>b.score-a.score)[0];
+    const relatedProperty=numberedOtherInquiries.find(lead=>sameProperty(x,lead));
+    let reason='New client and inquiry not found in Bauer Roofing Operations';
+    if(relatedClient&&relatedProperty)reason=`New inquiry for a possible existing client at a previously recorded property; kept separate from Lead #${relatedClient.lead.lead_number}`;
+    else if(relatedClient)reason=`New inquiry for a possible existing client; kept separate from Lead #${relatedClient.lead.lead_number}`;
+    else if(relatedProperty)reason=`New inquiry at a previously recorded property; homeowner is kept separate from Lead #${relatedProperty.lead_number}`;
+    return {kind:'create',row:x,lead:null,reason,approved:false};
+  });
+  const excelNumbers=new Set(excelRows.map(x=>x.lead_number).filter(Boolean));missing=active.filter(l=>{const created=String(l.created_at||'').slice(0,10);return !excelNumbers.has(String(l.lead_number||''))&&(!start||!created||created>=start);}).sort((a,b)=>String(a.created_at||'').localeCompare(String(b.created_at||'')));renderPreview();}
+function renderPreview(){for(const k of ['exact','likely','create','conflict'])$(k+'Count').textContent=plan.filter(p=>p.kind===k).length;$('missingCount').textContent=missing.length;$('previewCard').classList.remove('hidden');$('excelCard').classList.remove('hidden');renderPlan();renderMissing();updateApplySummary();}
+function renderPlan(){const rows=plan.filter(p=>activeFilter==='all'||p.kind===activeFilter);$('planList').innerHTML=rows.map((p,i)=>`<div class="row"><div><div class="name">${esc(rowName(p.row))}</div><div class="meta">Excel row ${p.row.row_number} • Lead #${esc(p.row.lead_number||'—')} • ${esc(p.row.street_address)}</div></div><div>${p.lead?`<div class="name">${esc(displayName(p.lead))}</div><div class="meta">Bauer Roofing Operations ${p.lead.lead_number?'#'+esc(p.lead.lead_number):'without lead #'}</div>`:'<span class="meta">No current record</span>'}</div><div><span class="pill ${p.kind}">${esc(p.kind==='exact'?'Exact':p.kind==='likely'?'Likely match':p.kind==='create'?'Create':'Review')}</span><div class="meta">${esc(p.reason)}</div></div><div>${p.kind==='likely'?`<label class="approve"><input type="checkbox" data-approve-row="${p.row.row_number}" ${p.approved?'checked':''}>Approve match</label>`:p.kind==='create'?`<label class="approve"><input type="checkbox" data-approve-row="${p.row.row_number}" ${p.approved?'checked':''}>Import new</label>`:p.kind==='conflict'?'<span class="meta">Skipped</span>':'<span class="meta">Approved</span>'}</div></div>`).join('')||'<div class="empty">No rows in this group.</div>';}
+function renderMissing(){const count=Math.min(missing.length,reservedRows.length);$('reserveStatus').textContent=`${reservedRows.length} reserved workbook numbers available • ${count} can be prepared now`;$('missingList').innerHTML=missing.map(l=>`<div class="row"><div><label class="approve"><input type="checkbox" data-missing-id="${esc(l.id)}" checked><span><span class="name">${esc(displayName(l))}</span><span class="meta">${esc(l.street_address||'No address')} • ${esc(l.phone||'No phone')}</span></span></label></div><div class="meta">${esc(l.source||'Other')}</div><div><span class="pill missing">Missing from Excel</span></div><div class="meta">${esc(String(l.created_at||'').slice(0,10))}</div></div>`).join('')||'<div class="empty">Every recent Bauer Roofing Operations lead was found in the workbook.</div>';}
+function updateApplySummary(){const approved=plan.filter(p=>p.kind==='exact'||((p.kind==='create'||p.kind==='likely')&&p.approved));$('applySummary').textContent=`${approved.length} approved • ${plan.filter(p=>p.kind==='likely'&&!p.approved).length} likely matches waiting for approval • ${plan.filter(p=>p.kind==='create'&&!p.approved).length} new leads unchecked • ${plan.filter(p=>p.kind==='conflict').length} skipped`;}
+function keep(value,oldValue){return value!==null&&value!==undefined&&String(value).trim()!==''?value:(oldValue??null);}
+function leadPatch(x,existing){const first=String(x.first_name||'').trim(),spouse=String(x.spouse_name||'').trim(),last=String(x.last_name||'').trim(),name=[first,last].filter(Boolean).join(' ');const patch={lead_number:keep(x.lead_number,existing?.lead_number),lead_date:keep(x.lead_date,existing?.lead_date),source:keep(x.source,existing?.source)||'Other',homeowner_name:name||existing?.homeowner_name||'Unnamed lead',first_name:first,last_name:last,spouse_name:spouse||null,street_address:keep(x.street_address,existing?.street_address)||'',city:keep(x.city,existing?.city)||'',state:existing?.state||'SC',zip:keep(x.zip,existing?.zip)||'',phone:keep(x.phone,existing?.phone)||'',phone_secondary:keep(x.phone_secondary,existing?.phone_secondary),work_category:existing?.work_category||'Roofing',assigned_to:keep(x.salesperson,existing?.assigned_to)||'Roy',excel_row_number:x.row_number,excel_last_synced_at:new Date().toISOString(),excel_sync_fingerprint:x.fingerprint};if(x.contract_date)patch.lead_status='Sold';else if(!existing||((existing.import_source==='Leads.xlsx'||existing.excel_row_number)&&existing.lead_status==='Appointment Wanted'))patch.lead_status='Appointment Match Needed';if(!existing){patch.import_source='Leads.xlsx';patch.estimate_status='Not Known';patch.notes=[x.phone_secondary?'Secondary phone: '+x.phone_secondary:''].filter(Boolean).join('\n');}return patch;}
+function jobPatch(x,lead,existing){let stage=existing?.stage||'Needs Production Review';if(String(stage).toLowerCase()!=='cancelled'){if(x.finished_date)stage='Final / Closed';else if(x.started_date)stage='In Production';}const address=keep(x.street_address,existing?.property_address)||'';const excelName=[x.first_name,x.last_name].filter(Boolean).join(' ');return {lead_id:lead.id,lead_number:keep(x.lead_number,existing?.lead_number),customer_name:excelName||existing?.customer_name||'Unnamed customer',job_number:keep(x.job_number,existing?.job_number),property_address:x.street_address?(x.street_address+(x.city?', '+x.city+', SC '+x.zip:'')):address,salesperson:keep(x.salesperson,existing?.salesperson)||'Roy',stage,contract_date:keep(x.contract_date,existing?.contract_date),job_type:existing?.job_type||(x.material_type?'Reroof':'Repair'),material_type:keep(x.material_type,existing?.material_type),material_color:keep(x.material_color,existing?.material_color),contract_amount:keep(x.contract_amount,existing?.contract_amount),material_ordered_date:keep(x.material_ordered_date,existing?.material_ordered_date),roof_squares:keep(x.roof_squares,existing?.roof_squares),installer:keep(x.installer,existing?.installer),production_started_date:keep(x.started_date,existing?.production_started_date),production_finished_date:keep(x.finished_date,existing?.production_finished_date),permit_info:keep(x.permit,existing?.permit_info),manufacturer_warranty:keep(x.mfg_warranty,existing?.manufacturer_warranty),bci_warranty:keep(x.bci_warranty,existing?.bci_warranty),change_orders:keep(x.change_orders,existing?.change_orders),excel_row_number:x.row_number,excel_last_synced_at:new Date().toISOString(),production_next_update_date:existing?.production_next_update_date||(!x.finished_date?datePlus(7):null),client_communication_due_date:existing?.client_communication_due_date||(!x.finished_date?datePlus(7):null)};}
+function datePlus(days){const d=new Date();d.setDate(d.getDate()+days);return d.toISOString().slice(0,10);}
+async function applyOne(p){let saved=p.lead;if(p.kind==='create'){const r=await db.from('leads').insert(leadPatch(p.row,null)).select().single();if(r.error)throw r.error;saved=r.data;missionLeads.push(saved);}else{const r=await db.from('leads').update(leadPatch(p.row,p.lead)).eq('id',p.lead.id).select().single();if(r.error)throw r.error;saved=r.data;missionLeads=missionLeads.map(l=>l.id===saved.id?saved:l);}if(p.row.contract_date&&p.row.job_number){const existing=missionJobs.find(j=>String(j.job_number||'').toLowerCase()===String(p.row.job_number).toLowerCase())||missionJobs.find(j=>String(j.lead_number||'')===String(p.row.lead_number||''));if(existing){const r=await db.from('jobs').update(jobPatch(p.row,saved,existing)).eq('id',existing.id).select().single();if(r.error)throw r.error;missionJobs=missionJobs.map(j=>j.id===r.data.id?r.data:j);}else{const r=await db.from('jobs').insert(jobPatch(p.row,saved,null)).select().single();if(r.error)throw r.error;missionJobs.push(r.data);}}}
+async function applyPlan(){const approved=plan.filter(p=>p.kind==='exact'||((p.kind==='create'||p.kind==='likely')&&p.approved));if(!approved.length)return;const button=$('applyBtn');button.disabled=true;$('applyProgress').classList.remove('hidden');$('applyStatus').classList.add('hidden');let done=0,failed=[];for(const p of approved){try{await applyOne(p);}catch(e){failed.push(`Excel row ${p.row.row_number}: ${e.message}`);}done++;$('applyProgressBar').style.width=(done/approved.length*100)+'%';}button.disabled=false;$('applyStatus').classList.remove('hidden');$('applyStatus').classList.toggle('error',failed.length>0);$('applyStatus').innerHTML=failed.length?`${done-failed.length} saved; ${failed.length} failed. ${esc(failed.slice(0,3).join(' | '))}`:`${done} workbook rows synchronized successfully. <a href="calendar.html">Open Calendar to match appointment dates and times</a>.`;buildPlan();}
+function splitStreet(value){const m=String(value||'').trim().match(/^([^A-Za-z]*\d+[A-Za-z-]*)\s+(.*)$/);return m?{number:m[1],name:m[2]}:{number:'',name:String(value||'').trim()};}
+function selectedMissing(){return [...document.querySelectorAll('[data-missing-id]:checked')].map(x=>missionLeads.find(l=>l.id===x.dataset.missingId)).filter(Boolean);}
+function buildPasteRows(){const selected=selectedMissing();if(selected.length>reservedRows.length)throw new Error(`Only ${reservedRows.length} reserved lead numbers remain in this workbook.`);pendingAssignments=selected.map((l,i)=>{const reserve=reservedRows[i],street=splitStreet(l.street_address);return {lead:l,row_number:reserve.row_number,lead_number:reserve.lead_number,values:[reserve.lead_number,String(l.lead_date||l.created_at||'').slice(0,10),SOURCE_CODE[l.source]||l.source||'',l.first_name||'',l.spouse_name||'',l.last_name||'',street.number,street.name,l.zip||'',`=LOOKUP(I${reserve.row_number},ZipCodes)`,l.phone||'',l.phone_secondary||'']};});return pendingAssignments.map(x=>x.values.map(v=>String(v??'').replace(/[\t\r\n]+/g,' ')).join('\t')).join('\n');}
+async function copyRows(){try{const text=buildPasteRows();if(!text)throw new Error('Select at least one Bauer Roofing Operations lead.');await navigator.clipboard.writeText(text);$('pastePreview').value=text;$('pastePreview').classList.remove('hidden');$('pasteInstructions').innerHTML=`Copied ${pendingAssignments.length} row${pendingAssignments.length===1?'':'s'}. Open the <b>Leads</b> worksheet, click cell <b>A${pendingAssignments[0].row_number}</b>, paste, save the workbook to OneDrive, and then return here to confirm.`;$('pasteInstructions').classList.remove('hidden');$('confirmExcelBtn').classList.remove('hidden');}catch(e){$('pasteInstructions').textContent=e.message;$('pasteInstructions').classList.remove('hidden');}}
+function downloadCsv(){try{const text=buildPasteRows();if(!text)throw new Error('Select at least one Bauer Roofing Operations lead.');const header=['Lead No.','Date','SRC','First','Spouse','Last','Strno','Strnam','Zip','City formula','Main','Other'].join(',');const csv=[header,...pendingAssignments.map(x=>x.values.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','))].join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='Bauer_Roofing_Operations_Leads_To_Add.csv';a.click();URL.revokeObjectURL(a.href);}catch(e){alert(e.message);}}
+async function confirmAssignments(){if(!pendingAssignments.length)return;const b=$('confirmExcelBtn');b.disabled=true;let failed=[];for(const x of pendingAssignments){const r=await db.from('leads').update({lead_number:x.lead_number,excel_row_number:x.row_number,excel_last_synced_at:new Date().toISOString()}).eq('id',x.lead.id);if(r.error)failed.push(displayName(x.lead));}b.disabled=false;if(failed.length){alert('Could not update Bauer Roofing Operations for: '+failed.join(', '));return;}alert('Bauer Roofing Operations lead numbers are now linked to the rows you saved in Leads.xlsx.');pendingAssignments=[];await loadMissionData();buildPlan();}
+async function loadMissionData(){const [lr,jr]=await Promise.all([db.from('leads').select('*').limit(5000),db.from('jobs').select('*').limit(5000)]);if(lr.error)throw lr.error;if(jr.error)throw jr.error;missionLeads=lr.data||[];missionJobs=jr.data||[];}
+async function analyze(){const file=$('xlsxFile').files[0];if(!file)return;const b=$('analyzeBtn');b.disabled=true;b.textContent='Reading…';try{const info=await parseWorkbook(file);await loadMissionData();$('fileStatus').textContent=`${file.name}: ${info.sheetRows} completed lead rows and ${info.reserved} blank reserved lead numbers found.`;buildPlan();}catch(e){$('fileStatus').textContent='Could not read workbook: '+e.message;}finally{b.disabled=false;b.textContent='Preview Sync';}}
+document.addEventListener('change',e=>{if(e.target.matches('[data-approve-row]')){const p=plan.find(x=>x.row.row_number===Number(e.target.dataset.approveRow));if(p)p.approved=e.target.checked;updateApplySummary();}});
+$('tabs').onclick=e=>{const b=e.target.closest('[data-filter]');if(!b)return;activeFilter=b.dataset.filter;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));renderPlan();};
+$('xlsxFile').onchange=()=>{$('analyzeBtn').disabled=!$('xlsxFile').files.length;};$('analyzeBtn').onclick=analyze;$('applyBtn').onclick=applyPlan;$('selectAllMissing').onclick=()=>document.querySelectorAll('[data-missing-id]').forEach(x=>x.checked=true);$('clearMissing').onclick=()=>document.querySelectorAll('[data-missing-id]').forEach(x=>x.checked=false);$('copyRowsBtn').onclick=copyRows;$('downloadCsvBtn').onclick=downloadCsv;$('confirmExcelBtn').onclick=confirmAssignments;
+async function init(){const d=new Date();d.setDate(d.getDate()-120);$('syncStartDate').value=d.toISOString().slice(0,10);try{const {data}=await db.auth.getSession();if(!data.session)throw new Error('Sign in to Bauer Roofing Operations first, then open Leads.xlsx Sync again.');await loadMissionData();$('syncApp').classList.remove('hidden');}catch(e){$('authError').textContent=e.message;$('authError').classList.remove('hidden');}}
+init();
+</script>
+</body>
+</html>

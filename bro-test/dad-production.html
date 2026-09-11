@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Bauer Roofing - Production Check-Off</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <style>
+    :root{--bg:#f5f7fa;--card:#fff;--text:#202124;--muted:#5f6368;--line:#dadce0;--blue:#1a73e8;--green:#188038;--amber:#b06000;--amber-bg:#fef7e0;--red:#b3261e;--red-bg:#fce8e6}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif}.wrap{max-width:760px;margin:0 auto;padding:18px}.brand{font-size:15px;font-weight:700;color:var(--muted);margin-bottom:10px}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.06)}h1{font-size:24px;margin:0 0 6px}.sub{color:var(--muted);line-height:1.4;margin-bottom:18px}.progress{height:8px;background:#e8eaed;border-radius:10px;overflow:hidden;margin-bottom:10px}.progress>div{height:100%;background:var(--blue);width:0;transition:width .2s}.small{font-size:13px;color:var(--muted)}.job{border:1px solid var(--line);border-radius:12px;padding:15px;margin:16px 0;background:#fff}.job-title{font-size:21px;font-weight:800}.job-meta{color:var(--muted);line-height:1.45;margin-top:5px}.current{background:#f6f8fb;border-radius:9px;padding:10px;margin-top:12px;line-height:1.5}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}.wide{grid-column:1/-1}label{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:5px}input,select,textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px;font:inherit;background:#fff}textarea{min-height:82px;resize:vertical}.question{font-size:16px;font-weight:800;margin:18px 0 8px}.choices{display:grid;gap:8px}.choice{display:flex;gap:9px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:11px;cursor:pointer}.choice input{width:auto;margin-top:2px}.choice strong{display:block}.choice span{display:block;color:var(--muted);font-size:12px;margin-top:2px}.choice.eve{background:#fff8e6}.choice.dad{background:#edf7ef}.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:17px}button{font:inherit;border:1px solid var(--line);background:#fff;border-radius:10px;padding:11px 14px;cursor:pointer}.primary{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700}.secondary{color:#3c4043}.success{background:#e6f4ea;color:#0d652d;border:1px solid #a8dab5;border-radius:12px;padding:18px;text-align:center}.notice{background:var(--amber-bg);color:#7a4300;border:1px solid #f5d481;border-radius:10px;padding:12px;margin:12px 0}.error{background:var(--red-bg);color:var(--red);border-color:#f3b9b5}.hidden{display:none!important}button:disabled{opacity:.55;cursor:not-allowed}@media(max-width:620px){.wrap{padding:10px}.form-grid{grid-template-columns:1fr}.wide{grid-column:auto}.actions button{flex:1}.card{padding:15px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">Bauer Roofing</div>
+    <div id="loadingCard" class="card">Loading active production jobs…</div>
+    <div id="errorCard" class="notice error hidden"></div>
+    <div id="appCard" class="card hidden">
+      <h1>Production check-off</h1>
+      <div class="sub">Update what changed. When a delivery or crew date changes, choose who will tell the customer.</div>
+      <div class="progress"><div id="progressBar"></div></div>
+      <div id="progressText" class="small"></div>
+      <div id="jobArea"></div>
+      <div class="form-grid">
+        <div class="wide"><label>Production stage</label><select id="stage"></select></div>
+        <div><label>Target start</label><input id="targetStart" type="date"></div>
+        <div><label>Confirmed crew start</label><input id="confirmedStart" type="date"></div>
+        <div><label>Material delivery</label><input id="materialDelivery" type="date"></div>
+        <div><label>Expected completion</label><input id="expectedCompletion" type="date"></div>
+        <div class="wide"><label>Waiting on / blocker</label><input id="blocker" placeholder="Permit, materials, weather, customer decision…"></div>
+        <div class="wide"><label>Production note for Eve</label><textarea id="note" placeholder="Only what changed or what Eve needs to know"></textarea></div>
+        <div><label>Check this job again by</label><input id="nextUpdate" type="date"></div>
+      </div>
+      <div class="question">Does the customer need an update?</div>
+      <div class="choices">
+        <label class="choice"><input type="radio" name="communication" value="No communication change" checked><div><strong>No communication change</strong><span>No delivery/start date changed and no special notice is needed.</span></div></label>
+        <label class="choice dad"><input type="radio" name="communication" value="Dad notified customer"><div><strong>I already notified the customer</strong><span>Eve will see that the communication was handled.</span></div></label>
+        <label class="choice eve"><input type="radio" name="communication" value="Eve needs to notify customer"><div><strong>Eve needs to notify the customer</strong><span>This goes directly onto Eve's Communication Due list.</span></div></label>
+      </div>
+      <div id="formNotice" class="notice hidden"></div>
+      <div class="actions">
+        <button id="saveBtn" class="primary">Save &amp; Next</button>
+        <button id="noChangeBtn" class="secondary">No Changes &amp; Next</button>
+        <button id="skipBtn" class="secondary">Skip</button>
+      </div>
+    </div>
+    <div id="doneCard" class="success hidden"><h2>Done — thank you.</h2><div>Eve has your production updates.</div></div>
+  </div>
+<script>
+'use strict';
+const cfg=window.BAUER_CONFIG||{};
+const db=supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
+const token=new URLSearchParams(location.search).get('token');
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const stages=['Needs Production Review','Waiting for Information','Production Queue','Ready to Order','Materials Ordered','Scheduled','In Production','Weather Delay','Other Delay','Punch List / Final Inspection','Production Complete','Final / Closed'];
+let jobs=[];let index=0;let saving=false;
+function plusDays(days){const d=new Date();d.setDate(d.getDate()+days);return d.toLocaleDateString('en-CA',{timeZone:'America/New_York'});}
+function value(id){return $(id).value||null;}
+function selectedCommunication(){return document.querySelector('input[name="communication"]:checked')?.value||'No communication change';}
+function showError(message){$('loadingCard').classList.add('hidden');$('appCard').classList.add('hidden');$('errorCard').textContent=message;$('errorCard').classList.remove('hidden');}
+function setBusy(on){saving=on;['saveBtn','noChangeBtn','skipBtn'].forEach(id=>$(id).disabled=on);$('saveBtn').textContent=on?'Saving…':'Save & Next';}
+function render(){
+  if(index>=jobs.length){$('appCard').classList.add('hidden');$('doneCard').classList.remove('hidden');return;}
+  const j=jobs[index];
+  $('progressBar').style.width=((index/jobs.length)*100)+'%';$('progressText').textContent=(index+1)+' of '+jobs.length;
+  $('jobArea').innerHTML=`<div class="job"><div class="job-title">${esc(j.customer_name||'Unnamed customer')}</div><div class="job-meta">${j.job_number?'Job # '+esc(j.job_number)+' • ':''}${esc(j.property_address||'No address')}</div><div class="current"><b>Current:</b> ${esc(j.stage||'Needs Production Review')}<br><b>Materials:</b> ${esc([j.material_type,j.material_color].filter(Boolean).join(' • ')||'Not entered')}${j.production_blocker?'<br><b>Waiting on:</b> '+esc(j.production_blocker):''}</div></div>`;
+  $('stage').value=j.stage||'Needs Production Review';$('targetStart').value=j.target_start_date||'';$('confirmedStart').value=j.confirmed_start_date||'';$('materialDelivery').value=j.material_delivery_date||'';$('expectedCompletion').value=j.expected_completion_date||'';$('blocker').value=j.production_blocker||'';$('note').value='';$('nextUpdate').value=j.production_next_update_date||plusDays(7);
+  document.querySelector('input[name="communication"][value="No communication change"]').checked=true;$('formNotice').classList.add('hidden');
+}
+function scheduleChanged(j){return value('confirmedStart')!==(j.confirmed_start_date||null)||value('materialDelivery')!==(j.material_delivery_date||null);}
+async function submit(noChanges){
+  if(saving)return;const j=jobs[index];
+  if(noChanges){$('stage').value=j.stage||'Needs Production Review';$('targetStart').value=j.target_start_date||'';$('confirmedStart').value=j.confirmed_start_date||'';$('materialDelivery').value=j.material_delivery_date||'';$('expectedCompletion').value=j.expected_completion_date||'';$('blocker').value=j.production_blocker||'';$('note').value='';document.querySelector('input[name="communication"][value="No communication change"]').checked=true;}
+  if(scheduleChanged(j)&&selectedCommunication()==='No communication change'){$('formNotice').textContent='A delivery or crew date changed. Please choose whether you already notified the customer or Eve needs to notify them.';$('formNotice').classList.remove('hidden');return;}
+  setBusy(true);$('formNotice').classList.add('hidden');
+  const {error}=await db.rpc('save_dad_production_update',{p_token:token,p_job_id:j.job_id,p_stage:value('stage'),p_target_start_date:value('targetStart'),p_confirmed_start_date:value('confirmedStart'),p_material_delivery_date:value('materialDelivery'),p_expected_completion_date:value('expectedCompletion'),p_blocker:value('blocker'),p_note:value('note'),p_communication_action:selectedCommunication(),p_next_update_date:value('nextUpdate')||plusDays(7)});
+  setBusy(false);if(error){$('formNotice').textContent='Could not save: '+error.message;$('formNotice').classList.remove('hidden');return;}index++;render();
+}
+async function init(){
+  $('stage').innerHTML=stages.map(s=>`<option>${esc(s)}</option>`).join('');
+  if(!token){showError('This production link is missing its secure token. Ask Eve for a new link.');return;}
+  if(!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY){showError('Bauer Roofing Operations is not configured.');return;}
+  const {data,error}=await db.rpc('get_dad_production_jobs',{p_token:token});
+  if(error){showError(error.message||'This production link is invalid or expired.');return;}
+  jobs=(data||[]).filter(j=>String(j.stage||'').trim().toLowerCase()!=='cancelled');$('loadingCard').classList.add('hidden');if(!jobs.length){$('doneCard').classList.remove('hidden');$('doneCard').innerHTML='<h2>Nothing needs an update.</h2><div>All active production jobs are complete.</div>';return;}$('appCard').classList.remove('hidden');render();
+}
+$('saveBtn').onclick=()=>submit(false);$('noChangeBtn').onclick=()=>submit(true);$('skipBtn').onclick=()=>{if(!saving){index++;render();}};init();
+</script>
+</body>
+</html>

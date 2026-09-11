@@ -1,0 +1,1906 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+
+  <title>Bauer Roofing Operations</title>
+
+  <link rel="stylesheet" href="styles.css?v=20260908-15">
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="config.js?v=20260908-15"></script>
+
+  <style>
+    .nav a.nav-calendar-link{
+      appearance:none;
+      border:0;
+      background:transparent;
+      color:inherit;
+      font:inherit;
+      cursor:pointer;
+      padding:10px 14px;
+      border-radius:10px;
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+    }
+    .nav a.nav-calendar-link:hover{
+      background:rgba(0,0,0,.05);
+    }
+  </style>
+
+</head>
+
+<body>
+
+  <div id="loginView" class="login hidden">
+    <div class="card">
+
+      <h1>Bauer Roofing Operations</h1>
+
+      <p class="auth-note">
+        Sign in with your Bauer Roofing Operations email and password. This password
+        is separate from your email account password.
+      </p>
+
+      <label>Email</label>
+
+      <input
+        id="loginEmail"
+        type="email"
+        autocomplete="email"
+        placeholder="you@example.com"
+      >
+
+      <label>Password</label>
+
+      <input
+        id="loginPassword"
+        type="password"
+        autocomplete="current-password"
+        placeholder="Bauer Roofing Operations password"
+      >
+
+      <button
+        class="btn primary"
+        id="loginBtn">
+        Sign in
+      </button>
+
+      <div class="auth-secondary-actions">
+        <button class="btn ghost small" id="magicLinkBtn" type="button">Email a sign-in link</button>
+        <button class="btn ghost small" id="resetPasswordBtn" type="button">Set or reset password</button>
+      </div>
+
+      <div
+        id="loginMsg"
+        class="notice hidden">
+      </div>
+
+    </div>
+  </div>
+
+
+  <div id="appView" class="hidden">
+
+    <header>
+
+      <div class="head-row">
+
+        <div class="brand">
+
+          <h1>
+            Bauer Roofing Operations
+          </h1>
+
+          <div
+            class="sub"
+            id="nowText">
+            Loading…
+          </div>
+
+        </div>
+
+
+        <div class="toolbar">
+
+          <span class="signed-in-email" id="signedInEmail"></span>
+
+          <button
+            class="btn ghost small"
+            id="undoBtn"
+            title="Undo the most recent reversible change">
+            Undo
+          </button>
+
+          <button
+            class="btn ghost small"
+            id="refreshBtn">
+            Refresh
+          </button>
+
+          <button
+            class="btn ghost small"
+            id="teamNumbersBtn"
+            type="button">
+            Team Numbers
+          </button>
+
+          <button
+            class="btn ghost small"
+            id="logoutBtn">
+            Sign out
+          </button>
+
+        </div>
+
+      </div>
+
+
+      <nav
+        class="nav"
+        id="nav">
+
+        <button
+          data-view="today"
+          class="active">
+          Today
+        </button>
+
+        <button data-view="phone">
+          Phone Message
+        </button>
+
+        <button data-view="angi">
+          Angi Queue
+        </button>
+
+        <button data-view="leads">
+          Contacts
+        </button>
+
+        <a
+          href="calendar.html?v=20260907-5"
+          class="nav-calendar-link">
+          Calendar
+        </a>
+
+        <button data-view="jobs">
+          Open Jobs
+        </button>
+
+        <button data-view="playbook">
+          Playbook
+        </button>
+
+        <button data-view="suggestions">
+          Suggestions
+        </button>
+
+      </nav>
+
+    </header>
+
+
+    <main class="wrap">
+
+      <div
+        id="systemMsg"
+        class="notice hidden">
+      </div>
+
+
+      <!-- TODAY -->
+
+      <section id="view-today">
+
+        <div class="today-hero">
+          <div>
+            <div class="today-eyebrow">TODAY</div>
+            <h2 id="todayGreeting">Good morning, Eve</h2>
+            <div class="today-date" id="todayDate"></div>
+          </div>
+          <button class="btn primary" id="newTaskBtn">+ Add Task</button>
+        </div>
+
+        <div class="today-status-strip">
+          <div class="day-summary" id="daySummary">Loading your day…</div>
+          <div class="today-kpis" aria-label="Today's summary">
+            <span class="today-kpi critical-kpi"><b id="kpiCritical">0</b> Critical</span>
+            <span class="today-kpi"><b id="kpiDue">0</b> Today</span>
+            <span class="today-kpi communication-kpi"><b id="kpiComms">0</b> Comms</span>
+            <span class="today-kpi jobs-kpi"><b id="kpiWeekJobs">0</b> Jobs this week</span>
+          </div>
+        </div>
+
+        <div id="currentTask" class="next-up-wrap"></div>
+
+        <div class="today-layout">
+
+          <div class="today-main">
+
+            <div class="card today-work-card">
+              <div class="today-section-heading">
+                <div>
+                  <div class="today-eyebrow">YOUR WORK</div>
+                  <h2>Today's Tasks</h2>
+                </div>
+                <div class="task-color-key" aria-label="Task category colors">
+                  <span><i class="color-dot communication-dot"></i>Communication</span>
+                  <span><i class="color-dot financial-dot"></i>Financial</span>
+                  <span><i class="color-dot routine-dot"></i>Routine / Other</span>
+                </div>
+              </div>
+
+              <div id="todayTaskList" class="today-ordered-list"></div>
+
+              <div id="todayTasksEmpty" class="today-all-clear hidden">✓ Today's task list is clear.</div>
+            </div>
+
+          </div>
+
+          <aside class="today-sidebar">
+
+            <div class="card today-awareness-card" id="attentionCard">
+              <div class="sidebar-card-heading">
+                <h3>Needs Attention</h3>
+                <span class="attention-count" id="attentionCount">0</span>
+              </div>
+              <div id="attentionEmpty" class="today-all-clear hidden">✓ Nothing needs your attention.</div>
+
+              <section class="awareness-section" id="royUpdateSection">
+                <h4>Roy's Check-Off</h4>
+                <div id="royUpdateList"></div>
+              </section>
+
+              <section class="awareness-section" id="dadUpdateSection">
+                <h4>Dad's Production Updates</h4>
+                <div id="dadUpdateList"></div>
+              </section>
+
+              <section class="awareness-section blocked-awareness" id="blockedSection">
+                <h4>Blocked / Waiting</h4>
+                <div id="blockedList"></div>
+              </section>
+            </div>
+
+            <div class="card section-card section-jobs sidebar-quiet-card" id="weekJobsCard">
+              <h3>Jobs Starting This Week</h3>
+              <div id="weekJobs"></div>
+            </div>
+
+            <div class="card section-card section-notes quick-notes-card">
+              <h3>Quick Notes</h3>
+              <div class="meta" style="margin-bottom:10px">A scratchpad for things worth remembering that are not tasks.</div>
+              <input id="quickNoteEditId" type="hidden">
+              <textarea id="quickNoteText" placeholder="Write something down…"></textarea>
+              <div class="toolbar" style="margin-top:8px">
+                <button class="btn primary small" id="saveQuickNoteBtn" type="button">Add Note</button>
+                <button class="btn small hidden" id="cancelQuickNoteEditBtn" type="button">Cancel Edit</button>
+              </div>
+              <div id="quickNotesList" style="margin-top:12px"></div>
+            </div>
+
+          </aside>
+
+        </div>
+
+      </section>
+
+
+      <!-- PHONE MESSAGE -->
+
+      <section
+        id="view-phone"
+        class="hidden">
+
+        <div class="card">
+
+          <h2 id="phoneFormTitle">
+            Phone Message
+          </h2>
+          <input id="pmEditId" type="hidden">
+
+
+          <div class="form-grid">
+
+            <div>
+              <label>
+                Caller name
+              </label>
+
+              <input id="pmName">
+            </div>
+
+
+            <div>
+              <label>
+                Called for
+              </label>
+
+              <input id="pmFor">
+            </div>
+
+
+            <div class="wide">
+              <label>
+                Street address
+              </label>
+
+              <input id="pmStreet">
+            </div>
+
+
+            <div>
+              <label>
+                Phone
+              </label>
+
+              <input id="pmPhone">
+            </div>
+
+
+            <div>
+              <label>
+                Email
+              </label>
+
+              <input id="pmEmail">
+            </div>
+
+
+            <div>
+              <label>
+                Related Job or Lead # (optional)
+              </label>
+
+              <input
+                id="pmRelatedNumber"
+                placeholder="Enter job # or lead #"
+              >
+            </div>
+
+
+            <div class="wide">
+              <label>
+                Reason / message
+              </label>
+
+              <textarea id="pmReason"></textarea>
+            </div>
+
+
+            <div>
+              <label>
+                Follow-up needed?
+              </label>
+
+              <select id="pmFollow">
+                <option>No</option>
+                <option>Yes</option>
+              </select>
+            </div>
+
+
+            <div class="wide">
+              <label>
+                Follow-up notes
+              </label>
+
+              <textarea id="pmNotes"></textarea>
+            </div>
+
+          </div>
+
+
+          <div class="toolbar">
+            <button
+              class="btn primary"
+              id="savePhoneBtn">
+              Save Message
+            </button>
+            <button
+              class="btn hidden"
+              type="button"
+              id="cancelPhoneEditBtn">
+              Cancel Edit
+            </button>
+          </div>
+
+        </div>
+
+
+        <div class="card">
+
+          <h3>
+            Recent Messages
+          </h3>
+
+          <div id="phoneHistory"></div>
+
+        </div>
+
+      </section>
+
+
+      <!-- ANGI WORK QUEUE -->
+      <section id="view-angi" class="hidden">
+        <div class="kpi-row angi-kpis">
+          <div class="kpi tone-new"><div class="n" id="angiKpiNew">0</div><div class="l">New / untouched</div></div>
+          <div class="kpi tone-overdue"><div class="n" id="angiKpiOverdue">0</div><div class="l">Overdue</div></div>
+          <div class="kpi tone-today"><div class="n" id="angiKpiDue">0</div><div class="l">Due today</div></div>
+          <div class="kpi tone-admin"><div class="n" id="angiKpiMarketSharp">0</div><div class="l">Add to MarketSharp</div></div>
+          <div class="kpi tone-review"><div class="n" id="angiKpiReview">0</div><div class="l">Review / historical</div></div>
+          <div class="kpi tone-duplicate"><div class="n" id="angiKpiDuplicates">0</div><div class="l">Duplicates</div></div>
+        </div>
+
+        <div class="card angi-toolbar-card">
+          <div class="toolbar">
+            <h2>Angi Work Queue</h2>
+            <div class="spacer"></div>
+            <select id="angiFilter" style="max-width:190px">
+              <option value="all">Calls to work</option>
+              <option value="new">New / untouched</option>
+              <option value="overdue">Overdue</option>
+              <option value="today">Due today</option>
+              <option value="active">Follow up / later</option>
+              <option value="marketsharp">Add to MarketSharp</option>
+              <option value="review">Review historical</option>
+              <option value="duplicate">Duplicates</option>
+            </select>
+            <input id="angiSearch" placeholder="Search homeowner, phone, address…" style="max-width:300px">
+            <button class="btn primary small" id="angiWorkNextBtn" type="button">Work Next</button>
+          </div>
+          <div class="angi-legend" aria-label="Angi queue color guide">
+            <span class="legend-pill call-first">Call first</span><span class="legend-pill morning">Morning</span><span class="legend-pill midday">Midday</span><span class="legend-pill final-call">Final call</span><span class="legend-pill overdue">Overdue</span><span class="legend-pill later">Later</span><span class="legend-pill admin">Admin</span>
+          </div>
+          <p class="auth-note">The left rail is your work list. The bright blue band shows the prospect you are working now. Appointment-set prospects are removed from the call queue; Angi Ads appointments only remain in the MarketSharp handoff view until added.</p>
+        </div>
+
+        <div class="angi-workspace">
+          <div class="card angi-rail-card">
+            <h3>Queue</h3>
+            <div id="angiQueueList" class="angi-queue-list"></div>
+          </div>
+          <div class="card angi-detail-card">
+            <div id="angiDetail"><p class="empty">Select an Angi prospect.</p></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Import Existing Angi History</h3>
+          <p class="auth-note"><b>One-time migration.</b> This imports the existing tracker prospects, communication history, and appointments silently. Historical records are blocked from automatic first-contact text/email.</p>
+          <div class="toolbar">
+            <input id="angiHistoricalImportFile" type="file" accept=".json,application/json">
+            <button class="btn primary small" id="angiHistoricalImportBtn" type="button">Import Existing History</button>
+          </div>
+          <div id="angiHistoricalImportStatus" class="meta"></div>
+        </div>
+
+        <div class="card">
+          <h3>Import New Angi Export</h3>
+          <p class="auth-note">Use the .xls file exactly as Angi downloads it. Bauer Roofing Operations automatically detects PPL versus Angi Ads from the export columns, keeps the Angi Lead Number as the permanent source reference, and preserves work already recorded in Bauer Roofing Operations.</p>
+          <div class="toolbar">
+            <input id="angiImportFile" type="file" accept=".xls,.xlsx,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv">
+            <button class="btn primary small" id="angiImportBtn" type="button">Import Angi .xls</button>
+          </div>
+          <div id="angiImportStatus" class="meta"></div>
+        </div>
+      </section>
+
+      <!-- CONTACTS -->
+
+      <section
+        id="view-leads"
+        class="hidden">
+
+        <div class="kpi-row">
+          <div class="kpi">
+            <div class="n" id="kpiLeads">0</div>
+            <div class="l">Contacts shown</div>
+          </div>
+
+          <div class="kpi">
+            <div class="n" id="kpiAppointments">0</div>
+            <div class="l">Upcoming appointments</div>
+          </div>
+        </div>
+
+        <div class="card leads-toolbar-card">
+          <div class="toolbar">
+            <div>
+              <h2>Contacts</h2>
+              <p class="auth-note">One person can have multiple inquiries, properties, and jobs. Select a contact to see the complete relationship.</p>
+            </div>
+            <div class="spacer"></div>
+            <a class="btn small" href="marketsharp-import.html?v=20260908-15">MarketSharp Migration</a>
+            <a class="btn small" href="leads-sync.html?v=20260908-15">Sync Leads.xlsx</a>
+            <button class="btn small" id="leadReportsBtn" type="button">Reports</button>
+            <button class="btn small primary" id="newLeadBtn">+ Inquiry</button>
+          </div>
+
+          <div class="toolbar">
+            <input id="leadSearch" type="search" placeholder="Search contacts, properties, phones, emails, inquiry #, or job #..." style="flex:1;min-width:240px">
+            <select id="contactView" class="list-sort-select" aria-label="Contact view">
+              <option value="all">All Contacts</option>
+              <option value="open-inquiries">Open Inquiries</option>
+              <option value="active-customers">Active Customers</option>
+              <option value="past-customers">Past Customers</option>
+              <option value="repeat-customers">Repeat Customers</option>
+              <option value="did-not-convert">Did Not Convert</option>
+              <option value="collections">Collections</option>
+            </select>
+            <select id="leadSort" class="list-sort-select" aria-label="Sort leads">
+              <option value="newest">Most recent activity</option>
+              <option value="oldest">Oldest activity</option>
+              <option value="appointment">Next appointment</option>
+              <option value="zip">ZIP code</option>
+              <option value="source">Source</option>
+              <option value="type">Inquiry type</option>
+              <option value="name">Contact name</option>
+            </select>
+          </div>
+
+          <div class="contact-layout-toggle" role="group" aria-label="Contacts display">
+            <button class="btn small active" type="button" data-contact-layout="cards" aria-pressed="true">Contact Cards</button>
+            <button class="btn small" type="button" data-contact-layout="table" aria-pressed="false">Table View</button>
+          </div>
+        </div>
+
+        <div class="leads-workspace" id="contactsWorkspace">
+          <div class="card leads-rail-card">
+            <h3>Contact List</h3>
+            <div id="leadList" class="leads-queue-list"></div>
+          </div>
+
+          <div id="leadDetail" class="card leads-detail-card">
+            <div class="empty">Select a contact.</div>
+          </div>
+        </div>
+
+        <div class="card contact-table-card hidden" id="contactTableCard">
+          <div class="contact-table-heading">
+            <h3>All Contacts</h3>
+            <span class="meta" id="contactTableCount"></span>
+          </div>
+          <div class="contact-table-wrap">
+            <table class="contact-table">
+              <thead><tr><th>Contact</th><th>Phone</th><th>Email</th><th>Property</th><th>Inquiries</th><th>Jobs</th><th>Status</th><th>Last activity</th><th>Actions</th></tr></thead>
+              <tbody id="contactTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Upcoming Appointments</h3>
+          <div id="appointmentList"></div>
+        </div>
+
+        <div class="card">
+          <h3>Archived Inquiries</h3>
+          <p class="auth-note">Archived inquiries remain connected to the contact and can be restored. Angi prospect history stays in the Angi workflow.</p>
+          <div id="archivedSalesList"></div>
+        </div>
+
+      </section>
+
+
+      <!-- OPEN JOBS -->
+
+      <section
+        id="view-jobs"
+        class="hidden">
+
+        <div class="card">
+
+          <div class="toolbar">
+
+            <h2>
+              Open Jobs / Production
+            </h2>
+
+            <div class="spacer"></div>
+
+            <button
+              class="btn small"
+              id="jobReportsBtn"
+              type="button">
+              Reports
+            </button>
+
+            <button
+              class="btn small"
+              id="createDadProductionLinkBtn">
+              Create Dad Production Check-Off
+            </button>
+
+            <button
+              class="btn small primary"
+              id="newJobBtn">
+              + Job
+            </button>
+
+          </div>
+
+
+          <p class="auth-note">
+            Open Jobs contains work from signed contract through production and collections. Dad updates
+            production facts; Bauer Roofing Operations keeps customer communication on
+            your list unless Dad marks that he already contacted the customer. Closed and fully paid jobs remain in each contact's history.
+          </p>
+
+          <div class="toolbar list-sort-toolbar">
+            <input id="jobSearch" class="job-search" type="search" placeholder="Search customer, address, ZIP, job #, type, stage…" aria-label="Search jobs">
+            <div class="spacer"></div>
+            <label for="jobSort">Sort jobs</label>
+            <select id="jobSort" class="list-sort-select">
+              <option value="updated">Recently updated</option>
+              <option value="contract">Contract date</option>
+              <option value="start">Start date</option>
+              <option value="zip">ZIP code</option>
+              <option value="type">Job type</option>
+              <option value="stage">Production stage</option>
+              <option value="name">Customer name</option>
+            </select>
+          </div>
+
+          <div class="production-kpis">
+            <div class="kpi"><div class="n" id="productionActiveKpi">0</div><div class="l">Active jobs</div></div>
+            <div class="kpi"><div class="n" id="productionUpdateKpi">0</div><div class="l">Need production update</div></div>
+            <div class="kpi"><div class="n" id="productionContactKpi">0</div><div class="l">Customer contact due</div></div>
+          </div>
+
+
+          <div id="jobsTable"></div>
+
+        </div>
+
+
+        <div class="card">
+
+          <h3>
+            Communication Responsibilities
+          </h3>
+
+          <div id="allComms"></div>
+
+        </div>
+
+        <div class="card">
+          <h3>Canceled Jobs</h3>
+          <div id="cancelledJobsList"></div>
+        </div>
+
+        <div class="card">
+          <h3>Archived Jobs</h3>
+          <div id="archivedJobsList"></div>
+        </div>
+
+      </section>
+
+
+      <!-- PLAYBOOK -->
+
+      <section
+        id="view-playbook"
+        class="hidden">
+
+        <div class="card">
+
+          <div class="toolbar">
+            <h2>
+              Playbook / SOPs
+            </h2>
+            <div class="spacer"></div>
+            <button class="btn small" type="button" id="editSopBtn">Edit SOP</button>
+            <button class="btn primary small" type="button" id="newSopBtn">+ Add SOP</button>
+          </div>
+
+          <select id="sopSelect"></select>
+
+          <div id="sopBody"></div>
+
+        </div>
+
+      </section>
+
+
+      <!-- SUGGESTIONS -->
+
+      <section
+        id="view-suggestions"
+        class="hidden">
+
+        <div class="card">
+
+          <div class="toolbar">
+
+            <h2>
+              Learning & Suggestions
+            </h2>
+
+            <div class="spacer"></div>
+
+            <button
+              class="btn small"
+              id="generateSuggestionsBtn">
+              Analyze Work Patterns
+            </button>
+
+          </div>
+
+
+          <p class="auth-note">
+            Suggestions never override your hard deadlines.
+            They are recommendations based on task history,
+            delays, and workload patterns.
+          </p>
+
+
+          <div id="suggestionList"></div>
+
+        </div>
+
+      </section>
+
+
+      <!-- ADD / EDIT SOP -->
+
+      <dialog id="sopDialog">
+        <form method="dialog" class="card" style="min-width:min(720px,90vw);margin:0">
+          <h2 id="sopDialogTitle">Add SOP</h2>
+          <input id="sopEditId" type="hidden">
+
+          <label>Title</label>
+          <input id="sopTitle" placeholder="Example: Create a New Job">
+
+          <label>Purpose</label>
+          <textarea id="sopPurpose" placeholder="What this procedure accomplishes"></textarea>
+
+          <label>When to use it</label>
+          <textarea id="sopWhen" placeholder="What should trigger this procedure"></textarea>
+
+          <label>Prerequisites</label>
+          <textarea id="sopPrerequisites" placeholder="Information, documents, or access needed before starting"></textarea>
+
+          <label>Steps</label>
+          <textarea id="sopInstructions" rows="10" placeholder="Enter the detailed instructions in order"></textarea>
+
+          <label>How to verify completion</label>
+          <textarea id="sopVerify" placeholder="What should be checked before considering this finished"></textarea>
+
+          <div class="actions">
+            <button class="btn primary" type="button" id="saveSopBtn">Save SOP</button>
+            <button class="btn" type="button" id="cancelSopBtn">Cancel</button>
+          </div>
+        </form>
+      </dialog>
+
+      <dialog id="contactDialog">
+        <form method="dialog" class="card" style="min-width:min(620px,90vw);margin:0">
+          <h2>Edit Contact</h2>
+          <input id="contactEditKey" type="hidden">
+          <p class="auth-note">These details belong to the person and will be updated across their connected inquiries.</p>
+          <div class="form-grid">
+            <div><label>First name</label><input id="contactFirstName"></div>
+            <div><label>Last name</label><input id="contactLastName"></div>
+            <div class="wide"><label>Spouse / other contact</label><input id="contactSpouseName"></div>
+            <div><label>Main phone</label><input id="contactPhone" type="tel"></div>
+            <div><label>Other phone</label><input id="contactPhoneSecondary" type="tel"></div>
+            <div class="wide"><label>Email</label><input id="contactEmail" type="email"></div>
+          </div>
+          <div class="toolbar"><button class="btn primary" type="button" id="saveContactBtn">Save Contact</button><button class="btn" value="cancel">Cancel</button></div>
+        </form>
+      </dialog>
+
+
+      <!-- NEW TASK -->
+
+      <dialog id="taskDialog">
+
+        <form
+          method="dialog"
+          class="card"
+          style="min-width:min(620px,90vw);margin:0">
+
+          <h2 id="taskDialogTitle">
+            New Task
+          </h2>
+          <input id="taskEditId" type="hidden">
+
+
+          <label>
+            Task
+          </label>
+
+          <input id="taskName">
+
+
+          <div class="form-grid">
+
+            <div>
+
+              <label>Place task in</label>
+
+              <select id="taskCategory">
+                <option>Needs Your Attention</option>
+                <option>Communication Due</option>
+                <option>Financial / QuickBooks</option>
+              </select>
+
+            </div>
+
+
+            <div>
+
+              <label>
+                Priority
+              </label>
+
+              <select id="taskPriority">
+                <option>Normal</option>
+                <option>High</option>
+                <option>Critical</option>
+              </select>
+
+            </div>
+
+
+            <div>
+
+              <label>
+                Due date
+              </label>
+
+              <input
+                id="taskDueDate"
+                type="date"
+              >
+
+            </div>
+
+
+            <div>
+
+              <label>
+                Due time
+              </label>
+
+              <input
+                id="taskDueTime"
+                type="time"
+              >
+
+            </div>
+
+            <div>
+              <label>Repeat</label>
+              <select id="taskRepeat">
+                <option value="None">Does not repeat</option>
+                <option value="Weekdays">Every weekday</option>
+                <option value="Weekly">Weekly</option>
+                <option value="Monthly">Monthly</option>
+              </select>
+              <div class="meta">Weekday tasks skip missed occurrences. Weekly and monthly tasks carry forward until completed. Nothing repeats on weekends.</div>
+            </div>
+
+            <div class="wide">
+              <label>Subtasks</label>
+              <textarea id="taskSubtasks" placeholder="Enter one subtask per line&#10;Check both Angi accounts for new prospects&#10;Check voicemails and emails&#10;Call leads"></textarea>
+              <div class="meta">Each line becomes a separate checkbox inside the main task.</div>
+            </div>
+
+
+            <div class="wide">
+
+              <label>
+                Related Job or Lead # (optional)
+              </label>
+
+              <input
+                id="taskRelatedNumber"
+                placeholder="Enter job # or lead #"
+              >
+
+            </div>
+
+
+            <div class="wide">
+
+              <label>
+                Description
+              </label>
+
+              <textarea
+                id="taskDescription"
+                placeholder="Add details about what needs to be done">
+              </textarea>
+
+            </div>
+
+
+            <div class="wide">
+
+              <label>
+                Next action
+              </label>
+
+              <input id="taskNext">
+
+            </div>
+
+
+            <div class="wide">
+
+              <label>
+                Notes
+              </label>
+
+              <textarea id="taskNotes"></textarea>
+
+            </div>
+
+          </div>
+
+
+          <div class="toolbar">
+
+            <button
+              class="btn primary"
+              type="button"
+              id="saveTaskBtn">
+              Save
+            </button>
+
+            <button
+              class="btn"
+              value="cancel">
+              Cancel
+            </button>
+
+          </div>
+
+        </form>
+
+      </dialog>
+
+
+      <!-- NEW PROSPECT -->
+
+      <dialog id="prospectDialog">
+        <form method="dialog" class="card" style="min-width:min(760px,92vw);margin:0">
+          <h2 id="prospectDialogTitle">New Prospect</h2>
+          <input id="prospectEditId" type="hidden">
+
+          <div class="form-grid">
+            <div>
+              <label>Source</label>
+              <select id="prospectSource"></select>
+            </div>
+
+            <div id="prospectAngiAccountWrap">
+              <label>Angi account</label>
+              <select id="prospectSourceAccount"></select>
+            </div>
+
+            <div id="prospectSourceRefWrap">
+              <label>Source / Angi reference #</label>
+              <input id="prospectSourceRef" placeholder="Optional source reference">
+            </div>
+
+            <div>
+              <label>Status</label>
+              <select id="prospectStatus"></select>
+            </div>
+
+            <div>
+              <label>First name</label>
+              <input id="prospectFirstName">
+            </div>
+
+            <div>
+              <label>Last name</label>
+              <input id="prospectLastName">
+            </div>
+
+            <div class="wide">
+              <label>Street address</label>
+              <input id="prospectStreet">
+            </div>
+
+            <div>
+              <label>City</label>
+              <input id="prospectCity">
+            </div>
+
+            <div>
+              <label>State</label>
+              <input id="prospectState" value="SC">
+            </div>
+
+            <div>
+              <label>ZIP</label>
+              <input id="prospectZip">
+            </div>
+
+            <div>
+              <label>Phone</label>
+              <input id="prospectPhone">
+            </div>
+
+            <div>
+              <label>Email</label>
+              <input id="prospectEmail" type="email">
+            </div>
+
+            <div>
+              <label>Work requested</label>
+              <select id="prospectWorkCategory">
+                <option>Roofing</option>
+                <option>Windows</option>
+                <option>Siding</option>
+                <option>Gutters</option>
+                <option>Multiple</option>
+                <option>Not Sure</option>
+                <option>Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Assigned to</label>
+              <select id="prospectAssignedTo"></select>
+            </div>
+
+            <div>
+              <label>Next follow-up</label>
+              <input id="prospectNextFollow" type="datetime-local">
+            </div>
+
+            <div>
+              <label>Next action</label>
+              <input id="prospectNextAction" placeholder="Call, text, wait for reply…">
+            </div>
+
+            <div class="wide">
+              <label>Notes</label>
+              <textarea id="prospectNotes"></textarea>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="saveProspectBtn">Save Prospect</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
+      </dialog>
+
+
+      <!-- NEW / PROMOTED LEAD -->
+
+      <dialog id="leadDialog">
+        <form method="dialog" class="card" style="min-width:min(780px,92vw);margin:0">
+          <h2 id="leadDialogTitle">New Inquiry</h2>
+          <input id="leadEditId" type="hidden">
+          <input id="leadProspectId" type="hidden">
+
+          <div class="form-grid">
+            <div>
+              <label>Bauer Lead #</label>
+              <input id="leadNumber" placeholder="Internal Bauer lead number">
+            </div>
+
+            <div>
+              <label>First appointment / Angi lead date</label>
+              <input id="leadDate" type="date">
+            </div>
+
+            <div>
+              <label>Source</label>
+              <select id="leadSource"></select>
+            </div>
+
+            <div id="leadAngiAccountWrap">
+              <label>Angi account</label>
+              <select id="leadSourceAccount"></select>
+            </div>
+
+            <div>
+              <label>Source / Angi reference #</label>
+              <input id="leadSourceRef">
+            </div>
+
+            <div>
+              <label>First name</label>
+              <input id="leadFirstName">
+            </div>
+
+            <div>
+              <label>Last name</label>
+              <input id="leadLastName">
+            </div>
+
+            <div>
+              <label>Spouse</label>
+              <input id="leadSpouse">
+            </div>
+
+            <div class="wide">
+              <label>Street address</label>
+              <div class="address-autocomplete-wrap">
+                <input id="leadStreet" autocomplete="street-address" aria-autocomplete="list" aria-controls="leadAddressSuggestions" placeholder="Start typing the property address">
+                <div id="leadAddressSuggestions" class="address-suggestions hidden" role="listbox" aria-label="Suggested addresses"></div>
+              </div>
+              <div id="leadAddressHelp" class="field-help hidden">Choose a suggestion to fill the city, state, and ZIP.</div>
+            </div>
+
+            <div>
+              <label>City</label>
+              <input id="leadCity">
+            </div>
+
+            <div>
+              <label>State</label>
+              <input id="leadState" value="SC">
+            </div>
+
+            <div>
+              <label>ZIP</label>
+              <input id="leadZip">
+            </div>
+
+            <div>
+              <label>Phone</label>
+              <input id="leadPhone">
+            </div>
+
+            <div>
+              <label>Other phone</label>
+              <input id="leadPhone2">
+            </div>
+
+            <div>
+              <label>Email</label>
+              <input id="leadEmail" type="email">
+            </div>
+
+            <div class="wide form-section-title">
+              <h3>Inquiry Intake Information</h3>
+              <p class="meta">Contact and property details gathered during the call.</p>
+            </div>
+
+            <div>
+              <label>Taken by</label>
+              <input id="leadTakenBy" placeholder="Eve">
+            </div>
+
+            <div>
+              <label>Subdivision</label>
+              <input id="leadSubdivision">
+            </div>
+
+            <div class="wide">
+              <label>Mailing address</label>
+              <input id="leadMailingStreet" autocomplete="address-line1" placeholder="Leave blank if the same as the job address">
+            </div>
+
+            <div>
+              <label>Mailing city</label>
+              <input id="leadMailingCity">
+            </div>
+
+            <div>
+              <label>Mailing state</label>
+              <input id="leadMailingState" value="SC">
+            </div>
+
+            <div>
+              <label>Mailing ZIP</label>
+              <input id="leadMailingZip">
+            </div>
+
+            <div class="wide">
+              <label>Directions</label>
+              <textarea id="leadDirections"></textarea>
+            </div>
+
+            <div>
+              <label>Insurance related?</label>
+              <select id="leadInsuranceRelated">
+                <option value="">Not answered</option>
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Insurance company</label>
+              <input id="leadInsuranceCompany">
+            </div>
+
+            <div class="wide form-section-title">
+              <h3>Roofing Conversation</h3>
+              <p class="meta">Use these prompts while speaking with the homeowner.</p>
+            </div>
+
+            <div>
+              <label>How old are the shingles?</label>
+              <input id="leadShingleAge" placeholder="Years or best estimate">
+            </div>
+
+            <div>
+              <label>When do they hope to have the work done?</label>
+              <input id="leadWorkTiming">
+            </div>
+
+            <div>
+              <label>How many roof layers?</label>
+              <select id="leadRoofLayers">
+                <option value="">Not answered</option>
+                <option>1</option><option>2</option><option>Not sure</option><option>Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Type of home</label>
+              <select id="leadHomeType">
+                <option value="">Not answered</option>
+                <option>1-story</option><option>2-story</option><option>Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Any leaks now?</label>
+              <select id="leadCurrentLeak">
+                <option value="">Not answered</option><option value="true">Yes</option><option value="false">No</option>
+              </select>
+            </div>
+
+            <div>
+              <label>If yes, where?</label>
+              <input id="leadCurrentLeakLocation">
+            </div>
+
+            <div>
+              <label>Has it ever leaked?</label>
+              <select id="leadPriorLeak">
+                <option value="">Not answered</option><option value="true">Yes</option><option value="false">No</option>
+              </select>
+            </div>
+
+            <div>
+              <label>If yes, where?</label>
+              <input id="leadPriorLeakLocation">
+            </div>
+
+            <div>
+              <label>Roof pitch or slope</label>
+              <select id="leadRoofPitch">
+                <option value="">Not answered</option><option>Walkable</option><option>Steep</option><option>Not sure</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Payment preference</label>
+              <select id="leadPaymentPlan">
+                <option value="">Not answered</option><option>Cash</option><option>Financing</option><option>Undecided</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Who referred our company?</label>
+              <select id="leadReferralCategory">
+                <option value="">Not answered</option>
+                <optgroup label="Referrals">
+                  <option>Previous client</option><option>Other referral</option><option>Employee referral</option><option>Real estate agent</option>
+                </optgroup>
+                <optgroup label="Advertising">
+                  <option>Yelp</option><option>Angi Ads</option><option>HomeAdvisor</option><option>Vital Storm</option>
+                </optgroup>
+                <optgroup label="Signs"><option>Office sign</option><option>Truck sign</option><option>Jobsite sign</option></optgroup>
+                <optgroup label="Internet"><option>BCI website</option><option>Classic website</option><option>MRA website</option><option>Other internet</option></optgroup>
+                <option>Media advertising</option><option>Telephone solicitation</option><option>Yellow Pages - AT&amp;T</option><option>Yellow Pages - Talking Phone Book</option><option>Direct mail</option><option>Canvassing</option><option>Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Referral name, location or details</label>
+              <input id="leadReferralDetail">
+            </div>
+
+            <details class="wide angi-original" id="leadAngiOriginalWrap">
+              <summary>Original information supplied by Angi</summary>
+              <div id="leadAngiOriginal" class="source-data-grid"></div>
+            </details>
+
+            <div>
+              <label>Work requested</label>
+              <select id="leadWorkCategory">
+                <option>Roofing</option>
+                <option>Windows</option>
+                <option>Siding</option>
+                <option>Gutters</option>
+                <option>Multiple</option>
+                <option>Not Sure</option>
+                <option>Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Assigned to</label>
+              <select id="leadAssignedTo"></select>
+            </div>
+
+            <div>
+              <label>Inquiry status</label>
+              <select id="leadStatus">
+                <option>Appointment Wanted</option>
+                <option>Appointment Match Needed</option>
+                <option>Scheduling</option>
+                <option>Appointment Scheduled</option>
+                <option>Appointment Outcome Needed</option>
+                <option>Estimate Pending</option>
+                <option>Estimate Sent</option>
+                <option>Sold</option>
+                <option>Not Moving Forward</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Estimate status</label>
+              <select id="leadEstimateStatus"></select>
+            </div>
+
+            <div>
+              <label>Appointment date</label>
+              <input id="leadAppointmentDate" type="date">
+            </div>
+
+            <div>
+              <label>Appointment time</label>
+              <input id="leadAppointmentTime" type="time">
+            </div>
+
+            <div>
+              <label>MarketSharp status</label>
+              <select id="leadMarketSharpStatus"></select>
+            </div>
+
+            <div class="wide">
+              <label>Estimate / customer issue note</label>
+              <textarea id="leadEstimateNote" placeholder="For example: homeowner called because estimate was not received"></textarea>
+            </div>
+
+            <div class="wide">
+              <label>Notes</label>
+              <textarea id="leadNotes"></textarea>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="saveLeadBtn">Save Inquiry</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
+      </dialog>
+
+
+      <!-- EDIT APPOINTMENT -->
+      <dialog id="appointmentDialog">
+        <form method="dialog" class="card" style="min-width:min(620px,90vw);margin:0">
+          <h2>Edit Appointment</h2>
+          <input id="appointmentEditId" type="hidden">
+          <div class="form-grid">
+            <div>
+              <label>Date</label>
+              <input id="appointmentEditDate" type="date">
+            </div>
+            <div>
+              <label>Time</label>
+              <input id="appointmentEditTime" type="time">
+            </div>
+            <div>
+              <label>Status</label>
+              <select id="appointmentEditStatus">
+                <option>Scheduled</option>
+                <option>Outcome Needed</option>
+                <option>Confirmed</option>
+                <option>Completed</option>
+                <option>Cancelled</option>
+                <option>Rescheduled</option>
+              </select>
+            </div>
+            <div>
+              <label>Assigned to</label>
+              <input id="appointmentEditAssigned">
+            </div>
+            <div>
+              <label>Appointment type</label>
+              <input id="appointmentEditType" placeholder="Measure &amp; Presentation">
+            </div>
+            <div>
+              <label>Result</label>
+              <select id="appointmentEditResult">
+                <option value="">No result yet</option>
+                <option>Estimate needed</option>
+                <option>Estimate sent / given</option>
+                <option>Another appointment needed</option>
+                <option>Another professional needs to look at the work</option>
+                <option>Contract signed</option>
+                <option>Customer thinking / follow up</option>
+                <option>Not interested</option>
+                <option>Reschedule</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div class="wide">
+              <label>Result reason / notes</label>
+              <textarea id="appointmentEditResultNote" placeholder="What Roy reported or what should happen next"></textarea>
+            </div>
+            <div>
+              <label>MarketSharp status</label>
+              <select id="appointmentEditMarketSharp">
+                <option>Not Needed Yet</option>
+                <option>Needs Entry</option>
+                <option>Added</option>
+                <option>Already There</option>
+                <option>Automatic</option>
+              </select>
+            </div>
+            <div>
+              <label>Google Calendar status</label>
+              <select id="appointmentEditCalendar">
+                <option>Not Added</option>
+                <option>Added</option>
+                <option>Needs Update</option>
+                <option>Updated</option>
+              </select>
+            </div>
+            <div class="wide">
+              <label>Notes</label>
+              <textarea id="appointmentEditNotes"></textarea>
+            </div>
+          </div>
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="saveAppointmentEditBtn">Save Changes</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
+      </dialog>
+
+
+      <!-- NEW JOB -->
+
+      <dialog id="jobDialog">
+
+        <form
+          method="dialog"
+          class="card"
+          style="min-width:min(680px,90vw);margin:0">
+
+          <h2 id="jobDialogTitle">
+            New Job
+          </h2>
+          <input id="jobEditId" type="hidden">
+
+
+          <div class="form-grid">
+
+            <div>
+
+              <label>
+                Customer name
+              </label>
+
+              <input id="jobCustomer">
+
+            </div>
+
+
+            <div>
+
+              <label>
+                Lead number
+              </label>
+
+              <input id="jobLead">
+
+            </div>
+
+
+            <div>
+
+              <label>
+                Job number
+              </label>
+
+              <input id="jobNumber">
+
+            </div>
+
+
+            <div class="wide">
+
+              <label>
+                Property address
+              </label>
+
+              <input id="jobAddress">
+
+            </div>
+
+
+            <div>
+
+              <label>
+                Salesperson
+              </label>
+
+              <input id="jobSalesperson">
+
+            </div>
+
+            <div>
+              <label>Contract date</label>
+              <input id="jobContractDate" type="date">
+            </div>
+
+            <div>
+              <label>Job type</label>
+              <input id="jobType" placeholder="Roof replacement, repair…">
+            </div>
+
+
+            <div>
+
+              <label>
+                Stage
+              </label>
+
+              <select id="jobStage">
+                <option>Needs Production Review</option>
+                <option>Waiting for Information</option>
+                <option>Production Queue</option>
+                <option>Ready to Order</option>
+                <option>Materials Ordered</option>
+                <option>Scheduled</option>
+                <option>In Production</option>
+                <option>Weather Delay</option>
+                <option>Other Delay</option>
+                <option>Punch List / Final Inspection</option>
+                <option>Production Complete</option>
+                <option>Final / Closed</option>
+                <option>Cancelled</option>
+              </select>
+
+            </div>
+
+            <div>
+              <label>Material type</label>
+              <input id="jobMaterialType" placeholder="Shingle / metal / other">
+            </div>
+
+            <div>
+              <label>Material color</label>
+              <input id="jobMaterialColor">
+            </div>
+
+            <div>
+              <label>Material delivery date</label>
+              <input id="jobMaterialDelivery" type="date">
+            </div>
+
+            <div>
+              <label>Expected completion date</label>
+              <input id="jobExpectedCompletion" type="date">
+            </div>
+
+            <div>
+              <label>Next production update due</label>
+              <input id="jobNextProductionUpdate" type="date">
+            </div>
+
+            <div class="wide">
+              <label>Production blocker / waiting on</label>
+              <input id="jobProductionBlocker" placeholder="Permit, materials, weather, customer decision…">
+            </div>
+
+
+            <div>
+
+              <label>
+                Target start date
+              </label>
+
+              <input
+                id="jobTarget"
+                type="date"
+              >
+
+            </div>
+
+
+            <div>
+
+              <label>
+                Confirmed start date
+              </label>
+
+              <input
+                id="jobConfirmed"
+                type="date"
+              >
+
+            </div>
+
+
+            <div class="wide">
+
+              <label>
+                Production notes
+              </label>
+
+              <textarea id="jobNotes"></textarea>
+
+            </div>
+
+          </div>
+
+
+          <div class="toolbar">
+
+            <button
+              class="btn primary"
+              type="button"
+              id="saveJobBtn">
+              Save
+            </button>
+
+            <button
+              class="btn"
+              value="cancel">
+              Cancel
+            </button>
+
+          </div>
+
+        </form>
+
+      </dialog>
+
+      <dialog id="cancelJobDialog">
+        <form method="dialog" class="card" style="min-width:min(520px,90vw);margin:0">
+          <h2>Cancel Job</h2>
+          <input id="cancelJobId" type="hidden">
+          <p id="cancelJobName" class="auth-note"></p>
+          <label for="cancelJobReason">Why was this job canceled?</label>
+          <textarea id="cancelJobReason" placeholder="Customer changed plans, financing, duplicate job…" required></textarea>
+          <p class="auth-note">The job will leave active production but remain in Canceled Jobs. Its information and history will be preserved.</p>
+          <div class="toolbar">
+            <button class="btn danger" type="button" id="confirmCancelJobBtn">Cancel Job</button>
+            <button class="btn" value="cancel">Keep Job Active</button>
+          </div>
+        </form>
+      </dialog>
+
+      <dialog id="teamNumbersDialog">
+        <form method="dialog" class="card" style="min-width:min(460px,90vw);margin:0">
+          <h2>Team Text Numbers</h2>
+          <p class="auth-note">Choose who uses this account and save the team’s mobile numbers. Lead and job buttons will show the other two team members.</p>
+          <label for="teamAccountMember">This account belongs to</label>
+          <select id="teamAccountMember">
+            <option value="eve">Eve</option>
+            <option value="roy">Roy</option>
+            <option value="dad">Dad</option>
+          </select>
+          <label for="eveTextPhone">Eve’s mobile number</label>
+          <input id="eveTextPhone" type="tel" autocomplete="tel">
+          <label for="royTextPhone">Roy’s mobile number</label>
+          <input id="royTextPhone" type="tel" autocomplete="tel">
+          <label for="dadTextPhone">Dad’s mobile number</label>
+          <input id="dadTextPhone" type="tel" autocomplete="tel">
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="saveTeamNumbersBtn">Save Numbers</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
+      </dialog>
+
+
+
+      <!-- ANGI CALLBACK -->
+      <dialog id="angiCallbackDialog">
+        <form method="dialog" class="card" style="min-width:min(520px,90vw);margin:0">
+          <h2>Schedule Angi Callback</h2>
+          <input id="angiCallbackProspectId" type="hidden">
+          <label>Callback date and time</label>
+          <input id="angiCallbackAt" type="datetime-local">
+          <label>Notes</label>
+          <textarea id="angiCallbackNotes" placeholder="Optional"></textarea>
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="angiCallbackSaveBtn">Save Callback</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
+      </dialog>
+
+      <!-- ANGI CLOSE -->
+      <dialog id="angiCloseDialog">
+        <form method="dialog" class="card" style="min-width:min(520px,90vw);margin:0">
+          <h2>Close Angi Prospect</h2>
+          <input id="angiCloseProspectId" type="hidden">
+          <label>Outcome</label>
+          <select id="angiCloseOutcome">
+            <option>Not Interested</option>
+            <option>Went With Another Company</option>
+            <option>No Longer Needs Service</option>
+            <option>Unable to Reach</option>
+            <option>Bad/Invalid Lead</option>
+            <option>Duplicate/Existing Customer</option>
+          </select>
+          <label>Notes</label>
+          <textarea id="angiCloseNotes" placeholder="Optional"></textarea>
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="angiCloseSaveBtn">Close Prospect</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
+      </dialog>
+
+      <!-- LOG COMMUNICATION -->
+      <dialog id="communicationDialog">
+        <form method="dialog" class="card" style="min-width:min(620px,90vw);margin:0">
+          <h2 id="commDialogTitle">Log Communication</h2>
+          <input id="commKind" type="hidden">
+          <input id="commContactId" type="hidden">
+          <div class="form-grid">
+            <div>
+              <label>Type</label>
+              <select id="commType">
+                <option>Call</option>
+                <option>Text</option>
+                <option>Email</option>
+                <option>In Person</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div>
+              <label>Direction</label>
+              <select id="commDirection">
+                <option>Outbound</option>
+                <option>Inbound</option>
+              </select>
+            </div>
+            <div class="wide">
+              <label>Result</label>
+              <input id="commResult" placeholder="Example: Left voicemail, Spoke with homeowner, Email sent">
+            </div>
+            <div class="wide">
+              <label>Notes</label>
+              <textarea id="commNotes" placeholder="What happened?"></textarea>
+            </div>
+            <div>
+              <label>Follow-up needed?</label>
+              <select id="commFollowNeeded">
+                <option>No</option>
+                <option>Yes</option>
+              </select>
+            </div>
+            <div>
+              <label>Follow-up date/time</label>
+              <input id="commFollowDue" type="datetime-local">
+            </div>
+          </div>
+          <div class="toolbar">
+            <button class="btn primary" type="button" id="saveCommunicationBtn">Save Communication</button>
+            <button class="btn" value="cancel">Cancel</button>
+          </div>
+        </form>
+      </dialog>
+
+      <!-- LEADS / JOBS REPORTS -->
+      <dialog id="reportDialog" class="report-dialog">
+        <form method="dialog" class="card report-card">
+          <div class="toolbar report-heading">
+            <div>
+              <div class="today-eyebrow">REPORTS &amp; EXPORTS</div>
+              <h2 id="reportDialogTitle">Reports</h2>
+              <p class="auth-note" id="reportDialogDescription"></p>
+            </div>
+            <div class="spacer"></div>
+            <button class="btn" value="cancel">Close</button>
+          </div>
+
+          <div class="report-builder-grid">
+            <div>
+              <label>Report</label>
+              <select id="reportType"></select>
+            </div>
+            <div>
+              <label>Sort by</label>
+              <select id="reportSort"></select>
+            </div>
+            <div>
+              <label>Order</label>
+              <select id="reportDirection">
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+              </select>
+            </div>
+            <div>
+              <label>ZIP code</label>
+              <input id="reportZip" placeholder="All ZIP codes">
+            </div>
+            <div>
+              <label id="reportFilterOneLabel">Source</label>
+              <select id="reportFilterOne"></select>
+            </div>
+            <div>
+              <label id="reportFilterTwoLabel">Lead type</label>
+              <select id="reportFilterTwo"></select>
+            </div>
+            <div>
+              <label id="reportFilterThreeLabel">Status</label>
+              <select id="reportFilterThree"></select>
+            </div>
+            <div>
+              <label>Beginning date</label>
+              <input id="reportDateFrom" type="date">
+            </div>
+            <div>
+              <label>Ending date</label>
+              <input id="reportDateTo" type="date">
+            </div>
+          </div>
+
+          <div class="report-columns-wrap" id="reportColumnsWrap">
+            <div class="toolbar compact-toolbar">
+              <h3>Columns to include</h3>
+              <div class="spacer"></div>
+              <button class="btn small" id="reportSelectAllBtn" type="button">Select all</button>
+              <button class="btn small" id="reportClearColumnsBtn" type="button">Clear</button>
+            </div>
+            <div id="reportColumns" class="report-columns"></div>
+          </div>
+
+          <div class="toolbar report-actions">
+            <button class="btn primary" id="previewReportBtn" type="button">Preview Report</button>
+            <button class="btn success" id="exportReportBtn" type="button">Export Excel</button>
+            <div id="reportStatus" class="status-line"></div>
+          </div>
+
+          <div id="reportPreview" class="report-preview"></div>
+        </form>
+      </dialog>
+
+    </main>
+
+
+    <div class="footer">
+      Bauer Roofing Operations • live data in Supabase •
+      Google Sheets can remain your reporting/admin layer
+    </div>
+
+  </div>
+
+
+  <dialog id="passwordDialog">
+    <form method="dialog" class="dialog-card" id="passwordForm">
+      <h2>Choose a Bauer Roofing Operations password</h2>
+      <p class="muted">Use at least 8 characters. Do not reuse your email account password.</p>
+      <label>New password</label>
+      <input id="newPassword" type="password" autocomplete="new-password" minlength="8">
+      <label>Confirm password</label>
+      <input id="confirmPassword" type="password" autocomplete="new-password" minlength="8">
+      <div class="dialog-actions">
+        <button class="btn ghost" value="cancel">Cancel</button>
+        <button class="btn primary" id="savePasswordBtn" type="button">Save password</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js?v=20260908-15"></script>
+
+</body>
+</html>

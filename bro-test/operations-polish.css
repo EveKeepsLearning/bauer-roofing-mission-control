@@ -1,0 +1,153 @@
+/* Bauer Roofing Operations — shared visual polish
+   Reference language: Sales Pipeline + Open Jobs.
+   This file is intentionally presentation-only: no layout IDs, form names,
+   data attributes, or interaction hooks are changed here. */
+
+:root{
+  --bro-page:#f3f6f9;
+  --bro-surface:#ffffff;
+  --bro-border:#dfe5ec;
+  --bro-border-strong:#cbd6e2;
+  --bro-ink:#26354a;
+  --bro-muted:#687588;
+  --bro-blue:#1f6fd5;
+  --bro-blue-soft:#e7f1ff;
+  --bro-green-soft:#e4f7e9;
+  --bro-gold-soft:#fff3d7;
+  --bro-purple-soft:#f1e9ff;
+  --bro-orange-soft:#fff0e3;
+  --bro-teal-soft:#e3f8f6;
+  --bro-red-soft:#f8e9ea;
+  --bro-shadow:0 1px 4px rgba(24,39,61,.06);
+  --bro-shadow-hover:0 4px 10px rgba(24,39,61,.10);
+}
+
+body{background:var(--bro-page);color:var(--bro-ink)}
+.wrap{max-width:1240px}
+.card{border-color:var(--bro-border);border-radius:12px;box-shadow:var(--bro-shadow)}
+.card:hover{border-color:#d6dfe8}
+
+/* Buttons and fields use the same compact, crisp treatment as the boards. */
+.btn{border-radius:8px;background:#fff;border:1px solid #d9e1ea;color:#30445e;box-shadow:none;transition:background .12s ease,border-color .12s ease,box-shadow .12s ease,transform .12s ease}
+.btn:hover{filter:none;background:#edf4fb;border-color:#cbd8e6}
+.btn.primary{background:var(--bro-blue);border-color:var(--bro-blue);color:#fff}
+.btn.primary:hover{background:#195fb8;border-color:#195fb8}
+.btn.danger{border-color:#e0a4a4}
+input,textarea,select{border-color:#d2dbe5;border-radius:8px;color:#33465d;box-shadow:inset 0 1px 1px rgba(31,48,72,.02)}
+input:focus,textarea:focus,select:focus{outline:2px solid rgba(31,111,213,.18);outline-offset:0;border-color:#76a7e3}
+button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid rgba(31,111,213,.24);outline-offset:2px}
+
+/* Main Operations header/nav: quieter shell, clear active location. */
+#appView>header{background:rgba(255,255,255,.97);border-bottom-color:var(--bro-border);box-shadow:0 1px 5px rgba(31,48,72,.05)}
+#appView>header .brand h1{color:#25364d}
+#appView>header .nav{gap:4px}
+#appView>header .nav button,#appView>header .nav a.nav-calendar-link{border:1px solid transparent;border-radius:8px;color:#425166;font-weight:600}
+#appView>header .nav button:hover,#appView>header .nav a.nav-calendar-link:hover{background:#f1f5f9;border-color:#e2e8ef}
+#appView>header .nav button.active{background:var(--bro-blue-soft);color:#145fc2;border-color:#d5e6fb}
+
+/* TODAY — make the work area feel like a board: soft lane, white work cards. */
+#view-today{--today-ink:#26354a;--today-muted:#687588;--today-blue:#1f6fd5}
+.today-hero{padding:15px 3px 13px}
+.today-hero h2{font-size:30px;color:#26354a}
+.today-hero .btn.primary{margin:0;padding:9px 14px}
+.today-status-strip{border-color:var(--bro-border);border-radius:12px;box-shadow:var(--bro-shadow);padding:10px 13px;background:#fff}
+.today-kpi{border:1px solid rgba(0,0,0,.035);font-weight:650}
+
+/* Next Up remains the strongest action cue, but is flatter and more board-like. */
+.next-up-card{background:#e7f1ff;color:#284b74;border:1px solid #cfe0f5;border-left:5px solid var(--bro-blue);border-radius:12px;box-shadow:var(--bro-shadow);padding:15px 17px}
+.next-up-card .next-label{color:#4e78a7;opacity:1}
+.next-up-card .next-title{color:#234d7d}
+.next-up-card .next-meta{color:#587491;opacity:1}
+.next-up-card .next-action,.current-task-light{background:#fff;color:#175caf;border:1px solid #cbdcef}
+.next-up-card .next-action:hover,.current-task-light:hover{background:#f8fbff}
+.next-up-card.expanded .current-task-expanded{border-top-color:#c9dbef}
+.current-task-subtasks{background:rgba(255,255,255,.65);border:1px solid rgba(31,111,213,.10)}
+.current-task-subtasks .task-subtask{color:#344e6e}
+.current-task-subtasks .task-subtask.done span{color:#788da4}
+
+.today-layout{gap:14px;grid-template-columns:minmax(0,2.2fr) minmax(300px,.8fr)}
+.today-work-card{background:#eef3f8;border-color:#dbe3ec;border-radius:12px;padding:8px;box-shadow:none}
+.today-section-heading{background:transparent;border-bottom:0;padding:10px 8px 8px;align-items:center}
+.today-section-heading h2{font-size:21px}
+.task-color-key{background:rgba(255,255,255,.62);border:1px solid #e0e7ef;border-radius:999px;padding:5px 8px}
+
+/* Each task becomes a true work card. Existing .task hooks stay untouched. */
+.today-ordered-list>.task{background:#fff;border:1px solid var(--bro-border);border-left:4px solid #d68b00;border-radius:9px;padding:11px 12px;margin:7px 0;box-shadow:var(--bro-shadow);transition:border-color .12s ease,box-shadow .12s ease,transform .12s ease}
+.today-ordered-list>.task:hover{background:#fff;border-color:#c7d4e3;box-shadow:var(--bro-shadow-hover);transform:translateY(-1px)}
+.today-ordered-list>.task.task-category-communication{border-left-color:#2f73d9}
+.today-ordered-list>.task.task-category-financial{border-left-color:#188b86}
+.today-ordered-list>.task.task-category-routine{border-left-color:#d68b00}
+.today-work-card .task-title>b{font-size:14px;color:#2f4056}
+.task-due{font-size:12px;color:#687588}
+.task-subtasks{background:#f6f8fa;border-color:#e7ecf1;border-radius:7px;margin-top:8px}
+.actions .btn{font-size:12px;padding:6px 8px}
+.task-more summary{background:#f2f5f8;border:1px solid #e0e6ed}
+.task-more[open] summary{background:#e7eef6}
+
+/* Sidebar follows the pipeline lane colors while keeping content readable. */
+.today-sidebar .card{border:1px solid var(--bro-border);border-left-width:1px;border-radius:12px;box-shadow:none;padding:12px}
+.today-awareness-card{background:var(--bro-gold-soft)!important;border-color:#eadfbf!important}
+#weekJobsCard{background:var(--bro-green-soft)!important;border-color:#cfe8d5!important}
+.quick-notes-card{background:#fff8dd!important;border-color:#eadfae!important}
+.today-sidebar .task{background:rgba(255,255,255,.78);border:1px solid rgba(203,214,226,.8);border-radius:8px;padding:9px!important;margin:7px 0}
+.awareness-section{border-top-color:rgba(108,122,140,.16)}
+.sidebar-card-heading h3,.sidebar-quiet-card h3,.quick-notes-card h3{color:#33465d}
+
+/* Angi + Contacts: retain their workflow layout, align cards/rails to board surfaces. */
+.angi-toolbar-card,.leads-toolbar-card{border-top:0!important;background:#fff}
+.angi-rail-card,.leads-rail-card,.angi-detail-card,.leads-detail-card{border-color:var(--bro-border)!important;box-shadow:var(--bro-shadow)}
+.angi-rail-card,.leads-rail-card{border-top:0!important;background:#eef3f8}
+.angi-rail-card h3,.leads-rail-card h3{background:#eef3f8;color:#33465d}
+.angi-queue-row,.lead-queue-row{margin:6px;border:1px solid var(--bro-border);border-radius:8px;width:calc(100% - 12px);box-shadow:0 1px 2px rgba(24,39,61,.04)}
+.angi-queue-row.selected,.lead-queue-row.selected{border-color:#94bae9;box-shadow:0 0 0 2px rgba(31,111,213,.10)}
+.info-tile,.contact-overview-grid>div{border:1px solid #e3e9ef;background:#f6f8fa}
+.contact-section{border-color:var(--bro-border)}
+.contact-section>h3,.contact-section-head{background:#eef3f8}
+
+/* Open Jobs embedded on the main page: same visual grammar as jobs.html. */
+#view-jobs>.card:first-child{background:#eef3f8;border-color:#dbe3ec;box-shadow:none;padding:10px}
+#view-jobs>.card:first-child>.toolbar,#view-jobs>.card:first-child>.auth-note,#view-jobs>.card:first-child>.list-sort-toolbar,#view-jobs>.card:first-child>.production-kpis{margin-left:4px;margin-right:4px}
+.production-job-card{border:1px solid var(--bro-border);border-left:4px solid #d68b00;border-radius:9px;padding:11px;margin:8px 0;background:#fff;box-shadow:var(--bro-shadow);transition:box-shadow .12s ease,transform .12s ease,border-color .12s ease}
+.production-job-card:hover{box-shadow:var(--bro-shadow-hover);transform:translateY(-1px);border-color:#c7d4e3}
+.production-job-card.needs-update{background:#fffdf7}
+.production-job-card.needs-contact{border-left-color:#d93025}
+.production-stage{padding:3px 7px}
+.production-job-grid>div{background:#f6f8fa;border:1px solid #e8edf2}
+.production-kpis .kpi{box-shadow:none;border-color:#dce4ec}
+
+/* Tables and secondary lists resemble Open Jobs table/attention views. */
+.simple-table,.contact-table,.report-table{background:#fff}
+.table-wrap,.contact-table-card,.report-preview{border-color:var(--bro-border);border-radius:12px;box-shadow:var(--bro-shadow)}
+.simple-table th,.contact-table th,.report-table th{background:#eef3f8;color:#4a596b}
+.contact-table tbody tr:hover,.report-table tbody tr:hover{background:#f8fbff}
+
+/* Playbook, Suggestions and Phone Message stay simple but no longer feel separate. */
+#view-phone>.card,#view-playbook>.card,#view-suggestions>.card{border-top:0!important}
+#view-phone>.card:first-child,#view-playbook>.card:first-child,#view-suggestions>.card:first-child{border-left:4px solid #1f6fd5}
+#suggestionList .task,#phoneHistory .task{background:#fff;border:1px solid var(--bro-border);border-radius:8px;margin:7px 0;padding:10px}
+
+/* Dialogs are work surfaces, not floating legacy forms. */
+dialog{border:0;background:transparent;padding:0;border-radius:14px;box-shadow:0 20px 55px rgba(24,39,61,.22)}
+dialog::backdrop{background:rgba(27,39,55,.30);backdrop-filter:blur(1px)}
+dialog>.card,dialog>form.card{border-radius:13px;border-color:var(--bro-border);box-shadow:none}
+.form-section-title{border-top-color:#dfe5ec}
+
+/* MarketSharp Review already follows the board language; lightly harmonize it. */
+.review-card{border-color:var(--bro-border)!important;box-shadow:var(--bro-shadow)!important}
+.review-kpi{box-shadow:none}
+.review-table-wrap{box-shadow:var(--bro-shadow)}
+.selection-bar{background:#eef3f8!important}
+
+@media(max-width:900px){
+  .today-layout{grid-template-columns:1fr}
+  .today-work-card{padding:7px}
+  .task-color-key{border-radius:8px}
+}
+@media(max-width:680px){
+  .wrap{padding:0 9px}
+  .today-hero{padding-top:9px}
+  .today-hero h2{font-size:25px}
+  .today-ordered-list>.task{padding:10px;margin:6px 0}
+  .today-sidebar .card{padding:10px}
+  .angi-queue-row,.lead-queue-row{margin:5px;width:calc(100% - 10px)}
+}
