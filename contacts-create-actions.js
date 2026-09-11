@@ -2,67 +2,24 @@
 (function(){
   if(window.__broContactsCreateActionsLoaded)return;
   window.__broContactsCreateActionsLoaded=true;
+  const $=id=>document.getElementById(id);
+  const val=id=>String($(id)?.value||'').trim();
+  const nul=id=>val(id)||null;
+  const bool=id=>val(id)==='Yes'?true:val(id)==='No'?false:null;
+  const localNow=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;};
 
-  let createInquiryAfterContact=false;
-
-  function contactDialogTitle(text){
-    const h=document.querySelector('#contactDialog h2');
-    if(h)h.textContent=text;
-  }
-
-  function install(){
-    const addContact=document.getElementById('addContactBtn');
-    const saveContact=document.getElementById('saveNewContactBtn');
-    const dialog=document.getElementById('contactDialog');
-    if(!addContact||!saveContact||!dialog)return;
-
-    if(!document.getElementById('addContactWithInquiryBtn')){
-      const button=document.createElement('button');
-      button.id='addContactWithInquiryBtn';
-      button.type='button';
-      button.className='btn primary';
-      button.textContent='+ Contact with Inquiry';
-      addContact.classList.remove('primary');
-      addContact.insertAdjacentElement('beforebegin',button);
-      button.addEventListener('click',()=>{
-        createInquiryAfterContact=true;
-        addContact.click();
-        contactDialogTitle('Add Contact + Inquiry');
-      });
-    }
-
-    addContact.addEventListener('click',()=>{
-      if(!createInquiryAfterContact)contactDialogTitle('Add New Contact');
-    });
-
-    if(!saveContact.dataset.broContactInquiryWrapped){
-      saveContact.dataset.broContactInquiryWrapped='1';
-      const originalSave=saveContact.onclick;
-      saveContact.onclick=async function(event){
-        const wantsInquiry=createInquiryAfterContact;
-        const beforeId=(typeof selected!=='undefined'&&selected?.contact_id)||'';
-        if(typeof originalSave==='function')await originalSave.call(this,event);
-
-        if(!wantsInquiry||dialog.open)return;
-        createInquiryAfterContact=false;
-
-        try{
-          const afterId=(typeof selected!=='undefined'&&selected?.contact_id)||'';
-          if(!afterId||afterId===beforeId||typeof fillInquiry!=='function')return;
-          const result=await db.from('contacts').select('*').eq('id',afterId).single();
-          if(result.error)throw result.error;
-          fillInquiry(result.data);
-        }catch(error){
-          console.warn('Contact was saved, but BRO could not open the new inquiry form:',error);
-          if(typeof notice==='function')notice('Contact saved. Use + Inquiry on the contact to continue.','success');
-        }
-      };
-    }
-
-    dialog.addEventListener('cancel',()=>{createInquiryAfterContact=false;contactDialogTitle('Add New Contact');});
-    dialog.addEventListener('close',()=>{if(dialog.returnValue==='cancel')createInquiryAfterContact=false;});
-  }
-
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});
-  else install();
+  function styles(){if($('broContactInquiryCreateStyles'))return;const s=document.createElement('style');s.id='broContactInquiryCreateStyles';s.textContent=`#contactInquiryDialog .bro-ci-form{width:min(1080px,94vw);max-height:90vh;overflow:auto}.bro-ci-section{padding:12px 0;border-bottom:1px solid #e4eaf0}.bro-ci-section h3{margin:0 0 10px;font-size:15px}.bro-ci-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 12px}.bro-ci-grid .span2{grid-column:span 2}.bro-ci-grid .span3{grid-column:span 3}.bro-ci-grid .span4{grid-column:1/-1}.bro-ci-grid label{display:block;font-size:11px;font-weight:700;color:#637286;margin-bottom:4px}.bro-ci-grid input,.bro-ci-grid select,.bro-ci-grid textarea{width:100%}.bro-ci-actions{position:sticky;bottom:0;background:#fff;border-top:1px solid #dfe5ec;padding:10px 0 0;display:flex;gap:8px;z-index:5}@media(max-width:800px){.bro-ci-grid{grid-template-columns:1fr 1fr}.bro-ci-grid .span3,.bro-ci-grid .span4{grid-column:1/-1}}@media(max-width:560px){.bro-ci-grid{grid-template-columns:1fr}.bro-ci-grid .span2,.bro-ci-grid .span3,.bro-ci-grid .span4{grid-column:auto}}`;document.head.appendChild(s);}
+  function field(id,label,cls='',type='text'){return `<div class="${cls}"><label>${label}</label><input id="${id}" type="${type}"></div>`;}
+  function select(id,label,options,cls=''){return `<div class="${cls}"><label>${label}</label><select id="${id}"><option value=""></option>${options.map(x=>`<option>${x}</option>`).join('')}</select></div>`;}
+  function installDialog(){if($('contactInquiryDialog'))return;styles();const d=document.createElement('dialog');d.id='contactInquiryDialog';d.innerHTML=`<form method="dialog" class="card bro-ci-form"><h2 style="margin-top:0">Add Contact + Full Inquiry</h2><div class="sub">Create the customer and the Bauer Roofing inquiry together using the full lead-sheet intake.</div>
+  <section class="bro-ci-section"><h3>Customer & Inquiry</h3><div class="bro-ci-grid">${field('ciLeadNumber','Inquiry / Lead No.','','text').replace('<input','<input data-bro-suggest-number="1"')}${field('ciInquiryAt','Inquiry date / time','','datetime-local')}${field('ciTakenBy','Taken by')}${field('ciAssigned','Assigned to')}${field('ciName','Name / Company','span2')}${field('ciSpouse','Spouse / Co-Owner','span2')}${field('ciFirst','First name')}${field('ciLast','Last name')}${field('ciPhone','Phone (Primary)')}${field('ciPhone2','Phone (Secondary)')}${field('ciEmail','Email','span2','email')}</div></section>
+  <section class="bro-ci-section"><h3>Job Address</h3><div class="bro-ci-grid">${field('ciStreet','Job address','span2')}${field('ciCity','City')}${field('ciState','State')}${field('ciZip','ZIP')}${field('ciSubdivision','Subdivision','span3')}</div></section>
+  <section class="bro-ci-section"><h3>Mailing Address & Insurance</h3><div class="bro-ci-grid">${field('ciMailStreet','Mailing address','span2')}${field('ciMailCity','Mailing city')}${field('ciMailState','Mailing state')}${field('ciMailZip','Mailing ZIP')}${select('ciInsurance','Insurance related?',['Yes','No'])}${field('ciInsuranceCompany','Insurance company','span2')}</div></section>
+  <section class="bro-ci-section"><h3>Roof / Home Information</h3><div class="bro-ci-grid">${field('ciShingleAge','How old are the shingles?')}${field('ciTiming','When do they hope to have work done?','span2')}${select('ciLayers','Layers of shingles',['1','2','Unknown'])}${select('ciCurrentLeak','Any leaks now?',['Yes','No'])}${field('ciCurrentLeakLocation','If yes, where?','span3')}${select('ciPriorLeak','Has it ever leaked?',['Yes','No'])}${field('ciPriorLeakLocation','If yes, where?','span3')}${select('ciHomeType','Type of home',['1-story','2-story','Other'])}${select('ciPitch','Roof pitch / slope',['Walk','Steep','Unknown'])}${select('ciPaymentPlan','Payment',['Cash','Financing','Insurance','Unknown'])}</div></section>
+  <section class="bro-ci-section"><h3>Source & Work Requested</h3><div class="bro-ci-grid">${field('ciSource','Lead source','span2')}${field('ciSource2','Source detail / secondary source','span2')}${field('ciReferral','Referral / advertising category','span2')}${field('ciReferralDetail','Who / which piece / where?','span2')}${field('ciProductInterest','Product interest','span2')}${field('ciWorkCategory','Work category')}${field('ciProductDescription','Product description','span4')}<div class="span4"><label>Notes / What do they want us to do?</label><textarea id="ciNotes" rows="5"></textarea></div></div></section>
+  <div class="bro-ci-actions"><button class="btn primary" id="saveContactInquiryBtn" type="button">Create Contact + Inquiry</button><button class="btn" value="cancel">Cancel</button></div></form>`;document.body.appendChild(d);$('saveContactInquiryBtn').onclick=saveBoth;}
+  function clear(){['ciLeadNumber','ciName','ciSpouse','ciFirst','ciLast','ciPhone','ciPhone2','ciEmail','ciStreet','ciCity','ciZip','ciSubdivision','ciMailStreet','ciMailCity','ciMailState','ciMailZip','ciInsurance','ciInsuranceCompany','ciShingleAge','ciTiming','ciLayers','ciCurrentLeak','ciCurrentLeakLocation','ciPriorLeak','ciPriorLeakLocation','ciHomeType','ciPitch','ciPaymentPlan','ciSource','ciSource2','ciReferral','ciReferralDetail','ciProductInterest','ciWorkCategory','ciProductDescription','ciNotes'].forEach(id=>{if($(id))$(id).value='';});$('ciState').value='SC';$('ciAssigned').value='Roy';$('ciTakenBy').value='Eve';$('ciInquiryAt').value=localNow();}
+  async function saveBoth(){const btn=$('saveContactInquiryBtn');const name=val('ciName')||[val('ciFirst'),val('ciLast')].filter(Boolean).join(' ');if(!name){if(typeof notice==='function')notice('Name or company is required.','error');return;}btn.disabled=true;btn.textContent='Creating…';let contact=null;try{const cRow={name,phone:nul('ciPhone'),email:nul('ciEmail'),street_address:nul('ciMailStreet')||nul('ciStreet'),city:nul('ciMailCity')||nul('ciCity'),state:nul('ciMailState')||nul('ciState'),zip:nul('ciMailZip')||nul('ciZip')};const cRes=await db.from('contacts').insert(cRow).select('*').single();if(cRes.error)throw cRes.error;contact=cRes.data;const row={contact_id:contact.id,lead_number:nul('ciLeadNumber'),homeowner_name:name,first_name:nul('ciFirst'),last_name:nul('ciLast'),spouse_name:nul('ciSpouse'),phone:nul('ciPhone'),phone_secondary:nul('ciPhone2'),email:nul('ciEmail'),street_address:nul('ciStreet'),city:nul('ciCity'),state:nul('ciState'),zip:nul('ciZip'),subdivision:nul('ciSubdivision'),mailing_street_address:nul('ciMailStreet'),mailing_city:nul('ciMailCity'),mailing_state:nul('ciMailState'),mailing_zip:nul('ciMailZip'),insurance_related:bool('ciInsurance'),insurance_company:nul('ciInsuranceCompany'),shingle_age:nul('ciShingleAge'),desired_work_timing:nul('ciTiming'),roof_layers:nul('ciLayers'),current_leak:bool('ciCurrentLeak'),current_leak_location:nul('ciCurrentLeakLocation'),prior_leak:bool('ciPriorLeak'),prior_leak_location:nul('ciPriorLeakLocation'),home_type:nul('ciHomeType'),roof_pitch:nul('ciPitch'),payment_plan:nul('ciPaymentPlan'),source:nul('ciSource'),lead_source_secondary:nul('ciSource2'),referral_category:nul('ciReferral'),referral_detail:nul('ciReferralDetail'),product_interest:nul('ciProductInterest'),product_description:nul('ciProductDescription'),work_category:nul('ciWorkCategory'),assigned_to:nul('ciAssigned')||'Roy',inquiry_taken_by:nul('ciTakenBy'),taken_by:nul('ciTakenBy'),inquiry_at:val('ciInquiryAt')?new Date(val('ciInquiryAt')).toISOString():new Date().toISOString(),lead_date:new Date().toLocaleDateString('en-CA'),lead_status:'Appointment Wanted',import_source:'Contact Inquiry',notes:nul('ciNotes')};const lRes=await db.from('leads').insert(row).select('*').single();if(lRes.error)throw lRes.error;location.href=`inquiry.html?id=${encodeURIComponent(lRes.data.id)}&contact=${encodeURIComponent(contact.id)}`;}catch(error){if(typeof notice==='function')notice(contact?`Contact was created, but the inquiry could not be created: ${error.message||error}`:(error.message||String(error)),'error');}finally{btn.disabled=false;btn.textContent='Create Contact + Inquiry';}}
+  function install(){installDialog();const addContact=$('addContactBtn');if(!addContact)return;let button=$('addContactWithInquiryBtn');if(!button){button=document.createElement('button');button.id='addContactWithInquiryBtn';button.type='button';button.className='btn primary';button.textContent='+ Contact with Inquiry';addContact.classList.remove('primary');addContact.insertAdjacentElement('beforebegin',button);}button.onclick=e=>{e.preventDefault();e.stopPropagation();clear();$('contactInquiryDialog').showModal();setTimeout(()=>{window.BRORefreshInquiryNumberSuggestion?.($('ciLeadNumber'));$('ciName')?.focus();},0);};}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 })();
