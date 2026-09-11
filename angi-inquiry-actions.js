@@ -39,17 +39,18 @@
   }
 
   async function openInquiryForAngiProspect(id){
-    const prospect=window.state?.prospects?.find?.(p=>String(p.id)===String(id));
+    if(typeof state==='undefined')return;
+    const prospect=(state.prospects||[]).find(p=>String(p.id)===String(id));
     if(!prospect)return;
 
     if(prospect.contact_id){
-      try{window.pendingRelatedContactId=prospect.contact_id;}catch(_){ }
+      try{pendingRelatedContactId=prospect.contact_id;}catch(_){ }
     }
 
-    if(typeof window.openAngiAppointment==='function'){
-      window.openAngiAppointment(id);
-    }else if(typeof window.openLeadDialog==='function'){
-      window.openLeadDialog(prospect);
+    if(typeof openAngiAppointment==='function'){
+      openAngiAppointment(id);
+    }else if(typeof openLeadDialog==='function'){
+      openLeadDialog(prospect);
       const status=document.getElementById('leadStatus');
       if(status)status.value='Appointment Scheduled';
     }else{
@@ -62,7 +63,7 @@
   }
 
   function install(){
-    if(typeof window.angiQueueRowHtml!=='function'||typeof window.renderAngiQueue!=='function'||!window.state){
+    if(typeof angiQueueRowHtml!=='function'||typeof renderAngiQueue!=='function'||typeof state==='undefined'){
       attempts++;
       if(attempts<maxAttempts)setTimeout(install,100);
       return;
@@ -72,11 +73,12 @@
 
     if(!window.__broAngiQueueRowInquiryWrapped){
       window.__broAngiQueueRowInquiryWrapped=true;
-      const originalRow=window.angiQueueRowHtml;
-      window.angiQueueRowHtml=function(p){
+      const originalRow=angiQueueRowHtml;
+      const wrappedRow=function(p){
         const row=originalRow(p);
         return `<div class="bro-angi-queue-item">${row}<button type="button" class="btn primary small bro-angi-create-inquiry" data-angi-create-inquiry="${esc(p.id)}">Create Inquiry<br>/ Set Appt</button></div>`;
       };
+      try{angiQueueRowHtml=wrappedRow;}catch(_){window.angiQueueRowHtml=wrappedRow;}
     }
 
     if(!window.__broAngiInquiryClickInstalled){
@@ -90,7 +92,7 @@
       });
     }
 
-    window.renderAngiQueue();
+    renderAngiQueue();
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,0),{once:true});
