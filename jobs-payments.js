@@ -12,8 +12,16 @@
     input.addEventListener('blur',()=>{const n=parseMoney(input.value);input.value=n==null?'':fmt(n);});
   }
 
+  function toggleCheckNumber(){
+    const wrap=$('paymentCheckNumberWrap');
+    if(!wrap)return;
+    const isCheck=$('paymentMethod')?.value==='Check';
+    wrap.style.display=isCheck?'block':'none';
+    if(!isCheck&&$('paymentCheckNumber'))$('paymentCheckNumber').value='';
+  }
+
   function ensureUi(){
-    if($('jobPaymentsSection')){wireMoneyInput($('paymentAmount'));return;}
+    if($('jobPaymentsSection')){wireMoneyInput($('paymentAmount'));toggleCheckNumber();return;}
     const docSection=document.querySelector('#jobDialog .doc-section');
     if(!docSection) return;
     const section=document.createElement('section');
@@ -24,9 +32,10 @@
 
     const dialog=document.createElement('dialog');
     dialog.id='paymentDialog';
-    dialog.innerHTML=`<form method="dialog" class="card document-dialog"><h2 id="paymentDialogTitle">Add Payment</h2><input id="paymentId" type="hidden"><div class="form-grid"><div><label>Payment date</label><input id="paymentDate" type="date"></div><div><label>Amount</label><input id="paymentAmount" type="text" inputmode="decimal" placeholder="$0.00"></div><div><label>Payment type / milestone</label><select id="paymentType"><option>Deposit</option><option>Payment at Start</option><option>Progress Payment</option><option>Final Payment</option><option>Insurance Payment</option><option>Other</option></select></div><div><label>Payment method</label><select id="paymentMethod"><option value="">Select...</option><option>Check</option><option>Square</option><option>Credit Card</option><option>ACH</option><option>Cash</option><option>Insurance</option><option>Other</option></select></div><div class="wide"><label>Notes</label><textarea id="paymentNotes" rows="3"></textarea></div></div><div class="toolbar"><button class="btn primary" type="button" id="savePaymentBtn">Save Payment</button><button class="btn" value="cancel">Cancel</button></div></form>`;
+    dialog.innerHTML=`<form method="dialog" class="card document-dialog"><h2 id="paymentDialogTitle">Add Payment</h2><input id="paymentId" type="hidden"><div class="form-grid"><div><label>Payment date</label><input id="paymentDate" type="date"></div><div><label>Amount</label><input id="paymentAmount" type="text" inputmode="decimal" placeholder="$0.00"></div><div><label>Payment type / milestone</label><select id="paymentType"><option>Deposit</option><option>Payment at Start</option><option>Progress Payment</option><option>Final Payment</option><option>Insurance Payment</option><option>Other</option></select></div><div><label>Payment method</label><select id="paymentMethod"><option value="">Select...</option><option>Check</option><option>Square</option><option>Credit Card</option><option>ACH</option><option>Cash</option><option>Insurance</option><option>Other</option></select></div><div id="paymentCheckNumberWrap" style="display:none"><label>Check #</label><input id="paymentCheckNumber" autocomplete="off" placeholder="Check number"></div><div class="wide"><label>Notes</label><textarea id="paymentNotes" rows="3"></textarea></div></div><div class="toolbar"><button class="btn primary" type="button" id="savePaymentBtn">Save Payment</button><button class="btn" value="cancel">Cancel</button></div></form>`;
     document.body.appendChild(dialog);
     wireMoneyInput($('paymentAmount'));
+    $('paymentMethod').addEventListener('change',toggleCheckNumber);
     $('addPaymentBtn').onclick=()=>openPayment();
     $('savePaymentBtn').onclick=savePayment;
     document.body.addEventListener('click',e=>{
@@ -65,7 +74,7 @@
     ensureUi();
     const box=$('jobPaymentList');
     if(!box) return;
-    box.innerHTML=currentPayments.length?currentPayments.map(p=>`<div class="doc-row"><div><div class="doc-type">${p.payment_type||'Payment'}</div><div class="doc-notes">${p.payment_date||''}</div></div><div><b>${fmt(p.amount)}</b><div class="doc-notes">${p.payment_method||''}</div></div><div class="doc-notes">${p.notes||''}</div><div></div><div class="doc-actions"><button class="btn small" type="button" data-edit-payment="${p.id}">Edit</button><button class="btn small" type="button" data-delete-payment="${p.id}">Delete</button></div></div>`).join(''):'<div class="empty">No payments recorded yet.</div>';
+    box.innerHTML=currentPayments.length?currentPayments.map(p=>`<div class="doc-row"><div><div class="doc-type">${p.payment_type||'Payment'}</div><div class="doc-notes">${p.payment_date||''}</div></div><div><b>${fmt(p.amount)}</b><div class="doc-notes">${p.payment_method||''}${p.check_number?` • Check #${p.check_number}`:''}</div></div><div class="doc-notes">${p.notes||''}</div><div></div><div class="doc-actions"><button class="btn small" type="button" data-edit-payment="${p.id}">Edit</button><button class="btn small" type="button" data-delete-payment="${p.id}">Delete</button></div></div>`).join(''):'<div class="empty">No payments recorded yet.</div>';
     refreshSummary();
   }
 
@@ -89,7 +98,9 @@
     $('paymentAmount').value=x.amount==null?'':fmt(x.amount);
     $('paymentType').value=x.payment_type||'Deposit';
     $('paymentMethod').value=x.payment_method||'';
+    $('paymentCheckNumber').value=x.check_number||'';
     $('paymentNotes').value=x.notes||'';
+    toggleCheckNumber();
     $('paymentDialog').showModal();
   }
 
@@ -109,7 +120,8 @@
     const amount=parseMoney($('paymentAmount').value);
     if(!(amount>0)){if(typeof notice==='function') notice('Payment amount must be greater than zero.','error');return;}
     const paymentType=$('paymentType').value||'Payment';
-    const row={job_id:jobId,payment_date:$('paymentDate').value||null,payment_type:paymentType,amount,payment_method:$('paymentMethod').value||null,notes:$('paymentNotes').value.trim()||null,updated_at:new Date().toISOString()};
+    const method=$('paymentMethod').value||null;
+    const row={job_id:jobId,payment_date:$('paymentDate').value||null,payment_type:paymentType,amount,payment_method:method,check_number:method==='Check'?($('paymentCheckNumber').value.trim()||null):null,notes:$('paymentNotes').value.trim()||null,updated_at:new Date().toISOString()};
     let res;
     if(id) res=await db.from('job_payments').update(row).eq('id',id).select('*').single();
     else res=await db.from('job_payments').insert(row).select('*').single();
