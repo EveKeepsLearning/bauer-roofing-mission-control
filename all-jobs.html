@@ -4,16 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Jobs • Bauer Roofing Operations</title>
-<link rel="stylesheet" href="styles.css?v=20260911-66">
+<link rel="stylesheet" href="styles.css?v=20260911-67">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js?v=20260911-66"></script>
+<script src="config.js?v=20260911-67"></script>
 <style>
 body{background:#f3f6f9}.all-jobs-shell{width:min(1450px,96vw);margin:22px auto 60px}.all-jobs-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px}.all-jobs-head h1{margin:0 0 4px}.directory-card{background:#fff;border:1px solid #dfe5ec;border-radius:14px;padding:18px;box-shadow:0 2px 8px rgba(31,48,72,.05)}.directory-tools{display:grid;grid-template-columns:minmax(260px,1fr) 190px 190px;gap:10px;align-items:end}.directory-tools input,.directory-tools select{margin:0}.directory-summary{display:flex;gap:10px;flex-wrap:wrap;margin:15px 0}.summary-pill{background:#eef3f8;border-radius:999px;padding:6px 10px;font-size:12px;color:#4d5d70}.table-wrap{overflow:auto;border:1px solid #e1e7ee;border-radius:10px}.all-jobs-table{width:100%;border-collapse:collapse;min-width:1050px}.all-jobs-table th,.all-jobs-table td{padding:11px 10px;border-bottom:1px solid #e8edf2;text-align:left;vertical-align:top}.all-jobs-table th{background:#eef3f8;position:sticky;top:0}.all-jobs-table tr:hover{background:#f7faff}.status-badge{display:inline-flex;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:750;background:#e8f1ff;color:#215a9c}.status-badge.closed{background:#eef1f4;color:#596574}.status-badge.canceled{background:#fff0f0;color:#8b1f1f}.status-badge.archived{background:#f3edff;color:#64439a}.empty{text-align:center;padding:35px;color:#687588}@media(max-width:760px){.all-jobs-head{display:block}.all-jobs-head .btn{margin-top:10px}.directory-tools{grid-template-columns:1fr}}
-</style>
+.all-jobs-table tr[data-open-job]{cursor:pointer}.all-jobs-table tr[data-open-job]:focus-visible{outline:3px solid #1f6fd5;outline-offset:-3px}</style>
 </head>
 <body>
 <main class="all-jobs-shell">
-  <div class="all-jobs-head"><div><h1>Jobs</h1><div class="sub">Search every BRO job, including completed, canceled, and archived work.</div></div><a class="btn" href="jobs.html?v=20260911-66">Open Jobs / Production</a></div>
+  <div class="all-jobs-head"><div><h1>Jobs</h1><div class="sub">Search every BRO job, including completed, canceled, and archived work.</div></div><a class="btn" href="jobs.html?v=20260911-67">Open Jobs / Production</a></div>
   <div id="notice" class="notice hidden"></div>
   <section class="directory-card">
     <div class="directory-tools">
@@ -25,6 +25,6 @@ body{background:#f3f6f9}.all-jobs-shell{width:min(1450px,96vw);margin:22px auto 
     <div class="table-wrap"><table class="all-jobs-table"><thead><tr><th>Job #</th><th>Customer</th><th>Inquiry #</th><th>Address</th><th>Type</th><th>Stage</th><th>Contract date</th><th></th></tr></thead><tbody id="allJobsBody"></tbody></table></div>
   </section>
 </main>
-<script src="all-jobs.js?v=20260911-66"></script>
+<script src="all-jobs.js?v=20260911-67"></script>
 </body>
 </html>
