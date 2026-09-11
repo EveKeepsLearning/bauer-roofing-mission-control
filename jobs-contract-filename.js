@@ -46,18 +46,7 @@
 (function(){
   const REPAIR='#4054b2';
   const REROOF='#1296d4';
-  const STAGE_NUMBERS={
-    'Awarded':1,
-    'Deposit':2,
-    'Contract / Deposit':2,
-    'Material Ordered':3,
-    'Ready to Schedule':4,
-    'Scheduled':5,
-    'Material Delivered':6,
-    'In Production':7,
-    'Work Complete':8,
-    'Final Payment / Closeout':9
-  };
+  const STAGE_ORDER={awarded:1,contract:2,material:3,ready:4,scheduled:5,delivered:6,production:7,complete:8,closeout:9};
 
   function kind(j){
     const raw=String((typeof jobType==='function'?jobType(j):(j?.job_type||j?.primary_category||''))||'').toLowerCase();
@@ -67,8 +56,8 @@
   }
 
   function stageNumber(j){
-    const label=typeof stageLabel==='function'?stageLabel(j):'';
-    return STAGE_NUMBERS[label]||99;
+    const key=typeof stageKey==='function'?stageKey(j):'';
+    return STAGE_ORDER[key]||99;
   }
 
   function numberedStage(j){
@@ -77,9 +66,15 @@
     return n===99?label:`${n}. ${label}`;
   }
 
+  function nextNumber(j){
+    const n=stageNumber(j);
+    if(n===99)return 99;
+    return n<9?n+1:9;
+  }
+
   function numberedNext(j){
     const label=typeof nextStep==='function'?nextStep(j):'';
-    const n=stageNumber(j);
+    const n=nextNumber(j);
     return n===99?label:`${n}. ${label}`;
   }
 
@@ -123,7 +118,8 @@
     window.__broWorkflowTableValueWrapped=true;
     const baseTableValue=tableValue;
     tableValue=function(j,key){
-      if(key==='stage'||key==='next')return stageNumber(j);
+      if(key==='stage')return stageNumber(j);
+      if(key==='next')return nextNumber(j);
       return baseTableValue(j,key);
     };
   }
