@@ -7,7 +7,7 @@
     options.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v||'Choose…';s.appendChild(o);});
     if(defaultValue)s.value=defaultValue;old.replaceWith(s);return s;
   }
-  replace('inquirySource',['','Angi Ads','HomeAdvisor (Angi Leads)','Repeat Business','Direct Mail','Internet','Referral','Website Form','Previous Lead','Mail','Other'],'Repeat Business');
+  replace('inquirySource',['','Angi Ads','HomeAdvisor (Angi Leads)','Repeat Business','Direct Mail','Internet','Referral','Website Form','Previous Lead','Mail','Other'],'');
   replace('inquiryAssigned',['Roy','Eve','Jonathan','Other'],'Roy');
   const assigned=document.getElementById('inquiryAssigned')?.closest('div');
   if(assigned&&!document.getElementById('inquiryTakenBy')){
@@ -20,3 +20,4 @@
     source.insertAdjacentElement('afterend',box);
   }
 })();
+
