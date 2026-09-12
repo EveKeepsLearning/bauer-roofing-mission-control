@@ -180,7 +180,8 @@
           Suggestions
         </button>
 
-      </nav>
+      <a id="teamAccountSetupTab" class="nav-calendar-link hidden" href="team-admin.html?v=20260912-personal3" hidden>Team Account Setup</a>
+</nav>
 
     </header>
 
@@ -203,7 +204,6 @@
             <h2 id="todayGreeting">Your Today</h2>
             <div class="today-date" id="todayDate"></div>
           </div>
-          <button class="btn primary" id="newTaskBtn">+ Add Task</button>
         </div>
 
         <div class="today-status-strip">
@@ -212,7 +212,7 @@
             <span class="today-kpi critical-kpi"><b id="kpiCritical">0</b> Critical</span>
             <span class="today-kpi"><b id="kpiDue">0</b> Today</span>
             <span class="today-kpi communication-kpi"><b id="kpiComms">0</b> Comms</span>
-            <span class="today-kpi jobs-kpi" hidden><b id="kpiWeekJobs">0</b> Jobs this week</span>
+            <span class="today-kpi jobs-kpi hidden" hidden><b id="kpiWeekJobs">0</b> Jobs this week</span>
           </div>
         </div>
 
@@ -223,11 +223,12 @@
           <div class="today-main">
 
             <div class="card today-work-card">
-              <div class="today-section-heading">
+              <div class="today-section-heading" style="flex-wrap:wrap">
                 <div>
                   <div class="today-eyebrow">YOUR WORK</div>
                   <h2>Today's Tasks</h2>
                 </div>
+                <button class="btn primary" id="newTaskBtn">+ Add Task</button>
                 <div class="task-color-key" aria-label="Task category colors">
                   <span><i class="color-dot communication-dot"></i>Communication</span>
                   <span><i class="color-dot financial-dot"></i>Financial</span>
@@ -244,7 +245,7 @@
 
           <aside class="today-sidebar">
 
-            <div class="card today-awareness-card" id="attentionCard">
+            <div class="card today-awareness-card hidden" id="attentionCard" hidden>
               <div class="sidebar-card-heading">
                 <h3>Needs Attention</h3>
                 <span class="attention-count" id="attentionCount">0</span>
@@ -267,7 +268,7 @@
               </section>
             </div>
 
-            <div class="card section-card section-jobs sidebar-quiet-card" id="weekJobsCard" hidden>
+            <div class="card section-card section-jobs sidebar-quiet-card hidden" id="weekJobsCard" hidden>
               <h3>Jobs Starting This Week</h3>
               <div id="weekJobs"></div>
             </div>
@@ -1901,9 +1902,10 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=20260912-personal2"></script>
-  <script src="today-messages.js?v=20260912-personal2" defer></script>
+  <script src="app.js?v=20260912-personal3"></script>
+  <script src="today-messages.js?v=20260912-personal3" defer></script>
 
 </body>
 </html>
+
 
