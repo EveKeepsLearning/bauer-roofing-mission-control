@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Team account setup • BRO</title><link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script>
+<style>main{max-width:820px;margin:36px auto;padding:0 20px}.member{padding:20px;border:1px solid #d9e2ef;border-radius:14px;background:white;margin:18px 0}.actions{display:flex;flex-wrap:wrap;gap:10px}.result{white-space:pre-wrap;overflow-wrap:anywhere;padding:12px;background:#f2f6fc;border-radius:8px}.hidden{display:none!important}</style>
+</head><body><main><h1>Team account setup</h1><p id="identity">Checking your sign-in…</p>
+<p><a href="index.html">Back to BRO</a></p>
+<section id="setup" class="hidden"><p>Dad and Roy have shared editing access to BRO’s customer, inquiry, job, and appointment records. Their task lists and notes use their own sign-ins.</p>
+<p><strong>For testing:</strong> create an account below and save its initial password. This does not email anyone. Test in a private/incognito window. Existing accounts and passwords will not be overwritten.</p>
+<p><strong>Alternatively:</strong> send an invitation so they can set up access themselves. Choose one method for each person.</p>
+<div class="member" data-email="jbauer@bauerroofs.com"><h2>Dad</h2><p>jbauer@bauerroofs.com</p><div class="actions"><button class="btn primary" data-action="create_test">Create Dad’s test login</button><button class="btn" data-action="invite">Email invitation</button></div><p class="result hidden" role="status"></p></div>
+<div class="member" data-email="rbauer@bauerroofs.com"><h2>Roy</h2><p>rbauer@bauerroofs.com</p><div class="actions"><button class="btn primary" data-action="create_test">Create Roy’s test login</button><button class="btn" data-action="invite">Email invitation</button></div><p class="result hidden" role="status"></p></div>
+<p>After testing, each person can use <strong>Change my password</strong> inside BRO, or <strong>Set or reset password</strong> on the login screen. There is no master password.</p></section></main>
+<script src="team-admin.js?v=20260912-team1"></script></body></html>
