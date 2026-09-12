@@ -3,6 +3,14 @@
   const join=(...v)=>v.filter(x=>x!=null&&String(x).trim()).join(', ');
   const date=v=>{if(!v)return '';const d=new Date(/^\d{4}-\d{2}-\d{2}$/.test(v)?v+'T12:00:00':v);return Number.isNaN(d.getTime())?'':d.toLocaleDateString('en-US',{timeZone:'America/New_York'});};
   const bool=v=>v===true?'Yes':v===false?'No':'';
+  function selectAppointments(appointments,now=Date.now()){
+    const valid=appointments.filter(a=>!a.deleted_at&&!/cancel|reschedul/i.test(a.appointment_status||'')&&a.appointment_at&&Number.isFinite(new Date(a.appointment_at).getTime())).sort((a,b)=>new Date(a.appointment_at)-new Date(b.appointment_at));
+    const isProposal=a=>/proposal|presentation/i.test(a.appointment_type||'')&&!/measure/i.test(a.appointment_type||'');
+    const measure=valid.find(a=>!isProposal(a));
+    const proposals=valid.filter(isProposal);
+    const proposal=proposals.find(a=>new Date(a.appointment_at).getTime()>=now)||proposals[proposals.length-1];
+    return {measure,proposal};
+  }
   async function build(template,lead={},contact={},appointments=[],lib=root.PDFLib,fontBytes=null,fontkit=root.fontkit){
     const {PDFDocument,StandardFonts,rgb}=lib;
     const doc=await PDFDocument.load(template);
@@ -55,9 +63,7 @@
     if(/cash|financing/i.test(lead.payment_plan||''))mark(/cash/i.test(lead.payment_plan)?105:170,472.5);else if(lead.payment_plan)field('Payment plan',lead.payment_plan,270,472.5,90);
     // Summarize attribution in its own area; keep original referral choices available for handwriting.
     field('Source',join(lead.source,lead.lead_source_secondary,lead.referral_category,lead.referral_detail),103,512.3,467,9);
-    const current=appointments.filter(a=>!a.deleted_at&&!/cancel|reschedul/i.test(a.appointment_status||'')&&a.appointment_at).sort((a,b)=>new Date(b.appointment_at)-new Date(a.appointment_at));
-    const measure=current.find(a=>/measure|inspection|sales appointment/i.test(a.appointment_type||''));
-    const proposal=current.find(a=>/proposal|estimate|presentation/i.test(a.appointment_type||'')&&!/measure/i.test(a.appointment_type||''));
+    const {measure,proposal}=selectAppointments(appointments);
     function appointment(a,top){if(!a)return;const d=new Date(a.appointment_at);field('Appointment time',d.toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit'}),165,top,100);field('Appointment day',d.toLocaleDateString('en-US',{timeZone:'America/New_York',weekday:'short'}),309,top,52);field('Appointment date',date(a.appointment_at),409,top,84);}
     appointment(measure,677);appointment(proposal,696.9);
     field('Salesperson',lead.assigned_to||lead.salesperson||measure?.assigned_to,100,716.8,205);
@@ -66,6 +72,6 @@
     doc.catalog.getOrCreateViewerPreferences().setDuplex(lib.Duplex.DuplexFlipLongEdge);
     return {bytes:await doc.save(),pages:doc.getPageCount(),shortened};
   }
-  root.BROMeasurePDF={build};
-  if(typeof module!=='undefined'&&module.exports)module.exports={build};
+  root.BROMeasurePDF={build,selectAppointments};
+  if(typeof module!=='undefined'&&module.exports)module.exports={build,selectAppointments};
 })(typeof globalThis!=='undefined'?globalThis:this);
