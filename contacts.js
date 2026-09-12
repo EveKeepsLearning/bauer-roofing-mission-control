@@ -2,7 +2,7 @@
 const cfg=window.BAUER_CONFIG||{};const $=id=>document.getElementById(id);let db=null;let session=null;let selected=null;let searchTimer=null;
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function notice(t,type=''){const n=$('notice');n.textContent=t;n.className=`notice ${type}`.trim();}
-function dateLabel(v){if(!v)return'—';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toLocaleDateString();}
+function dateLabel(v){if(!v)return'—';const raw=String(v);const d=new Date(/^\d{4}-\d{2}-\d{2}$/.test(raw)?raw+'T12:00:00':raw);return Number.isNaN(d.getTime())?raw:d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
 function phoneDigits(v){return String(v||'').replace(/\D/g,'');}
 function itemLink(href,body){return `<a class="history-item" style="display:block;color:inherit;text-decoration:none;cursor:pointer" href="${href}">${body}</a>`;}
 function inquiryBody(l,right='→'){return `<div class="history-grid"><div><b>Inquiry #${esc(l.lead_number??l.bauer_lead_number??'')}</b><div class="result-meta">${esc(dateLabel(l.lead_date||l.inquiry_at||l.inquiry_date_text||l.created_at))}</div></div><div><b>${esc(l.product_interest||l.work_category||l.source||'Inquiry')}</b><div>${esc(l.street_address||l.property_address||'')}</div><div class="result-meta">${esc(l.product_description||l.description||l.notes||'')}</div></div><div>${esc(right)}</div></div>`;}
