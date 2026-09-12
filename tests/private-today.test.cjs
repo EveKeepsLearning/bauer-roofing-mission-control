@@ -1,0 +1,20 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const app=fs.readFileSync(process.argv[2]||'app.js','utf8');
+function fn(name,next){const start=app.lastIndexOf('function '+name+'(');return app.slice(start,app.indexOf('\nfunction '+next+'(',start));}
+const elements=new Map();
+const $=id=>{if(!elements.has(id))elements.set(id,{textContent:'',innerHTML:'',classList:{toggle(){}}});return elements.get(id);};
+const context={$,Intl,Date,user:{id:'jonathan',email:'jbauer@bauerroofs.com'},state:{tasks:[],quick_notes:[],jobs:[],communications:[],roy_updates:[{}],dad_updates:[{}]},localStorage:{getItem(){return 'eve';}},localNow:()=>'',actionableTasks:()=>[],financialTasks:()=>[],nextUpTask:()=>null,renderNextUp(){},renderQuickNotes(){},renderPhone(){},renderJobs(){},setSectionVisible(){},todayISO:()=> '2026-09-12',activeRow:()=>true,jobIsCancelled:()=>false,communicationTaskDue:()=>false,taskCard:()=>'',todayEntrySort:()=>0,todayEntryCard:()=>'',empty:()=>''};
+vm.createContext(context);
+vm.runInContext(fn('currentTeamMember','openTeamNumbers')+fn('communicationDueItems','communicationDueCard')+fn('renderDashboard','renderRoyUpdates'),context);
+context.state.tasks=[{id:'secret',owner_id:'eve',status:'Blocked',base_priority:'Critical'},{id:'mine',owner_id:'jonathan',status:'Not Started',due_date:'2026-09-12'}];
+context.state.quick_notes=[{owner_id:'eve',note:'secret'},{owner_id:'jonathan',note:'mine'}];
+context.state.communications=[{owner_id:'eve',status:'Open',due_date:'2026-09-11'}];
+context.state.jobs=[{owner_id:'eve',client_communication_needed:true}];
+context.renderDashboard();
+assert.match($('todayGreeting').textContent, /Jonathan$/);
+assert.equal(context.state.tasks.length,1);assert.equal(context.state.quick_notes.length,1);
+assert.equal($('kpiCritical').textContent,0);assert.equal($('kpiDue').textContent,1);assert.equal($('kpiComms').textContent,0);assert.equal($('attentionCount').textContent,0);
+context.user={id:'eve',email:'evebauer@bauerroofs.com'};context.renderDashboard();
+assert.equal(context.state.tasks.length,0);assert.equal(context.state.quick_notes.length,0);assert.match($('todayGreeting').textContent,/Eve$/);
+assert.match(app,/if\(user\?\.id!==loadingUserId\)return;/);
+console.log('PASS: mixed-account Today data removed, personal counts and follow-ups, Jonathan greeting, account switch');
