@@ -200,7 +200,7 @@
         <div class="today-hero">
           <div>
             <div class="today-eyebrow">TODAY</div>
-            <h2 id="todayGreeting">Good morning, Eve</h2>
+            <h2 id="todayGreeting">Your Today</h2>
             <div class="today-date" id="todayDate"></div>
           </div>
           <button class="btn primary" id="newTaskBtn">+ Add Task</button>
@@ -212,7 +212,7 @@
             <span class="today-kpi critical-kpi"><b id="kpiCritical">0</b> Critical</span>
             <span class="today-kpi"><b id="kpiDue">0</b> Today</span>
             <span class="today-kpi communication-kpi"><b id="kpiComms">0</b> Comms</span>
-            <span class="today-kpi jobs-kpi"><b id="kpiWeekJobs">0</b> Jobs this week</span>
+            <span class="today-kpi jobs-kpi" hidden><b id="kpiWeekJobs">0</b> Jobs this week</span>
           </div>
         </div>
 
@@ -267,14 +267,14 @@
               </section>
             </div>
 
-            <div class="card section-card section-jobs sidebar-quiet-card" id="weekJobsCard">
+            <div class="card section-card section-jobs sidebar-quiet-card" id="weekJobsCard" hidden>
               <h3>Jobs Starting This Week</h3>
               <div id="weekJobs"></div>
             </div>
 
             <div class="card section-card section-notes quick-notes-card">
-              <h3>Quick Notes</h3>
-              <div class="meta" style="margin-bottom:10px">A scratchpad for things worth remembering that are not tasks.</div>
+              <h3>My Quick Notes</h3>
+              <div class="meta" style="margin-bottom:10px">Private to you. Only you can see these notes.</div>
               <input id="quickNoteEditId" type="hidden">
               <textarea id="quickNoteText" placeholder="Write something down…"></textarea>
               <div class="toolbar" style="margin-top:8px">
@@ -1901,7 +1901,9 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=20260912-team1"></script>
+  <script src="app.js?v=20260912-personal2"></script>
+  <script src="today-messages.js?v=20260912-personal2" defer></script>
 
 </body>
 </html>
+
