@@ -2844,6 +2844,14 @@ async function init() {
 async function handleSession(
   session
 ) {
+  const nextUserId=session?.user?.id||null;
+  if(user?.id!==nextUserId){
+    Object.keys(state).forEach(key=>{if(Array.isArray(state[key]))state[key]=[];});
+    for(const id of ['quickNoteText','quickNoteEditId'])if($(id))$(id).value='';
+    for(const id of ['currentTask','todayTaskList','blockedList','quickNotesList','royUpdateList','dadUpdateList'])if($(id))$(id).innerHTML='';
+    if($('todayGreeting'))$('todayGreeting').textContent='Your Today';
+    window.dispatchEvent(new Event('bro-user-change'));
+  }
   user =
     session?.user ||
     null;
@@ -3253,12 +3261,12 @@ function communicationDueItems() {
     .map(t => ({ kind:'task', dueDate:t.due_date || '', dueTime:t.due_time || '', item:t }));
 
   const responsibilityItems = state.communications
-    .filter(c => activeRow(c) && c.status !== 'Completed' && c.due_date && c.due_date <= td)
+    .filter(c => c.owner_id === user?.id && activeRow(c) && c.status !== 'Completed' && c.due_date && c.due_date <= td)
     .map(c => ({ kind:'communication', dueDate:c.due_date || '', dueTime:c.due_time || '', item:c }));
 
   const jobItems = state.jobs
     .filter(j => activeRow(j) && !jobIsCancelled(j) && !['Final / Closed','Closed'].includes(j.stage || ''))
-    .filter(j => j.client_communication_needed || (j.client_communication_due_date && j.client_communication_due_date <= td))
+    .filter(j => j.owner_id === user?.id && (j.client_communication_needed || (j.client_communication_due_date && j.client_communication_due_date <= td)))
     .map(j => ({ kind:'job', dueDate:j.client_communication_due_date || td, dueTime:'', item:j }));
 
   return [...taskItems, ...responsibilityItems, ...jobItems].sort((a,b) => {
@@ -3349,10 +3357,12 @@ function setSectionVisible(id,visible){
 }
 
 function renderDashboard() {
+  state.tasks=state.tasks.filter(t=>t.owner_id===user?.id);
+  state.quick_notes=state.quick_notes.filter(n=>n.owner_id===user?.id);
   $('nowText').textContent = localNow();
   const acts = actionableTasks();
   const blocked = state.tasks.filter(t => activeRow(t) && ['Blocked','Waiting'].includes(t.status));
-  const jw = jobsThisWeek().filter(activeRow);
+  const jw = []; // Team production stays in Jobs; Today is personal.
   $('weekJobs').innerHTML = jw.map(j => `<div class="task"><b>${esc(j.customer_name || 'Unnamed customer')}</b><div class="meta">${esc(j.property_address || '')} • ${esc(j.stage)} • Start ${esc(j.confirmed_start_date || j.target_start_date || 'Not set')}</div></div>`).join('') || empty('No jobs entered for this week yet.');
   const comms = communicationDueItems();
   const finances=financialTasks();
@@ -3371,8 +3381,10 @@ function renderDashboard() {
     $('todayTasksEmpty').textContent=next?'✓ Everything else is clear.':"✓ Today's task list is clear.";
     $('todayTasksEmpty').classList.toggle('hidden',remainingTaskCount>0);
   }
-  renderRoyUpdates();
-  renderDadUpdates();
+  setSectionVisible('royUpdateSection',false);
+  setSectionVisible('dadUpdateSection',false);
+  if($('royUpdateList'))$('royUpdateList').innerHTML='';
+  if($('dadUpdateList'))$('dadUpdateList').innerHTML='';
   renderQuickNotes();
   const td = todayISO();
   const isOpen = t => activeRow(t) && !['Completed','Cancelled','Skipped'].includes(t.status);
@@ -3383,7 +3395,7 @@ function renderDashboard() {
   $('kpiComms').textContent = comms.length;
   $('kpiWeekJobs').textContent = jw.length;
   const hour=Number(new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',hourCycle:'h23'}).format(new Date()));
-  if($('todayGreeting'))$('todayGreeting').textContent=`Good ${hour<12?'morning':hour<17?'afternoon':'evening'}, ${currentTeamMember()==='dad'?'Dad':currentTeamMember()==='roy'?'Roy':'Eve'}`;
+  if($('todayGreeting'))$('todayGreeting').textContent=`Good ${hour<12?'morning':hour<17?'afternoon':'evening'}, ${currentTeamMember()==='dad'?'Jonathan':currentTeamMember()==='roy'?'Roy':'Eve'}`;
   if($('todayDate'))$('todayDate').textContent=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'long',month:'long',day:'numeric'}).format(new Date());
   const beforeNoon=state.tasks.filter(t=>isOpen(t)&&t.due_date===td&&t.due_time&&t.due_time<'12:00').length;
   if($('daySummary'))$('daySummary').textContent=criticalCount
@@ -3393,7 +3405,7 @@ function renderDashboard() {
       : comms.length
         ? `${comms.length} ${comms.length===1?'communication is':'communications are'} ready for follow-up.`
         : `You're caught up. Nothing urgent is waiting.`;
-  const attentionTotal=blocked.length+(state.roy_updates||[]).length+(state.dad_updates||[]).length;
+  const attentionTotal=blocked.length;
   if($('attentionCount'))$('attentionCount').textContent=attentionTotal;
   if($('attentionEmpty'))$('attentionEmpty').classList.toggle('hidden',attentionTotal>0);
   setSectionVisible('blockedSection',blocked.length>0);
@@ -5336,10 +5348,14 @@ async function markJobCustomerContacted(jobId){
 }
 
 async function loadAll(){
+  const loadingUserId=user?.id;
+  if(!loadingUserId)return;
   const calls=[['tasks','created_at',false],['jobs','updated_at',false],['communications','due_date',true],['phone_messages','created_at',false],['prospects','created_at',false],['leads','created_at',false],['appointments','appointment_at',true],['sales_communications','occurred_at',false],['job_communications','occurred_at',false],['lookup_options','sort_order',true],['sops','title',true],['suggestions','created_at',false],['quick_notes','updated_at',false]];
-  const results=await Promise.all(calls.map(([table,order,ascending])=>{let query=db.from(table).select('*').order(order,{ascending});if(table==='tasks')query=query.eq('owner_id',user.id);return query.limit(['leads','jobs','prospects','appointments'].includes(table)?5000:500);}));
+  const results=await Promise.all(calls.map(([table,order,ascending])=>{let query=db.from(table).select('*').order(order,{ascending});if(['tasks','quick_notes'].includes(table))query=query.eq('owner_id',loadingUserId);return query.limit(['leads','jobs','prospects','appointments'].includes(table)?5000:500);}));
+  if(user?.id!==loadingUserId)return;
   for(let i=0;i<results.length;i++){ if(results[i].error)throw results[i].error; let stateName=calls[i][0]==='phone_messages'?'phone':calls[i][0]; if(stateName==='lookup_options')stateName='lookups'; state[stateName]=results[i].data||[]; }
   const relationshipResults=await Promise.all(['contacts','properties','contact_properties'].map(table=>db.from(table).select('*').limit(5000)));
+  if(user?.id!==loadingUserId)return;
   contactArchitectureAvailable=relationshipResults.every(result=>!result.error);
   if(contactArchitectureAvailable){
     state.contacts=relationshipResults[0].data||[];
@@ -5350,20 +5366,23 @@ async function loadAll(){
     console.info('Contacts relationship migration has not been installed yet; using inquiry-backed contact cards.');
   }
   const subtaskResult=await db.from('task_subtasks').select('*').order('sort_order',{ascending:true}).limit(2000);
+  if(user?.id!==loadingUserId)return;
   if(subtaskResult.error){state.task_subtasks=[];console.warn('Task subtasks are not available until the task-group SQL is installed:',subtaskResult.error.message);}else state.task_subtasks=subtaskResult.data||[];
   if(!subtaskResult.error){
     try{
       const moved=await rollForwardGroupedTasks();
       const normalized=await db.rpc('normalize_recurring_tasks_to_weekdays');
       if(moved||!normalized.error){
-        const refreshedTasks=await db.from('tasks').select('*').eq('owner_id',user.id).order('created_at',{ascending:false}).limit(500);
+        const refreshedTasks=await db.from('tasks').select('*').eq('owner_id',loadingUserId).order('created_at',{ascending:false}).limit(500);
         const refreshedSubtasks=await db.from('task_subtasks').select('*').order('sort_order',{ascending:true}).limit(2000);
+        if(user?.id!==loadingUserId)return;
         if(!refreshedTasks.error)state.tasks=refreshedTasks.data||[];
         if(!refreshedSubtasks.error)state.task_subtasks=refreshedSubtasks.data||[];
       }
     }catch(error){console.warn('Could not roll repeating tasks forward:',error.message||error);}
   }
   const royResult=await db.rpc('get_recent_roy_updates',{p_days:7});
+  if(user?.id!==loadingUserId)return;
   if(royResult.error){
     state.roy_updates=[];
     console.warn('Roy update history is not available yet:',royResult.error.message);
@@ -5371,6 +5390,7 @@ async function loadAll(){
     state.roy_updates=royResult.data||[];
   }
   const dadResult=await db.rpc('get_recent_dad_production_updates',{p_days:14});
+  if(user?.id!==loadingUserId)return;
   if(dadResult.error){
     state.dad_updates=[];
     console.warn('Dad production history is not available yet:',dadResult.error.message);
@@ -5378,6 +5398,7 @@ async function loadAll(){
     state.dad_updates=dadResult.data||[];
   }
   try { await rollForwardMissedAngiCadence(); } catch (error) { console.warn('Could not roll forward missed Angi cadence windows:', error); }
+  if(user?.id!==loadingUserId)return;
   setupLeadProspectSelects(); renderDashboard(); renderProspectsLeads(); renderAngiQueue(); await applyUrlNavigation();
 }
 
@@ -5471,3 +5492,4 @@ document.body.addEventListener('click', async event=>{
 
 setupLeadAddressAutocomplete();
 ensureLatestRelease().then(reloading=>{if(!reloading)init();});
+
