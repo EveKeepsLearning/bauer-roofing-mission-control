@@ -1,0 +1,48 @@
+#broMobileHeader,#broMobilePanel{display:none}
+@media(max-width:780px){
+ html,body{max-width:100%;min-width:0;overflow-x:clip}
+ #broMobileHeader{position:sticky;top:0;z-index:1100;display:flex;align-items:center;gap:12px;box-sizing:border-box;min-height:62px;padding:6px 12px;padding-top:calc(6px + env(safe-area-inset-top));background:#fff;border-bottom:1px solid #dce4ef;box-shadow:0 1px 5px #20334c0b}
+ #broMobileHeader .bro-mobile-home{font-size:19px;font-weight:800;letter-spacing:.04em;color:#1d579d;text-decoration:none;flex:none}
+ #broMobilePage{font-size:14px;font-weight:600;color:#40546f;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;flex:1;min-width:0}
+ #broMobileToggle{display:grid;place-items:center;width:44px;height:44px;flex:none;border:1px solid #dce4ef;background:#f3f7fc;color:#23466f;border-radius:10px;cursor:pointer}
+ #broMobilePanel{position:fixed;top:calc(62px + env(safe-area-inset-top));left:8px;right:8px;z-index:1101;max-height:calc(100dvh - 80px - env(safe-area-inset-top));overflow:auto;overscroll-behavior:contain;display:block;padding:10px;background:#fff;border:1px solid #d9e3f0;border-radius:14px;box-shadow:0 15px 45px #13294338}
+ #broMobileHeader[hidden],#broMobilePanel[hidden],.bro-mobile-source-hidden{display:none!important}
+ #broMobilePanel #nav,#broMobilePanel .bro-compact-nav-inner{display:grid!important;grid-template-columns:1fr!important;gap:3px!important;margin:0!important;padding:0!important;width:100%!important;max-width:none!important;overflow:visible!important}
+ #broMobilePanel .bro-compact-brand{display:none!important}
+ #broMobilePanel #nav>a,#broMobilePanel #nav>button,#broMobilePanel .bro-compact-nav-inner>a{display:flex;align-items:center;min-height:44px;padding:10px 13px!important;margin:0!important;border:0;border-radius:8px;font-size:16px!important;line-height:1.35!important;text-align:left;white-space:normal!important;text-decoration:none;background:transparent;color:#29425f}
+ #broMobilePanel a.active,#broMobilePanel button.active{background:#e9f1ff!important;color:#125cb4!important;font-weight:700}
+ #broMobilePanel .toolbar{display:flex!important;flex-wrap:wrap!important;gap:6px!important;margin-top:12px!important;padding-top:12px;border-top:1px solid #e1e7ef;max-width:none!important;overflow:visible!important}
+ #broMobilePanel .toolbar .btn{min-height:42px;font-size:14px!important;margin:0!important;padding:9px 12px!important}
+ #broMobilePanel .signed-in-email{display:block!important;flex-basis:100%;font-size:12px;overflow-wrap:anywhere}
+ body main,body .wrap,body .jobs-shell,body .sales-shell,body .contact-shell,body .all-jobs-shell,body .inquiries-shell,body .ideas-shell{width:100%!important;max-width:100%!important;min-width:0!important;padding-left:12px!important;padding-right:12px!important;margin:12px auto 30px!important;box-sizing:border-box}
+ main>*{min-width:0}body .grid,body .form-grid,body .bro-sheet-grid,body .bro-ci-grid,body .overview-grid,body .history-grid{grid-template-columns:minmax(0,1fr)!important}
+ body .span2,body .span3,body .span4,body .wide{grid-column:auto!important}
+ body .today-layout,body .today-sidebar{grid-template-columns:minmax(0,1fr)!important}
+ body .card,body .card2,body .detail-card,body .search-card{min-width:0;overflow-wrap:anywhere}
+ body input:not([type=checkbox]):not([type=radio]),body textarea,body select{font-size:16px!important;max-width:100%;min-width:0}
+ body input[type=checkbox],body input[type=radio]{width:20px!important;min-width:20px!important;height:20px!important;margin:0 7px 0 0!important;flex:none}
+ body .btn,body .view-tab{min-height:40px;font-size:14px!important;padding:9px 11px!important;white-space:normal!important}
+ body .jobs-head,body .sales-head,body .contact-top,body .directory-head,body .all-jobs-head,body .ideas-heading{align-items:flex-start!important;flex-wrap:wrap!important;gap:10px!important}
+ body .jobs-head h1,body .sales-head h1,body .contact-top h1,body main h1{font-size:23px!important;line-height:1.2!important;overflow-wrap:anywhere}
+ body .contact-top>div:last-child{flex-wrap:wrap!important;width:100%}
+ body .toolbar,body .filters,body .sales-tools,body .search-row,body .filter-bottom,body .filters-top{flex-wrap:wrap!important;min-width:0!important;max-width:100%;gap:8px!important;overflow:visible!important}
+ body .filters input,body .filters select,body .sales-tools input,body .search-row input{flex:1 1 170px!important;min-width:0!important;width:auto!important;font-size:16px!important}
+ body .sales-tools label{font-size:14px!important;gap:6px;flex:none}
+ body .sales-tools input[type=checkbox]{flex:none!important;width:20px!important}
+ body .quick-grid,body .filter-grid,body .contact-overview-grid{grid-template-columns:minmax(0,1fr)!important}
+ body .today-section-heading{flex-direction:row!important;flex-wrap:wrap!important;align-items:center!important;gap:8px!important}
+ body .today-section-heading .task-color-key{flex-basis:100%}
+ body .pipeline{display:grid!important;grid-template-columns:repeat(7,minmax(260px,82vw))!important;width:100%;max-width:100%;overflow-x:auto!important;scroll-snap-type:x proximity}
+ body .pipe-col{scroll-snap-align:start;min-height:180px!important}body .pipe-head,body .stage-head{font-size:15px!important}
+ body .table-wrap,body .contact-table-wrap,body #jobsTableWrap,body .directory-table,body .all-jobs-table-wrap{max-width:100%;overflow-x:auto!important;-webkit-overflow-scrolling:touch}
+ body .table-wrap table,body #jobsTableWrap table{min-width:650px}
+ body .sales-top-scroll{position:static!important}body .view-tabs{max-width:100%;overflow-x:auto!important}
+ body .calendar-shell{max-width:100%;overflow-x:auto!important}body .calendar-grid{min-width:760px}
+ body dialog{width:calc(100vw - 16px)!important;max-width:calc(100vw - 16px)!important;max-height:calc(100dvh - 24px)!important;margin:auto!important;padding:0!important;border-radius:12px}
+ body dialog .card,body dialog .card2,body dialog form,body dialog .dialog-card{width:100%!important;min-width:0!important;max-width:100%!important;max-height:calc(100dvh - 28px)!important;overflow-y:auto!important;margin:0!important;padding:16px!important}
+ body .bro-sheet-save,body .bro-global-sticky-actions,body .bro-ci-actions{flex-wrap:wrap!important;gap:8px!important}
+ body .jobs-head .btn,body .sales-head .btn,body .contact-top .btn,body .sales-tools .btn,body .contact-shell .search-row .btn{min-height:40px;font-size:14px!important;padding:9px 11px!important}
+ body .filters{grid-template-columns:minmax(0,1fr)!important}
+ body .calendar-shell{height:calc(100dvh - 160px)}
+ body .bro-sheet-head{flex-wrap:wrap}body iframe{max-width:100%}
+}
