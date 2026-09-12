@@ -1,4 +1,7 @@
 'use strict';
+function broJobType(j){const candidates=[j.job_type,j.primary_category,j.primary_job_type];return candidates.map(v=>String(v||'').trim()).find(v=>v&&!/^\d{2}[a-z]\d{4}$/i.test(v))||'Needs type review';}
+function broJobStage(j){return String(j.stage||'').trim()==='Needs Production Review'?'Awarded':(j.stage||'');}
+
 const cfg=window.BAUER_CONFIG||{};
 const $=id=>document.getElementById(id);
 let db=null;
@@ -27,7 +30,7 @@ function render(){
   });
   const counts={open:0,closed:0,canceled:0,archived:0};allJobs.forEach(j=>counts[stateOf(j)]++);
   $('allJobSummary').innerHTML=`<span class="summary-pill"><b>${rows.length}</b> shown</span><span class="summary-pill"><b>${allJobs.length}</b> total</span><span class="summary-pill"><b>${counts.open}</b> open</span><span class="summary-pill"><b>${counts.closed}</b> completed / closed</span><span class="summary-pill"><b>${counts.canceled}</b> canceled</span><span class="summary-pill"><b>${counts.archived}</b> archived</span>`;
-  $('allJobsBody').innerHTML=rows.length?rows.map(j=>{const s=stateOf(j);return `<tr data-open-job="${esc(j.id)}" tabindex="0" aria-label="Open job ${esc(j.job_number||j.customer_name||'record')}"><td><b>${esc(j.job_number||'—')}</b></td><td>${esc(j.customer_name||'Unnamed customer')}</td><td>${esc(j.lead_number||'—')}</td><td>${esc(j.property_address||'—')}</td><td>${esc(j.job_type||j.primary_category||j.primary_job_type||'—')}</td><td><span class="status-badge ${s}">${esc(j.stage||s)}</span></td><td>${esc(dateLabel(j.contract_date||j.sale_date))}</td><td><a class="btn small" href="jobs.html?job=${encodeURIComponent(j.id)}">Open Job</a></td></tr>`;}).join(''):'<tr><td colspan="8"><div class="empty">No jobs match this search.</div></td></tr>';
+  $('allJobsBody').innerHTML=rows.length?rows.map(j=>{const s=stateOf(j);return `<tr data-open-job="${esc(j.id)}" tabindex="0" aria-label="Open job ${esc(j.job_number||j.customer_name||'record')}"><td><b>${esc(j.job_number||'—')}</b></td><td>${esc(j.customer_name||'Unnamed customer')}</td><td>${esc(j.lead_number||'—')}</td><td>${esc(j.property_address||'—')}</td><td>${esc(broJobType(j))}</td><td><span class="status-badge ${s}">${esc(broJobStage(j)||s)}</span></td><td>${esc(dateLabel(j.contract_date||j.sale_date))}</td><td><a class="btn small" href="jobs.html?job=${encodeURIComponent(j.id)}">Open Job</a></td></tr>`;}).join(''):'<tr><td colspan="8"><div class="empty">No jobs match this search.</div></td></tr>';
 }
 async function start(){
   db=supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);

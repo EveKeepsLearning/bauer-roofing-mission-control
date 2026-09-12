@@ -24,12 +24,12 @@
     input.dataset.householdReady='1'; input.type='hidden';
     const p=input.id.replace(/Name$/,'')||input.id;
     const wrap=document.createElement('div'); wrap.className='wide bro-household-builder';
-    wrap.innerHTML=`<div class="bro-household-grid"><label>First name<input data-hh="first"></label><label>Spouse / co-owner<input data-hh="spouse"></label><label>Last name<input data-hh="last"></label><label>Company / organization <small>(instead of person name)</small><input data-hh="company"></label></div><label class="bro-name-preview-label">Name BRO will use<input data-hh="preview" readonly></label>`;
+    wrap.innerHTML=`<label>Contact type<select data-hh-type><option value="person">Person / household</option><option value="company">Company / organization</option></select></label><div class="bro-household-grid"><label>First name<input data-hh="first"></label><label>Spouse / co-owner<input data-hh="spouse"></label><label>Last name<input data-hh="last"></label><label>Company / organization <small>(instead of person name)</small><input data-hh="company"></label></div><label class="bro-name-preview-label">Name BRO will use<output data-hh="preview" style="display:block;padding:8px 0;font-weight:700"></output></label>`;
     input.parentElement.insertBefore(wrap,input);
-    const sync=()=>{const name=formatName(wrap.querySelector('[data-hh="first"]').value,wrap.querySelector('[data-hh="spouse"]').value,wrap.querySelector('[data-hh="last"]').value,wrap.querySelector('[data-hh="company"]').value);input.value=name;wrap.querySelector('[data-hh="preview"]').value=name;};
+    const sync=()=>{const companyMode=wrap.querySelector('[data-hh-type]').value==='company';const name=companyMode?wrap.querySelector('[data-hh="company"]').value.trim():formatName(wrap.querySelector('[data-hh="first"]').value,wrap.querySelector('[data-hh="spouse"]').value,wrap.querySelector('[data-hh="last"]').value,companyMode?wrap.querySelector('[data-hh="company"]').value:'');input.value=name;wrap.querySelector('[data-hh="preview"]').textContent=name||'Enter a name above';wrap.querySelectorAll('[data-hh]').forEach(el=>{if(el.dataset.hh==='preview')return;el.parentElement.style.display=(companyMode?(el.dataset.hh!=='company'):(el.dataset.hh==='company'))?'none':'';});};
     wrap.querySelectorAll('input:not([readonly])').forEach(el=>el.addEventListener('input',sync));
-    wrap.dataset.sourceInput=input.id;
-    wrap._broLoad=()=>{const parsed=parseName(input.value);wrap.querySelector('[data-hh="first"]').value=parsed.first;wrap.querySelector('[data-hh="spouse"]').value=parsed.spouse;wrap.querySelector('[data-hh="last"]').value=parsed.last;wrap.querySelector('[data-hh="company"]').value=parsed.company;sync();};
+    wrap.querySelector('[data-hh-type]').addEventListener('change',sync);wrap.dataset.sourceInput=input.id;
+    wrap._broLoad=()=>{const parsed=parseName(input.value);wrap.querySelector('[data-hh-type]').value=parsed.company?'company':'person';wrap.querySelector('[data-hh="first"]').value=parsed.first;wrap.querySelector('[data-hh="spouse"]').value=parsed.spouse;wrap.querySelector('[data-hh="last"]').value=parsed.last;wrap.querySelector('[data-hh="company"]').value=parsed.company;sync();};
     wrap._broLoad();
   }
   function refreshBuilders(){

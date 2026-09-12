@@ -1647,7 +1647,7 @@ function clearProspectForm() {
 
 
 function clearLeadForm() {
-  ['leadProspectId', 'leadNumber', 'leadSourceRef', 'leadFirstName', 'leadLastName', 'leadStreet', 'leadCity', 'leadZip', 'leadPhone', 'leadEmail', 'leadAppointmentDate', 'leadAppointmentTime', 'leadEstimateNote', 'leadNotes']
+  ['leadProspectId', 'leadNumber', 'leadSourceRef', 'leadFirstName', 'leadLastName', 'leadStreet', 'leadCity', 'leadZip', 'leadPhone', 'leadEmail', 'leadAppointmentDate', 'leadEstimateNote', 'leadNotes']
     .forEach(id => { if ($(id)) $(id).value = ''; });
   $('leadState').value = 'SC';
   $('leadWorkCategory').value = 'Roofing';
@@ -1796,9 +1796,7 @@ async function saveLead() {
   }
 
   if ($('leadAppointmentDate').value) {
-    const date = $('leadAppointmentDate').value;
-    const time = $('leadAppointmentTime').value || '12:00';
-    const appointmentAt = new Date(`${date}T${time}`).toISOString();
+    const appointmentAt = new Date($('leadAppointmentDate').value).toISOString();
 
     const appointmentRow = {
       lead_id: data.id,
@@ -2575,13 +2573,11 @@ async function saveTask() {
 
         due_date:
           $('taskDueDate')
-            .value ||
+            .value.slice(0,10) ||
           null,
 
         due_time:
-          $('taskDueTime')
-            .value ||
-          null,
+          taskScheduleTime(),
 
         next_action:
           $('taskNext')
@@ -2620,7 +2616,6 @@ async function saveTask() {
     'taskName',
     'taskCategory',
     'taskDueDate',
-    'taskDueTime',
     'taskRelatedNumber',
     'taskDescription',
     'taskNext',
@@ -4924,17 +4919,17 @@ async function syncTaskSubtasks(taskId,titles){
   if(additions.length){const inserted=await db.from('task_subtasks').insert(additions);if(inserted.error)throw inserted.error;}
 }
 
-function clearTaskForm() {
-  ['taskEditId','taskName','taskDueDate','taskDueTime','taskRelatedNumber','taskDescription','taskNext','taskNotes','taskSubtasks'].forEach(id=>{if($(id))$(id).value='';});
+function clearTaskForm() { setTaskSchedule();
+  ['taskEditId','taskName','taskDueDate','taskRelatedNumber','taskDescription','taskNext','taskNotes','taskSubtasks'].forEach(id=>{if($(id))$(id).value='';});
   $('taskCategory').value='Needs Your Attention'; $('taskPriority').value='Normal'; $('taskRepeat').value='None'; $('taskDialogTitle').textContent='New Task'; $('saveTaskBtn').textContent='Save';
 }
 function openTaskEdit(id) {
   const t=state.tasks.find(x=>x.id===id); if(!t)return; clearTaskForm();
-  $('taskEditId').value=t.id; $('taskName').value=t.task||''; $('taskCategory').value=taskPlacement(t); $('taskPriority').value=t.base_priority||'Normal'; $('taskDueDate').value=t.due_date||''; $('taskDueTime').value=t.due_time||''; $('taskRepeat').value=t.repeat_pattern||'None'; $('taskRelatedNumber').value=t.related_number||t.job_number||t.lead_number||''; $('taskDescription').value=t.description||''; $('taskNext').value=t.next_action||''; $('taskNotes').value=t.notes||''; $('taskSubtasks').value=(state.task_subtasks||[]).filter(s=>s.task_id===t.id&&!s.deleted_at).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(s=>s.title).join('\n'); $('taskDialogTitle').textContent='Edit Task'; $('saveTaskBtn').textContent='Save Changes'; $('taskDialog').showModal();
+  $('taskEditId').value=t.id; $('taskName').value=t.task||''; $('taskCategory').value=taskPlacement(t); $('taskPriority').value=t.base_priority||'Normal'; setTaskSchedule(t.due_date,t.due_time); $('taskRepeat').value=t.repeat_pattern||'None'; $('taskRelatedNumber').value=t.related_number||t.job_number||t.lead_number||''; $('taskDescription').value=t.description||''; $('taskNext').value=t.next_action||''; $('taskNotes').value=t.notes||''; $('taskSubtasks').value=(state.task_subtasks||[]).filter(s=>s.task_id===t.id&&!s.deleted_at).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(s=>s.title).join('\n'); $('taskDialogTitle').textContent='Edit Task'; $('saveTaskBtn').textContent='Save Changes'; $('taskDialog').showModal();
 }
 function duplicateTask(id) {
   const t=state.tasks.find(x=>x.id===id); if(!t)return; clearTaskForm();
-  $('taskName').value=t.task||''; $('taskCategory').value=taskPlacement(t); $('taskPriority').value=t.base_priority||'Normal'; $('taskDueDate').value=t.due_date||''; $('taskDueTime').value=t.due_time||''; $('taskRepeat').value=t.repeat_pattern||'None'; $('taskRelatedNumber').value=t.related_number||t.job_number||t.lead_number||''; $('taskDescription').value=t.description||''; $('taskNext').value=t.next_action||''; $('taskNotes').value=t.notes||''; $('taskSubtasks').value=(state.task_subtasks||[]).filter(s=>s.task_id===t.id&&!s.deleted_at).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(s=>s.title).join('\n'); $('taskDialogTitle').textContent='Duplicate Task'; $('saveTaskBtn').textContent='Create Duplicate'; $('taskDialog').showModal();
+  $('taskName').value=t.task||''; $('taskCategory').value=taskPlacement(t); $('taskPriority').value=t.base_priority||'Normal'; setTaskSchedule(t.due_date,t.due_time); $('taskRepeat').value=t.repeat_pattern||'None'; $('taskRelatedNumber').value=t.related_number||t.job_number||t.lead_number||''; $('taskDescription').value=t.description||''; $('taskNext').value=t.next_action||''; $('taskNotes').value=t.notes||''; $('taskSubtasks').value=(state.task_subtasks||[]).filter(s=>s.task_id===t.id&&!s.deleted_at).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(s=>s.title).join('\n'); $('taskDialogTitle').textContent='Duplicate Task'; $('saveTaskBtn').textContent='Create Duplicate'; $('taskDialog').showModal();
 }
 
 function clearSopForm() {
@@ -4988,8 +4983,8 @@ async function saveTask() {
     if(repeat!=='None'&&!$('taskDueDate').value)return msg('Choose the first due date for a repeating task.','error');
     const related=resolveRelatedNumber($('taskRelatedNumber').value);
     const current=id?state.tasks.find(x=>x.id===id):null;
-    const chosenDate=$('taskDueDate').value||null;
-    const patch={task,description:$('taskDescription').value.trim(),category:$('taskCategory').value,base_priority:$('taskPriority').value,due_date:chosenDate,due_time:$('taskDueTime').value||null,next_action:$('taskNext').value.trim(),notes:$('taskNotes').value.trim(),related_number:related.related_number,lead_number:related.lead_number,job_number:related.job_number,repeat_pattern:repeat,repeat_weekdays_only:true,recurrence_series_id:repeat==='None'?null:(current?.recurrence_series_id||crypto.randomUUID()),recurrence_anchor_date:repeat==='None'?null:(chosenDate!==current?.due_date?chosenDate:(current?.recurrence_anchor_date||chosenDate))};
+    const chosenDate=$('taskDueDate').value.slice(0,10)||null;
+    const patch={task,description:$('taskDescription').value.trim(),category:$('taskCategory').value,base_priority:$('taskPriority').value,due_date:chosenDate,due_time:taskScheduleTime(),next_action:$('taskNext').value.trim(),notes:$('taskNotes').value.trim(),related_number:related.related_number,lead_number:related.lead_number,job_number:related.job_number,repeat_pattern:repeat,repeat_weekdays_only:true,recurrence_series_id:repeat==='None'?null:(current?.recurrence_series_id||crypto.randomUUID()),recurrence_anchor_date:repeat==='None'?null:(chosenDate!==current?.due_date?chosenDate:(current?.recurrence_anchor_date||chosenDate))};
     let taskId=id;
     if(id){await updateRecord('tasks',id,patch,'Task changes undone.');}
     else{const r=await db.from('tasks').insert({...patch,owner_id:user?.id||undefined,task_type:repeat==='None'?'One-Time':'Recurring',status:'Not Started'}).select().single();if(r.error)throw r.error;taskId=r.data.id;await db.from('undo_history').insert({action_type:'create',entity_type:'tasks',entity_id:r.data.id,description:'New task removed.',payload:{}});}
@@ -5072,8 +5067,8 @@ function openRelatedInquiry(contactKey){
   const property=group.properties[0];if(property){$('leadStreet').value=property.street_address||'';$('leadCity').value=property.city||'';$('leadState').value=property.state||'SC';$('leadZip').value=property.zip||'';}
   $('leadDialog').showModal();
 }
-function clearLeadForm() { ['leadEditId','leadProspectId','leadNumber','leadDate','leadSourceRef','leadFirstName','leadLastName','leadSpouse','leadStreet','leadCity','leadZip','leadPhone','leadPhone2','leadEmail','leadAppointmentDate','leadAppointmentTime','leadEstimateNote','leadNotes',...LEAD_INTAKE_IDS].forEach(id=>{if($(id))$(id).value='';}); pendingRelatedContactId=''; clearLeadAddressSuggestions(); leadAddressSessionToken=null; $('leadState').value='SC'; $('leadMailingState').value='SC'; $('leadTakenBy').value='Eve'; $('leadWorkCategory').value='Roofing'; $('leadStatus').value='Appointment Wanted'; $('leadDialogTitle').textContent='New Inquiry'; $('saveLeadBtn').textContent='Save Inquiry'; renderAngiOriginal(null); setupLeadProspectSelects(); }
-function openLeadEdit(id) { const l=state.leads.find(x=>x.id===id); if(!l)return; clearLeadForm(); $('leadEditId').value=l.id; $('leadProspectId').value=l.prospect_id||''; $('leadDialogTitle').textContent='Lead Details'; $('saveLeadBtn').textContent='Save Changes'; $('leadNumber').value=l.lead_number||''; $('leadDate').value=l.lead_date||''; $('leadSource').value=l.source||'Other'; toggleAngiFields('lead'); $('leadSourceAccount').value=l.source_account||''; $('leadSourceRef').value=l.source_reference||''; $('leadFirstName').value=l.first_name||''; $('leadLastName').value=l.last_name||''; $('leadSpouse').value=l.spouse_name||''; $('leadStreet').value=l.street_address||''; $('leadCity').value=l.city||''; $('leadState').value=l.state||'SC'; $('leadZip').value=l.zip||''; $('leadPhone').value=l.phone||''; $('leadPhone2').value=l.phone_secondary||''; $('leadEmail').value=l.email||''; $('leadWorkCategory').value=l.work_category||'Roofing'; $('leadAssignedTo').value=l.assigned_to||'Roy'; $('leadStatus').value=l.lead_status||'Appointment Wanted'; $('leadEstimateStatus').value=l.estimate_status||'Not Known'; $('leadEstimateNote').value=l.estimate_issue_note||''; $('leadNotes').value=l.notes||''; fillLeadIntake(l); const a=state.appointments.filter(a=>activeRow(a)&&a.lead_id===l.id).sort((a,b)=>String(b.appointment_at||'').localeCompare(String(a.appointment_at||'')))[0]; if(a){$('leadAppointmentDate').value=datePart(a.appointment_at); $('leadAppointmentTime').value=timePart(a.appointment_at); $('leadMarketSharpStatus').value=a.marketsharp_status||'Not Needed Yet';} $('leadDialog').showModal(); }
+function clearLeadForm() { ['leadEditId','leadProspectId','leadNumber','leadDate','leadSourceRef','leadFirstName','leadLastName','leadSpouse','leadStreet','leadCity','leadZip','leadPhone','leadPhone2','leadEmail','leadAppointmentDate','leadEstimateNote','leadNotes',...LEAD_INTAKE_IDS].forEach(id=>{if($(id))$(id).value='';}); pendingRelatedContactId=''; clearLeadAddressSuggestions(); leadAddressSessionToken=null; $('leadState').value='SC'; $('leadMailingState').value='SC'; $('leadTakenBy').value='Eve'; $('leadWorkCategory').value='Roofing'; $('leadStatus').value='Appointment Wanted'; $('leadDialogTitle').textContent='New Inquiry'; $('saveLeadBtn').textContent='Save Inquiry'; renderAngiOriginal(null); setupLeadProspectSelects(); }
+function openLeadEdit(id) { const l=state.leads.find(x=>x.id===id); if(!l)return; clearLeadForm(); $('leadEditId').value=l.id; $('leadProspectId').value=l.prospect_id||''; $('leadDialogTitle').textContent='Lead Details'; $('saveLeadBtn').textContent='Save Changes'; $('leadNumber').value=l.lead_number||''; $('leadDate').value=l.lead_date||''; $('leadSource').value=l.source||'Other'; toggleAngiFields('lead'); $('leadSourceAccount').value=l.source_account||''; $('leadSourceRef').value=l.source_reference||''; $('leadFirstName').value=l.first_name||''; $('leadLastName').value=l.last_name||''; $('leadSpouse').value=l.spouse_name||''; $('leadStreet').value=l.street_address||''; $('leadCity').value=l.city||''; $('leadState').value=l.state||'SC'; $('leadZip').value=l.zip||''; $('leadPhone').value=l.phone||''; $('leadPhone2').value=l.phone_secondary||''; $('leadEmail').value=l.email||''; $('leadWorkCategory').value=l.work_category||'Roofing'; $('leadAssignedTo').value=l.assigned_to||'Roy'; $('leadStatus').value=l.lead_status||'Appointment Wanted'; $('leadEstimateStatus').value=l.estimate_status||'Not Known'; $('leadEstimateNote').value=l.estimate_issue_note||''; $('leadNotes').value=l.notes||''; fillLeadIntake(l); const a=state.appointments.filter(a=>activeRow(a)&&a.lead_id===l.id).sort((a,b)=>String(b.appointment_at||'').localeCompare(String(a.appointment_at||'')))[0]; if(a){$('leadAppointmentDate').value=localAppointmentValue(a.appointment_at); $('leadMarketSharpStatus').value=a.marketsharp_status||'Not Needed Yet';} $('leadDialog').showModal(); }
 async function saveLead() {
   try {
     const editId=$('leadEditId').value;
@@ -5083,7 +5078,7 @@ async function saveLead() {
       await updateRecord('leads',editId,patch,'Lead changes undone.');
       await ensureLeadRelationships({...state.leads.find(lead=>lead.id===editId),...patch,id:editId});
       const appointment=state.appointments.filter(a=>activeRow(a)&&a.lead_id===editId).sort((a,b)=>String(b.appointment_at||'').localeCompare(String(a.appointment_at||'')))[0];
-      if(appointment && $('leadAppointmentDate').value){ const at=new Date(`${$('leadAppointmentDate').value}T${$('leadAppointmentTime').value||'12:00'}`).toISOString(); await updateRecord('appointments',appointment.id,{appointment_at:at,marketsharp_status:$('leadMarketSharpStatus').value,assigned_to:$('leadAssignedTo').value},'Appointment changes undone.'); }
+      if(appointment && $('leadAppointmentDate').value){ const at=new Date($('leadAppointmentDate').value).toISOString(); await updateRecord('appointments',appointment.id,{appointment_at:at,marketsharp_status:$('leadMarketSharpStatus').value,assigned_to:$('leadAssignedTo').value},'Appointment changes undone.'); }
       $('leadDialog').close(); await loadAll(); msg('Lead updated.','success'); return;
     }
     // Existing Phase 1 create/promote behavior follows for new leads.
@@ -5094,7 +5089,7 @@ async function saveLead() {
     const r=await db.from('leads').insert(row).select().single(); if(r.error)throw r.error; let appointmentId=null; let prospectBefore=null;
     await ensureLeadRelationships(r.data);
     if(prospectId){ prospectBefore=state.prospects.find(p=>p.id===prospectId)||null; const u=await db.from('prospects').update({converted_to_lead_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',prospectId).select().single(); if(u.error)throw u.error; }
-    if($('leadAppointmentDate').value){ const at=new Date(`${$('leadAppointmentDate').value}T${$('leadAppointmentTime').value||'12:00'}`).toISOString(); const a=await db.from('appointments').insert({lead_id:r.data.id,prospect_id:prospectId,appointment_at:at,appointment_type:'Measure & Presentation',appointment_status:'Scheduled',assigned_to:$('leadAssignedTo').value,marketsharp_status:$('leadMarketSharpStatus').value,google_calendar_status:'Not Added'}).select().single(); if(a.error)throw a.error; appointmentId=a.data.id; }
+    if($('leadAppointmentDate').value){ const at=new Date($('leadAppointmentDate').value).toISOString(); const a=await db.from('appointments').insert({lead_id:r.data.id,prospect_id:prospectId,appointment_at:at,appointment_type:'Measure & Presentation',appointment_status:'Scheduled',assigned_to:$('leadAssignedTo').value,marketsharp_status:$('leadMarketSharpStatus').value,google_calendar_status:'Not Added'}).select().single(); if(a.error)throw a.error; appointmentId=a.data.id; }
     if(prospectId){ await db.from('undo_history').insert({action_type:'promote_prospect',entity_type:'prospects',entity_id:prospectId,description:'Prospect promotion undone.',payload:{prospect_before:prospectBefore,lead_id:r.data.id,appointment_id:appointmentId}}); } else { await db.from('undo_history').insert({action_type:'create',entity_type:'leads',entity_id:r.data.id,description:'New lead removed.',payload:{}}); }
     $('leadDialog').close(); await loadAll(); msg('Lead saved.','success');
   } catch(error){msg('Could not save lead: '+(error.message||String(error)),'error');}
@@ -5178,8 +5173,8 @@ async function saveJob(){
   }catch(error){msg(error.message||String(error),'error');}
 }
 
-function openAppointmentEdit(id){ const a=state.appointments.find(x=>x.id===id); if(!a)return; $('appointmentEditId').value=a.id; $('appointmentEditDate').value=datePart(a.appointment_at); $('appointmentEditTime').value=timePart(a.appointment_at); $('appointmentEditStatus').value=a.appointment_status||'Scheduled'; $('appointmentEditAssigned').value=a.assigned_to||''; $('appointmentEditType').value=appointmentTypeLabel(a); $('appointmentEditResult').value=a.appointment_result||''; $('appointmentEditResultNote').value=a.appointment_result_note||''; $('appointmentEditMarketSharp').value=a.marketsharp_status||'Not Needed Yet'; $('appointmentEditCalendar').value=a.google_calendar_status||'Not Added'; $('appointmentEditNotes').value=a.notes||''; $('appointmentDialog').showModal(); }
-async function saveAppointmentEdit(){ try{ const id=$('appointmentEditId').value; if(!id)return; const original=state.appointments.find(x=>x.id===id); const at=$('appointmentEditDate').value?new Date(`${$('appointmentEditDate').value}T${$('appointmentEditTime').value||'12:00'}`).toISOString():null; const result=$('appointmentEditResult').value; const resultChanged=result!==(original?.appointment_result||'')||$('appointmentEditResultNote').value.trim()!==(original?.appointment_result_note||''); const patch={appointment_at:at,appointment_type:$('appointmentEditType').value.trim()||'Measure & Presentation',appointment_status:result?'Completed':$('appointmentEditStatus').value,assigned_to:$('appointmentEditAssigned').value.trim(),appointment_result:result||null,appointment_result_note:$('appointmentEditResultNote').value.trim()||null,appointment_result_at:result?(resultChanged?new Date().toISOString():(original?.appointment_result_at||new Date().toISOString())):null,appointment_result_by:result?(resultChanged?'Eve':(original?.appointment_result_by||'Eve')):null,marketsharp_status:$('appointmentEditMarketSharp').value,google_calendar_status:$('appointmentEditCalendar').value,notes:$('appointmentEditNotes').value.trim()}; await updateRecord('appointments',id,patch,'Appointment changes undone.'); if(result&&original?.lead_id){const leadPatch=leadPatchForAppointmentResult(result);if(Object.keys(leadPatch).length){const leadUpdate=await db.from('leads').update(leadPatch).eq('id',original.lead_id);if(leadUpdate.error)throw leadUpdate.error;}} $('appointmentDialog').close(); await loadAll(); msg('Appointment updated.','success'); }catch(error){msg(error.message||String(error),'error');} }
+function openAppointmentEdit(id){ const a=state.appointments.find(x=>x.id===id); if(!a)return; $('appointmentEditId').value=a.id; $('appointmentEditDate').value=localAppointmentValue(a.appointment_at); $('appointmentEditStatus').value=a.appointment_status||'Scheduled'; $('appointmentEditAssigned').value=a.assigned_to||''; $('appointmentEditType').value=appointmentTypeLabel(a); $('appointmentEditResult').value=a.appointment_result||''; $('appointmentEditResultNote').value=a.appointment_result_note||''; $('appointmentEditMarketSharp').value=a.marketsharp_status||'Not Needed Yet'; $('appointmentEditCalendar').value=a.google_calendar_status||'Not Added'; $('appointmentEditNotes').value=a.notes||''; $('appointmentDialog').showModal(); }
+async function saveAppointmentEdit(){ try{ const id=$('appointmentEditId').value; if(!id)return; const original=state.appointments.find(x=>x.id===id); const at=$('appointmentEditDate').value?new Date($('appointmentEditDate').value).toISOString():null; const result=$('appointmentEditResult').value; const resultChanged=result!==(original?.appointment_result||'')||$('appointmentEditResultNote').value.trim()!==(original?.appointment_result_note||''); const patch={appointment_at:at,appointment_type:$('appointmentEditType').value.trim()||'Measure & Presentation',appointment_status:result?'Completed':$('appointmentEditStatus').value,assigned_to:$('appointmentEditAssigned').value.trim(),appointment_result:result||null,appointment_result_note:$('appointmentEditResultNote').value.trim()||null,appointment_result_at:result?(resultChanged?new Date().toISOString():(original?.appointment_result_at||new Date().toISOString())):null,appointment_result_by:result?(resultChanged?'Eve':(original?.appointment_result_by||'Eve')):null,marketsharp_status:$('appointmentEditMarketSharp').value,google_calendar_status:$('appointmentEditCalendar').value,notes:$('appointmentEditNotes').value.trim()}; await updateRecord('appointments',id,patch,'Appointment changes undone.'); if(result&&original?.lead_id){const leadPatch=leadPatchForAppointmentResult(result);if(Object.keys(leadPatch).length){const leadUpdate=await db.from('leads').update(leadPatch).eq('id',original.lead_id);if(leadUpdate.error)throw leadUpdate.error;}} $('appointmentDialog').close(); await loadAll(); msg('Appointment updated.','success'); }catch(error){msg(error.message||String(error),'error');} }
 
 function openCommunicationDialog(kind, id) {
   let record = null, name = '';
@@ -5497,3 +5492,27 @@ setupLeadAddressAutocomplete();
 ensureLatestRelease().then(reloading=>{if(!reloading)init();});
 
 
+
+// One local date/time control; date-only tasks continue to store a null due_time.
+function localAppointmentValue(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function setTaskSchedule(date='', time='') {
+  const input=$('taskDueDate'), any=$('taskAnyTime');
+  if (!input || !any) return;
+  any.checked=Boolean(date && !time);
+  input.type=any.checked?'date':'datetime-local';
+  input.value=date?(any.checked?date:`${date}T${String(time).slice(0,5)}`):'';
+}
+function taskScheduleTime() {
+  return $('taskAnyTime').checked ? null : ($('taskDueDate').value.split('T')[1] || null);
+}
+$('taskAnyTime')?.addEventListener('change',()=>{
+  const input=$('taskDueDate'), value=input.value;
+  input.type=$('taskAnyTime').checked?'date':'datetime-local';
+  input.value=value?($('taskAnyTime').checked?value.slice(0,10):`${value.slice(0,10)}T09:00`):'';
+});

@@ -28,7 +28,7 @@
     set('taskName',data.task||'Follow up');
     set('taskRelatedNumber',data.related_number||'');
     set('taskDescription',data.description||'');
-    set('taskDueDate',data.due_date||new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'}));
+    setTaskSchedule(data.due_date||new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'}),data.due_time||'');
     if(data.category)set('taskCategory',data.category);
     document.getElementById('taskDialogTitle').textContent='New Task';
     document.getElementById('saveTaskBtn').textContent='Save';

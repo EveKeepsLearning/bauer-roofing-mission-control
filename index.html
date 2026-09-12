@@ -10,7 +10,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="config.js?v=20260908-15"></script>
+  <script src="config.js?v=20260912-streamline1"></script>
 
   <style>
     .nav a.nav-calendar-link{
@@ -850,31 +850,10 @@
             </div>
 
 
-            <div>
-
-              <label>
-                Due date
-              </label>
-
-              <input
-                id="taskDueDate"
-                type="date"
-              >
-
-            </div>
-
-
-            <div>
-
-              <label>
-                Due time
-              </label>
-
-              <input
-                id="taskDueTime"
-                type="time"
-              >
-
+            <div class="wide">
+              <label for="taskDueDate">Due date and time (optional)</label>
+              <input id="taskDueDate" type="datetime-local">
+              <label style="display:flex;align-items:center;gap:8px;margin-top:8px"><input id="taskAnyTime" type="checkbox" style="width:auto"> Any time that day</label>
             </div>
 
             <div>
@@ -1354,15 +1333,7 @@
               <select id="leadEstimateStatus"></select>
             </div>
 
-            <div>
-              <label>Appointment date</label>
-              <input id="leadAppointmentDate" type="date">
-            </div>
-
-            <div>
-              <label>Appointment time</label>
-              <input id="leadAppointmentTime" type="time">
-            </div>
+            <div class="wide"><label for="leadAppointmentDate">Appointment date and time</label><input id="leadAppointmentDate" type="datetime-local"></div>
 
             <div>
               <label>MarketSharp status</label>
@@ -1394,14 +1365,7 @@
           <h2>Edit Appointment</h2>
           <input id="appointmentEditId" type="hidden">
           <div class="form-grid">
-            <div>
-              <label>Date</label>
-              <input id="appointmentEditDate" type="date">
-            </div>
-            <div>
-              <label>Time</label>
-              <input id="appointmentEditTime" type="time">
-            </div>
+            <div class="wide"><label for="appointmentEditDate">Appointment date and time</label><input id="appointmentEditDate" type="datetime-local"></div>
             <div>
               <label>Status</label>
               <select id="appointmentEditStatus">
@@ -1902,7 +1866,7 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=20260912-personal3"></script>
+  <script src="app.js?v=20260912-streamline1"></script>
   <script src="today-messages.js?v=20260912-personal3" defer></script>
 
 </body>

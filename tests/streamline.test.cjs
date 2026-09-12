@@ -1,0 +1,17 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const app=fs.readFileSync('app.js','utf8');
+const elements={taskDueDate:{value:'',type:'datetime-local'},taskAnyTime:{checked:false,addEventListener(){}}};
+const ctx={Date,$:id=>elements[id]};vm.createContext(ctx);
+vm.runInContext(app.slice(app.indexOf('// One local date/time control;')),ctx);
+ctx.setTaskSchedule('2026-09-12','14:30:00');assert.equal(elements.taskDueDate.value,'2026-09-12T14:30');assert.equal(ctx.taskScheduleTime(),'14:30');
+ctx.setTaskSchedule('2026-09-12',null);assert.equal(elements.taskDueDate.type,'date');assert.equal(ctx.taskScheduleTime(),null);assert.equal(elements.taskDueDate.value,'2026-09-12');
+ctx.setTaskSchedule();assert.equal(elements.taskDueDate.value,'');assert.equal(elements.taskDueDate.type,'datetime-local');
+assert.equal(ctx.localAppointmentValue('2026-09-12T18:30:00Z'),'2026-09-12T14:30');
+assert.equal(ctx.localAppointmentValue('2026-03-08T13:00:00Z'),'2026-03-08T09:00');
+assert.equal(ctx.localAppointmentValue('2026-11-01T14:00:00Z'),'2026-11-01T09:00');
+let sales=fs.readFileSync('sales-board-v2.js','utf8').replace("  if(document.readyState==='loading')", "  globalThis.api={stageOf,paged,setData:(a,j)=>{appts=a;jobs=j;}};\n  if(document.readyState==='loading')");
+const salesCtx={Date,window:{BAUER_CONFIG:{}},document:{readyState:'loading',addEventListener(){}}};vm.createContext(salesCtx);vm.runInContext(sales,salesCtx);
+const {api}=salesCtx;assert.equal(api.stageOf({id:'new'}),'New Inquiry');assert.equal(api.stageOf({id:'sent',sales_stage:'Estimate Sent'}),'Estimate Sent');
+api.setData([],[{lead_id:'sold',id:'j'}]);assert.equal(api.stageOf({id:'sold'}),'Sold');
+api.setData([{lead_id:'scheduled',appointment_at:'2099-01-01T14:00Z'}],[]);assert.equal(api.stageOf({id:'scheduled'}),'Appointment');
+(async()=>{const data=Array.from({length:1279},(_,i)=>i);const result=await api.paged(()=>({range:async(a,b)=>({data:data.slice(a,b+1)})}));assert.equal(result.length,1279);assert.equal(result[1278],1278);console.log('Unified scheduling, timezone/DST, appointment-free stages, and complete paging passed.');})().catch(e=>{console.error(e);process.exitCode=1;});
