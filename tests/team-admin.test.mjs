@@ -11,7 +11,7 @@ const code=stripTypeScriptTypes(fs.readFileSync(new URL('../supabase/functions/b
 vm.runInNewContext(code,{
  Deno:{env:{get:name=>name==='SUPABASE_URL'?'https://test.invalid':'TEST_KEY'},serve:fn=>handler=fn},
  Request,Response,crypto,
- fetch:async(url,options)=>{calls.push({url,options});return new Response(JSON.stringify(url.endsWith('/user')?actor:createStatus===200?{id:'test-user'}:{msg:'Account already exists'}),{status:url.endsWith('/user')?authStatus:createStatus});}
+ fetch:async(url,options)=>{calls.push({url,options});if(url.includes('/admin/users?page='))return new Response(JSON.stringify({users:[{id:'jonathan-id',email:'jbauer@bauerroofs.com'}]}));return new Response(JSON.stringify(url.endsWith('/user')?actor:createStatus===200?{id:'test-user'}:{msg:'Account already exists'}),{status:url.endsWith('/user')?authStatus:createStatus});}
 });
 const request=(body,token='test')=>new Request('https://example.invalid',{method:'POST',headers:token?{authorization:'Bearer '+token}:{},body:JSON.stringify(body)});
 assert.equal((await handler(request({},''))).status,401);assert.equal(calls.length,0);
@@ -27,4 +27,14 @@ for(const email of ['jbauer@bauerroofs.com','rbauer@bauerroofs.com']){
 }
 createStatus=422;const existing=await handler(request({action:'create_test',email:'rbauer@bauerroofs.com'}));assert.equal(existing.status,422);assert.equal((await existing.json()).password,undefined);
 assert.ok(calls.filter(x=>!x.url.endsWith('/user')).every(x=>x.options.method==='POST'&&x.url.endsWith('/admin/users')));
-console.log('PASS: missing/invalid auth, wrong admin, unconfirmed admin, target allowlist, initial passwords, no-store, and no existing-password overwrite');
+createStatus=200;
+let custom=await handler(request({action:'create_test',email:'rbauer@bauerroofs.com',password:'Chosen test password 123!'}));
+assert.equal(custom.status,200);assert.equal(JSON.parse(calls.at(-1).options.body).password,'Chosen test password 123!');
+assert.equal((await handler(request({action:'set_password',email:'jbauer@bauerroofs.com',password:''}))).status,400);
+assert.equal((await handler(request({action:'set_password',email:'jbauer@bauerroofs.com',password:'short'}))).status,400);
+assert.equal((await handler(request({action:'set_password',email:'outsider@example.invalid',password:'Chosen test password 123!'}))).status,400);
+actor.email='jbauer@bauerroofs.com';assert.equal((await handler(request({action:'set_password',email:'rbauer@bauerroofs.com',password:'Chosen test password 123!'}))).status,403);actor.email='evebauer@bauerroofs.com';
+const changed=await handler(request({action:'set_password',email:'jbauer@bauerroofs.com',password:'Chosen test password 123!'}));
+assert.equal(changed.status,200);assert.equal(calls.at(-1).options.method,'PUT');assert.ok(calls.at(-1).url.endsWith('/jonathan-id'));assert.equal((await changed.json()).password,undefined);
+assert.equal((await handler(request({action:'set_password',email:'rbauer@bauerroofs.com',password:'Chosen test password 123!'}))).status,404);
+console.log('PASS: chosen initial password, explicit existing password update, short/missing password validation, admin and target restrictions;  missing/invalid auth, wrong admin, unconfirmed admin, target allowlist, initial passwords, no-store, and no existing-password overwrite');
