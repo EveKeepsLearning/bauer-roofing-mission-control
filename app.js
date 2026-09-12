@@ -2856,6 +2856,7 @@ async function handleSession(
     session?.user ||
     null;
 
+  if($('teamAccountSetupTab')){const isAdmin=user?.email?.toLowerCase()==='evebauer@bauerroofs.com';$('teamAccountSetupTab').hidden=!isAdmin;$('teamAccountSetupTab').classList.toggle('hidden',!isAdmin);}
   if ($('signedInEmail')) {
     $('signedInEmail').textContent = user?.email ? `Signed in: ${user.email}` : '';
     $('signedInEmail').title = user?.email || '';
@@ -3202,7 +3203,7 @@ function taskCard(t) {
   const blockButton=['Blocked','Waiting'].includes(status)?'':'<button class="btn small" data-action="block">Block</button>';
   return `
     <div class="task ${categoryClass}" data-task-id="${esc(t.id)}">
-      <div class="task-title"><b>${esc(t.task)}</b></div>
+      <div class="task-title"><b>${esc(t.task)}</b>${t.base_priority==='Critical'?'<span style="margin-left:8px;color:#b42318;font-weight:700">Critical</span>':''}</div>
       ${dueText?`<div class="task-due">${esc(dueText)}</div>`:''}
       ${t.description ? `<div>${esc(t.description)}</div>` : ''}
       ${subtaskHtml}
@@ -3357,7 +3358,7 @@ function setSectionVisible(id,visible){
 }
 
 function renderDashboard() {
-  state.tasks=state.tasks.filter(t=>t.owner_id===user?.id);
+  state.tasks=state.tasks.filter(t=>t.owner_id===user?.id).map(t=>['Blocked','Waiting'].includes(t.status)?{...t,base_priority:'Critical'}:t);
   state.quick_notes=state.quick_notes.filter(n=>n.owner_id===user?.id);
   $('nowText').textContent = localNow();
   const acts = actionableTasks();
@@ -3367,6 +3368,7 @@ function renderDashboard() {
   const comms = communicationDueItems();
   const finances=financialTasks();
   const entries=[
+    ...blocked.map(item=>({kind:'task',dueDate:item.due_date||todayISO(),dueTime:item.due_time||'',item:{...item,base_priority:'Critical'}})),
     ...comms,
     ...finances.map(item=>({kind:'task',dueDate:item.due_date||'',dueTime:item.due_time||'',item})),
     ...acts.map(item=>({kind:'task',dueDate:item.due_date||'',dueTime:item.due_time||'',item}))
@@ -3374,7 +3376,8 @@ function renderDashboard() {
   const next=nextUpTask(entries.filter(x=>x.kind==='task').map(x=>x.item));
   const shownEntries=entries.filter(entry=>entry.kind!=='task'||entry.item.id!==next?.id);
   renderNextUp(next);
-  $('blockedList').innerHTML = blocked.map(taskCard).join('');
+  $('blockedList').innerHTML = '';
+  if($('attentionCard'))$('attentionCard').hidden=true;
   if($('todayTaskList'))$('todayTaskList').innerHTML=shownEntries.map(todayEntryCard).join('');
   const remainingTaskCount=shownEntries.length;
   if($('todayTasksEmpty')){
@@ -5492,4 +5495,5 @@ document.body.addEventListener('click', async event=>{
 
 setupLeadAddressAutocomplete();
 ensureLatestRelease().then(reloading=>{if(!reloading)init();});
+
 
