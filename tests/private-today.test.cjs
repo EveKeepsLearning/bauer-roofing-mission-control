@@ -17,4 +17,8 @@ assert.equal($('kpiCritical').textContent,0);assert.equal($('kpiDue').textConten
 context.user={id:'eve',email:'evebauer@bauerroofs.com'};context.renderDashboard();
 assert.equal(context.state.tasks.length,0);assert.equal(context.state.quick_notes.length,0);assert.match($('todayGreeting').textContent,/Eve$/);
 assert.match(app,/if\(user\?\.id!==loadingUserId\)return;/);
-console.log('PASS: mixed-account Today data removed, personal counts and follow-ups, Jonathan greeting, account switch');
+context.user={id:'eve',email:'evebauer@bauerroofs.com'};
+context.state.tasks=[{id:'blocked',owner_id:'eve',task:'Direct deposit',status:'Blocked',base_priority:'Normal'}];
+context.todayEntryCard=entry=>entry.item.id;
+context.renderDashboard();assert.equal(context.state.tasks[0].base_priority,'Critical');assert.equal($('todayTaskList').innerHTML,'blocked');assert.equal($('attentionCard').hidden,true);
+console.log('PASS: blocked tasks appear once in main list as Critical;  mixed-account Today data removed, personal counts and follow-ups, Jonathan greeting, account switch');
