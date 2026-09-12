@@ -10,7 +10,10 @@
  document.getElementById('setup').classList.remove('hidden');
  document.querySelectorAll('[data-action]').forEach(button=>button.addEventListener('click',async()=>{
    const card=button.closest('.member'),email=card.dataset.email,action=button.dataset.action;
-   if(!confirm(action==='create_test'?`Create ${email} with an initial password for testing? This will not email them.`:`Send a BRO invitation to ${email}?`))return;
+   const password=card.querySelector('.chosen-password').value;
+   if(action==='set_password'&&!password){alert('Enter the new password first.');return;}
+   if(action!=='invite'&&password&&(password.length<12||password.length>128)){alert('Use 12–128 characters for the password.');return;}
+   if(!confirm(action==='set_password'?`Replace the current password for ${email} with the password you entered?`:action==='create_test'?`Create ${email} with an initial password for testing? This will not email them.`:`Send a BRO invitation to ${email}?`))return;
    const output=card.querySelector('.result');
    card.querySelectorAll('button').forEach(b=>b.disabled=true);
    output.classList.remove('hidden');output.textContent='Working…';
@@ -18,10 +21,12 @@
      const {data:sessionData,error:sessionError}=await db.auth.getSession();
      if(sessionError||!sessionData.session)throw new Error('Your session expired. Sign in again.');
      const response=await fetch(cfg.SUPABASE_URL+'/functions/v1/bro-team-admin',{
-       method:'POST',headers:{'Content-Type':'application/json',apikey:cfg.SUPABASE_ANON_KEY,Authorization:'Bearer '+sessionData.session.access_token},body:JSON.stringify({email,action})});
+       method:'POST',headers:{'Content-Type':'application/json',apikey:cfg.SUPABASE_ANON_KEY,Authorization:'Bearer '+sessionData.session.access_token},body:JSON.stringify({email,action,...(action!=='invite'&&password?{password}:{})})});
      const result=await response.json();
      if(!response.ok||result.error)throw new Error(result.error||result.message||'Account setup failed');
+     card.querySelector('.chosen-password').value='';
      output.textContent=result.status+(result.password?'\n\nEmail: '+result.email+'\nInitial password: '+result.password+'\n\nThis password is displayed only here. Save it before leaving this page.':'');
-   }catch(error){output.textContent=error.message;card.querySelectorAll('button').forEach(b=>b.disabled=false);}
+   }catch(error){output.textContent=error.message;}finally{card.querySelectorAll('button').forEach(b=>b.disabled=false);}
  }));
 })();
+
