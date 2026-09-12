@@ -2,7 +2,7 @@
 
 const cfg = window.BAUER_CONFIG || {};
 const initialAuthHash = new URLSearchParams(window.location.hash.replace(/^#/,''));
-const passwordRecoveryRequested = initialAuthHash.get('type') === 'recovery';
+const passwordRecoveryRequested = ['recovery','invite'].includes(initialAuthHash.get('type')) || new URLSearchParams(location.search).get('setup')==='password';
 
 let db = null;
 let user = null;
@@ -2833,7 +2833,7 @@ async function init() {
   }
 
   db.auth.onAuthStateChange((event,nextSession)=>{
-    handleSession(nextSession);
+    setTimeout(()=>handleSession(nextSession),0);
     if(event==='PASSWORD_RECOVERY'){
       setTimeout(()=>$('passwordDialog')?.showModal(),0);
     }
@@ -2951,6 +2951,8 @@ $('savePasswordBtn').onclick=async()=>{
   $('confirmPassword').value='';
   msg('Your Bauer Roofing Operations password is ready.','success');
 };
+
+if($('changeMyPasswordBtn'))$('changeMyPasswordBtn').onclick=()=>{$('newPassword').value='';$('confirmPassword').value='';$('passwordDialog').showModal();};
 
 
 $('logoutBtn').onclick =
@@ -3381,7 +3383,7 @@ function renderDashboard() {
   $('kpiComms').textContent = comms.length;
   $('kpiWeekJobs').textContent = jw.length;
   const hour=Number(new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',hourCycle:'h23'}).format(new Date()));
-  if($('todayGreeting'))$('todayGreeting').textContent=`Good ${hour<12?'morning':hour<17?'afternoon':'evening'}, Eve`;
+  if($('todayGreeting'))$('todayGreeting').textContent=`Good ${hour<12?'morning':hour<17?'afternoon':'evening'}, ${currentTeamMember()==='dad'?'Dad':currentTeamMember()==='roy'?'Roy':'Eve'}`;
   if($('todayDate'))$('todayDate').textContent=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'long',month:'long',day:'numeric'}).format(new Date());
   const beforeNoon=state.tasks.filter(t=>isOpen(t)&&t.due_date===td&&t.due_time&&t.due_time<'12:00').length;
   if($('daySummary'))$('daySummary').textContent=criticalCount
@@ -3488,6 +3490,10 @@ function teamPhoneSettings(){
 }
 
 function currentTeamMember(){
+  const verifiedEmail=String(user?.email||'').toLowerCase();
+  if(verifiedEmail==='jbauer@bauerroofs.com')return 'dad';
+  if(verifiedEmail==='rbauer@bauerroofs.com')return 'roy';
+  if(verifiedEmail==='evebauer@bauerroofs.com')return 'eve';
   const saved=String(user?.user_metadata?.bauer_team_member||localStorage.getItem('bauer_team_member')||'').toLowerCase();
   if(['eve','roy','dad'].includes(saved))return saved;
   const email=String(user?.email||'').toLowerCase();
@@ -5331,7 +5337,7 @@ async function markJobCustomerContacted(jobId){
 
 async function loadAll(){
   const calls=[['tasks','created_at',false],['jobs','updated_at',false],['communications','due_date',true],['phone_messages','created_at',false],['prospects','created_at',false],['leads','created_at',false],['appointments','appointment_at',true],['sales_communications','occurred_at',false],['job_communications','occurred_at',false],['lookup_options','sort_order',true],['sops','title',true],['suggestions','created_at',false],['quick_notes','updated_at',false]];
-  const results=await Promise.all(calls.map(([table,order,ascending])=>db.from(table).select('*').order(order,{ascending}).limit(['leads','jobs','prospects','appointments'].includes(table)?5000:500)));
+  const results=await Promise.all(calls.map(([table,order,ascending])=>{let query=db.from(table).select('*').order(order,{ascending});if(table==='tasks')query=query.eq('owner_id',user.id);return query.limit(['leads','jobs','prospects','appointments'].includes(table)?5000:500);}));
   for(let i=0;i<results.length;i++){ if(results[i].error)throw results[i].error; let stateName=calls[i][0]==='phone_messages'?'phone':calls[i][0]; if(stateName==='lookup_options')stateName='lookups'; state[stateName]=results[i].data||[]; }
   const relationshipResults=await Promise.all(['contacts','properties','contact_properties'].map(table=>db.from(table).select('*').limit(5000)));
   contactArchitectureAvailable=relationshipResults.every(result=>!result.error);
@@ -5350,7 +5356,7 @@ async function loadAll(){
       const moved=await rollForwardGroupedTasks();
       const normalized=await db.rpc('normalize_recurring_tasks_to_weekdays');
       if(moved||!normalized.error){
-        const refreshedTasks=await db.from('tasks').select('*').order('created_at',{ascending:false}).limit(500);
+        const refreshedTasks=await db.from('tasks').select('*').eq('owner_id',user.id).order('created_at',{ascending:false}).limit(500);
         const refreshedSubtasks=await db.from('task_subtasks').select('*').order('sort_order',{ascending:true}).limit(2000);
         if(!refreshedTasks.error)state.tasks=refreshedTasks.data||[];
         if(!refreshedSubtasks.error)state.task_subtasks=refreshedSubtasks.data||[];
