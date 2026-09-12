@@ -18,7 +18,7 @@
     if(at)at.value=nowLocalInput();if(type)type.value='';if(desc)desc.value='';
     const taken=document.getElementById('inquiryTakenBy');if(taken)taken.value='Eve';
     const assigned=document.getElementById('inquiryAssigned');if(assigned)assigned.value='Roy';
-    const source=document.getElementById('inquirySource');if(source)source.value='Repeat Business';
+    const source=document.getElementById('inquirySource');if(source)source.value='';
     const secondary=document.getElementById('inquirySourceSecondary');if(secondary)secondary.value='';
     const cid=document.getElementById('inquiryContactId')?.value;
     if(cid&&typeof db!=='undefined'&&db){
@@ -60,13 +60,15 @@
     try{
       const cid=document.getElementById('inquiryContactId').value;const r=await db.from('contacts').select('*').eq('id',cid).single();if(r.error){dialogNotice(r.error.message);return;}const c=r.data;
       const selectedType=document.getElementById('inquiryProductInterest').value;if(!selectedType){dialogNotice('Choose the Product Interest / Inquiry Type.');return;}
+      if(!document.getElementById('inquirySource').value){dialogNotice('Choose how this customer found Bauer Roofing.');return;}
       const number=document.getElementById('inquiryLeadNumber').value.trim();if(!number){dialogNotice('Inquiry Number is required.');return;}
       const dup=await db.from('leads').select('id,homeowner_name').eq('lead_number',number).is('deleted_at',null).limit(1);if(dup.error){dialogNotice(dup.error.message);return;}if((dup.data||[]).length){dialogNotice(`Inquiry #${number} is already assigned to ${dup.data[0].homeowner_name||'another contact'}. Choose the correct next number before creating this inquiry.`);return;}
       const atValue=document.getElementById('inquiryAt').value;
-      const row={contact_id:c.id,lead_number:number,homeowner_name:c.name,street_address:document.getElementById('inquiryAddress').value.trim()||c.street_address||null,city:document.getElementById('inquiryCity')?.value.trim()||c.city||null,state:document.getElementById('inquiryState')?.value.trim()||c.state||null,zip:document.getElementById('inquiryZip')?.value.trim()||c.zip||null,phone:c.phone||null,email:c.email||null,source:document.getElementById('inquirySource').value||'Repeat Business',lead_source_secondary:document.getElementById('inquirySourceSecondary')?.value||null,import_source:'Contact Inquiry',product_interest:selectedType,product_description:document.getElementById('inquiryProductDescription').value.trim()||null,work_category:document.getElementById('inquiryWorkCategory').value,lead_status:'New Inquiry',inquiry_taken_by:document.getElementById('inquiryTakenBy')?.value||'Eve',assigned_to:document.getElementById('inquiryAssigned').value||'Roy',notes:document.getElementById('inquiryNotes').value.trim()||null,inquiry_at:atValue?new Date(atValue).toISOString():new Date().toISOString(),lead_date:(atValue?atValue.slice(0,10):new Date().toLocaleDateString('en-CA'))};
+      const row={contact_id:c.id,lead_number:number,homeowner_name:c.name,street_address:document.getElementById('inquiryAddress').value.trim()||c.street_address||null,city:document.getElementById('inquiryCity')?.value.trim()||c.city||null,state:document.getElementById('inquiryState')?.value.trim()||c.state||null,zip:document.getElementById('inquiryZip')?.value.trim()||c.zip||null,phone:c.phone||null,phone_secondary:c.phone_secondary||null,phone_secondary_label:c.phone_secondary_label||null,email:c.email||null,source:document.getElementById('inquirySource').value||null,lead_source_secondary:document.getElementById('inquirySourceSecondary')?.value||null,import_source:'Contact Inquiry',product_interest:selectedType,product_description:document.getElementById('inquiryProductDescription').value.trim()||null,work_category:document.getElementById('inquiryWorkCategory').value,lead_status:'New Inquiry',inquiry_taken_by:document.getElementById('inquiryTakenBy')?.value||'Eve',assigned_to:document.getElementById('inquiryAssigned').value||'Roy',notes:document.getElementById('inquiryNotes').value.trim()||null,inquiry_at:atValue?new Date(atValue).toISOString():new Date().toISOString(),lead_date:(atValue?atValue.slice(0,10):new Date().toLocaleDateString('en-CA'))};
       const {data,error}=await db.from('leads').insert(row).select('*').single();if(error){dialogNotice(error.message);return;}
       document.getElementById('inquiryDialog').close();openAppointmentStep(data,c);
     }finally{saveButton.disabled=false;saveButton.textContent='Create Inquiry';}
   };
   ensureAppointmentDialog();
 })();
+
