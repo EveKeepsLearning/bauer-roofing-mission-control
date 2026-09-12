@@ -1,0 +1,14 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const context={};vm.createContext(context);
+const contacts=fs.readFileSync('contacts.js','utf8');
+vm.runInContext(contacts.slice(contacts.indexOf('function dateLabel('),contacts.indexOf('\nfunction phoneDigits')),context);
+assert.equal(context.dateLabel('2026-09-12'),'Sep 12, 2026');
+assert.equal(context.dateLabel('2026-03-08'),'Mar 8, 2026');
+const jobs=fs.readFileSync('job-handoff.js','utf8');
+vm.runInContext(jobs.slice(jobs.indexOf('function money('),jobs.indexOf('\n  function inferType')),context);
+assert.equal(context.money(''),null);assert.equal(context.money(' '),null);
+assert.equal(context.money('0'),0);assert.equal(context.money('$1,000.25'),1000.25);
+assert.throws(()=>context.money('not a number'));assert.throws(()=>context.money('-20'));
+console.log('PASS: calendar dates retain their day; blank, zero, valid and invalid currency are distinct.');
