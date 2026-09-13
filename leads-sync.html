@@ -169,5 +169,5 @@ $('xlsxFile').onchange=()=>{$('analyzeBtn').disabled=!$('xlsxFile').files.length
 async function init(){const d=new Date();d.setDate(d.getDate()-120);$('syncStartDate').value=d.toISOString().slice(0,10);try{const {data}=await db.auth.getSession();if(!data.session)throw new Error('Sign in to Bauer Roofing Operations first, then open Leads.xlsx Sync again.');await loadMissionData();$('syncApp').classList.remove('hidden');}catch(e){$('authError').textContent=e.message;$('authError').classList.remove('hidden');}}
 init();
 </script>
-<script src="lifecycle-navigation.js?v=20260912-mobile1"></script><script src="mobile-menu.js?v=20260912-mobile1"></script></body>
+<script src="lifecycle-navigation.js?v=20260912-mobile1"></script><script src="mobile-menu.js?v=20260912-mobile1"></script><script src="dictation.js?v=20260913-ideas2"></script></body>
 </html>

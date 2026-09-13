@@ -1,62 +1,9 @@
 'use strict';
 (function(){
-  const REPAIR='#4054b2';
-  const REROOF='#1296d4';
-
-  function kind(j){
-    const raw=String((typeof jobType==='function'?jobType(j):(j?.job_type||j?.primary_category||''))||'').toLowerCase();
-    if(raw.includes('repair')) return 'repair';
-    if(raw.includes('reroof')||raw.includes('re-roof')||raw.includes('re roof')) return 'reroof';
-    return '';
-  }
-
-  function installStyles(){
-    if(document.getElementById('broJobTypeColors')) return;
-    const style=document.createElement('style');
-    style.id='broJobTypeColors';
-    style.textContent=`
-      .job-card.bro-repair{border:3px solid ${REPAIR}!important;padding:8px!important}
-      .job-card.bro-reroof{border:3px solid ${REROOF}!important;padding:8px!important}
-      .jobs-table tr.bro-repair td:first-child{border-left:6px solid ${REPAIR}!important}
-      .jobs-table tr.bro-reroof td:first-child{border-left:6px solid ${REROOF}!important}
-      .jobs-table tr.bro-repair{background:linear-gradient(90deg,rgba(64,84,178,.08),transparent 24%)}
-      .jobs-table tr.bro-reroof{background:linear-gradient(90deg,rgba(18,150,212,.08),transparent 24%)}
-      .jobs-table tr.bro-repair:hover{background:linear-gradient(90deg,rgba(64,84,178,.14),#f8fbff 28%)}
-      .jobs-table tr.bro-reroof:hover{background:linear-gradient(90deg,rgba(18,150,212,.14),#f8fbff 28%)}
-    `;
-    document.head.appendChild(style);
-  }
-
-  function decorateTable(){
-    if(typeof jobs==='undefined') return;
-    document.querySelectorAll('.jobs-table tr[data-job-id]').forEach(row=>{
-      const j=jobs.find(x=>String(x.id)===String(row.dataset.jobId));
-      row.classList.remove('bro-repair','bro-reroof');
-      const k=kind(j);
-      if(k) row.classList.add('bro-'+k);
-    });
-  }
-
-  installStyles();
-
-  if(typeof card==='function'){
-    const baseCard=card;
-    card=function(j){
-      const html=baseCard(j);
-      const k=kind(j);
-      return k?html.replace('class="job-card"',`class="job-card bro-${k}"`):html;
-    };
-  }
-
-  if(typeof renderTable==='function'){
-    const baseRenderTable=renderTable;
-    renderTable=function(){const r=baseRenderTable();decorateTable();return r;};
-  }
-
-  if(typeof renderAll==='function'){
-    const baseRenderAll=renderAll;
-    renderAll=function(){const r=baseRenderAll();decorateTable();return r;};
-  }
-
-  if(typeof renderAll==='function') renderAll();
+ const palette={repair:['#4054b2','#ffffff'],reroof:['#1296d4','#071c2b'],other:['#526078','#ffffff']};
+ function kind(j){const raw=String(typeof jobType==='function'?jobType(j):(j?.job_type||j?.primary_category||'')).toLowerCase();if(raw.includes('repair'))return 'repair';if(/reroof|re-roof|re roof|asphalt|metal/.test(raw))return 'reroof';return 'other';}
+ const style=document.createElement('style');style.id='broSolidJobTypeColors';style.textContent=Object.entries(palette).map(([k,[bg,fg]])=>`.job-card.bro-${k},.cal-event.bro-${k},.attention-row.bro-${k},.jobs-table tr.bro-${k}>td{background:${bg}!important;color:${fg}!important;border-color:${bg}!important}.job-card.bro-${k} .job-meta,.job-card.bro-${k} b,.jobs-table tr.bro-${k} a{color:${fg}!important}.job-card.bro-${k}:hover,.cal-event.bro-${k}:hover{box-shadow:0 0 0 3px #182a4260;filter:brightness(.97)}`).join('')+'.job-card .job-badge{background:#fff!important;color:#172b44!important}.job-card .attention-badge{background:#fff0d7!important;color:#694400!important}.bro-type-legend{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0;font-size:13px}.bro-type-legend span{padding:7px 10px;border-radius:7px;font-weight:600}';document.head.append(style);
+ const legend=document.createElement('div');legend.className='bro-type-legend';legend.setAttribute('aria-label','Job type colors');legend.innerHTML=Object.entries(palette).map(([k,[bg,fg]])=>`<span style="background:${bg};color:${fg}">${({repair:'Repairs',reroof:'Reroofs / asphalt / metal',other:'Other / needs type review'})[k]}</span>`).join('');document.querySelector('.view-tabs')?.after(legend);
+ function decorate(){if(typeof jobs==='undefined')return;const byId=new Map(jobs.map(j=>[String(j.id),j]));document.querySelectorAll('.job-card[data-job-id],.cal-event[data-job-id],.attention-row[data-job-id],.jobs-table tr[data-job-id]').forEach(el=>{const j=byId.get(String(el.dataset.jobId));if(!j)return;const k=kind(j);for(const type of Object.keys(palette))el.classList.toggle('bro-'+type,type===k);});}
+ let queued=false;new MutationObserver(()=>{if(queued)return;queued=true;queueMicrotask(()=>{queued=false;decorate();});}).observe(document.querySelector('.jobs-shell')||document.body,{childList:true,subtree:true});decorate();
 })();

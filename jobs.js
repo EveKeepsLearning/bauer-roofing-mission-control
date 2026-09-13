@@ -87,7 +87,7 @@ async function deleteMistakenContract(){
     const label=[job.customer_name||'Unnamed customer','Job #: '+(job.job_number||'Not assigned'),'Inquiry #: '+(job.lead_number||'Not assigned'),'Contract date: '+(job.contract_date||'Not entered'),job.property_address||'','Record ID: '+job.id].filter(Boolean).join('\n');
     const answer=prompt('PERMANENTLY DELETE MISTAKEN CONTRACT / JOB\n\n'+label+
       '\n\nUse only for a duplicate or entry mistake. For a real signed contract that fell through, choose Cancel Contract instead.'+
-      '\n\nThis removes this BRO job and its attached payments, addendums, work details, communications, and document links. It does not delete the customer, inquiry, other jobs, or OneDrive files. Original MarketSharp archive data and backups are not erased.'+
+      '\n\nThis removes this BRO job and its attached payments, change orders, work details, communications, and document links. It does not delete the customer, inquiry, other jobs, or OneDrive files. Original MarketSharp archive data and backups are not erased.'+
       '\n\nThere is no Undo for this deletion. Type DELETE to confirm.','');
     if(answer!=='DELETE')return;
     let request=db.from('jobs').delete().eq('id',id);
