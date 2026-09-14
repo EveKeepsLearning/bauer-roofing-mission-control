@@ -16,11 +16,15 @@ BRO is Bauer Roofing's internal operations CRM. The production site is served by
 - Core application: `index.html`, `app.js`, `config.js`
 - Angi import: `angi-queue-import.js`
 - Shared lifecycle navigation: `lifecycle-navigation.js`
-- Calendar client: `calendar-sync-client-v2.js`
-- Calendar page logic: `calendar-v4.js`, `calendar-sync-recovery.js`, `calendar-google-view.js`
-- Open Jobs: `jobs.html`, `jobs.js` plus the job feature modules loaded by `config.js` / `jobs.html`
-- Sales Pipeline: `sales.html` and its currently loaded sales modules
-- Subcontractors/RFP: `subcontractors.html`, `subcontractors.js`, `jobs-rfp2.js`, `jobs-payment-requests.js`, and `payment-request-print.*`
+- Calendar client: `calendar-sync-client.js`
+- Calendar page logic: `calendar.js`, `calendar-sync-recovery.js`, `calendar-google-view.js`
+- Open Jobs: `jobs.html`, `jobs.js`, `jobs-rfp.js`, and the job feature modules loaded by `config.js` / `jobs.html`
+- Sales Pipeline: `sales.html`, `sales-board.js`, and its supporting sales modules
+- Subcontractors/RFP: `subcontractors.html`, `subcontractors.js`, `jobs-rfp.js`, `jobs-payment-requests.js`, and `payment-request-print.*`
+
+## Release version
+
+`config.js` and `release.json` use the same release identifier. Runtime-loaded scripts use `BAUER_CONFIG.APP_VERSION` as their cache key. When changing a directly referenced HTML asset, use the current release identifier rather than inventing a feature-specific version name.
 
 ## Testing
 
