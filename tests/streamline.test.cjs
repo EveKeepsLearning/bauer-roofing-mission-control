@@ -9,7 +9,7 @@ ctx.setTaskSchedule();assert.equal(elements.taskDueDate.value,'');assert.equal(e
 assert.equal(ctx.localAppointmentValue('2026-09-12T18:30:00Z'),'2026-09-12T14:30');
 assert.equal(ctx.localAppointmentValue('2026-03-08T13:00:00Z'),'2026-03-08T09:00');
 assert.equal(ctx.localAppointmentValue('2026-11-01T14:00:00Z'),'2026-11-01T09:00');
-let sales=fs.readFileSync('sales-board-v2.js','utf8').replace("  if(document.readyState==='loading')", "  globalThis.api={stageOf,paged,setData:(a,j)=>{appts=a;jobs=j;}};\n  if(document.readyState==='loading')");
+let sales=fs.readFileSync('sales-board.js','utf8').replace("  if(document.readyState==='loading')", "  globalThis.api={stageOf,paged,setData:(a,j)=>{appts=a;jobs=j;}};\n  if(document.readyState==='loading')");
 const salesCtx={Date,window:{BAUER_CONFIG:{}},document:{readyState:'loading',addEventListener(){}}};vm.createContext(salesCtx);vm.runInContext(sales,salesCtx);
 const {api}=salesCtx;assert.equal(api.stageOf({id:'new'}),'New Inquiry');assert.equal(api.stageOf({id:'sent',sales_stage:'Estimate Sent'}),'Estimate Sent');
 api.setData([],[{lead_id:'sold',id:'j'}]);assert.equal(api.stageOf({id:'sold'}),'Sold');
