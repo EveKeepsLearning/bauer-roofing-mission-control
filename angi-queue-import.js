@@ -163,6 +163,35 @@
     state.prospects=[...byId.values()];
   }
 
+  function storedAngiProspect(p){
+    if(!p||p.deleted_at)return false;
+    const source=String(p.source||'').trim().toLowerCase();
+    const account=String(p.source_account||'').trim().toLowerCase();
+    const imported=String(p.import_source||'').trim().toLowerCase();
+    return source==='angi'||account.includes('angi')||imported.includes('angi');
+  }
+
+  async function runPreparedAngiImport(){
+    await loadAllProspectsBeforeImport();
+    if(typeof importAngiExport!=='function')throw new Error('The Angi importer is not available. Refresh BRO and try again.');
+
+    // The database unique key includes archived prospects. During import, use the same
+    // definition of "existing Angi prospect" so an archived lead is updated/reviewed
+    // rather than inserted a second time and rejected by Supabase.
+    let originalIsAngiProspect=null;
+    try{
+      if(typeof isAngiProspect==='function'){
+        originalIsAngiProspect=isAngiProspect;
+        isAngiProspect=storedAngiProspect;
+      }
+      await importAngiExport();
+    }finally{
+      if(originalIsAngiProspect){
+        try{isAngiProspect=originalIsAngiProspect;}catch(_){window.isAngiProspect=originalIsAngiProspect;}
+      }
+    }
+  }
+
   function install(){
     const heading=$('view-angi')?.querySelector('.angi-toolbar-card .toolbar');
     const file=$('angiImportFile');
@@ -180,21 +209,29 @@
     heading.parentElement.appendChild(note);
     const status=$('angiImportStatus');if(status)heading.parentElement.appendChild(status);
 
+    // Keep the original button safe too, even if it is exposed by a future UI change.
+    importButton.onclick=async()=>{
+      if(!file.files?.length)return;
+      try{await runPreparedAngiImport();}
+      catch(error){if(typeof msg==='function')msg('Could not prepare the Angi import: '+(error.message||String(error)),'error');}
+    };
+
     file.addEventListener('change',async()=>{
       if(!file.files?.length)return;
       const status=$('angiImportStatus');
       quick.disabled=true;
       manual.disabled=true;
+      importButton.disabled=true;
       if(status)status.textContent='Checking BRO for leads already imported…';
       try{
-        await loadAllProspectsBeforeImport();
-        importButton.click();
+        await runPreparedAngiImport();
       }catch(error){
         if(status)status.textContent='';
         if(typeof msg==='function')msg('Could not prepare the Angi import: '+(error.message||String(error)),'error');
       }finally{
         quick.disabled=false;
         manual.disabled=false;
+        importButton.disabled=false;
       }
     });
   }
