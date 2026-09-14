@@ -471,24 +471,13 @@
           </div>
         </div>
 
-        <div class="card">
-          <h3>Import Existing Angi History</h3>
-          <p class="auth-note"><b>One-time migration.</b> This imports the existing tracker prospects, communication history, and appointments silently. Historical records are blocked from automatic first-contact text/email.</p>
-          <div class="toolbar">
-            <input id="angiHistoricalImportFile" type="file" accept=".json,application/json">
-            <button class="btn primary small" id="angiHistoricalImportBtn" type="button">Import Existing History</button>
-          </div>
-          <div id="angiHistoricalImportStatus" class="meta"></div>
-        </div>
-
-        <div class="card">
-          <h3>Import New Angi Export</h3>
-          <p class="auth-note">Use the .xls file exactly as Angi downloads it. Bauer Roofing Operations automatically detects PPL versus Angi Ads from the export columns, keeps the Angi Lead Number as the permanent source reference, and preserves work already recorded in Bauer Roofing Operations.</p>
-          <div class="toolbar">
-            <input id="angiImportFile" type="file" accept=".xls,.xlsx,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv">
-            <button class="btn primary small" id="angiImportBtn" type="button">Import Angi .xls</button>
-          </div>
-          <div id="angiImportStatus" class="meta"></div>
+        <div id="angiImportSupport" hidden aria-hidden="true">
+          <input id="angiHistoricalImportFile" type="file" accept=".json,application/json">
+          <button id="angiHistoricalImportBtn" type="button">Import Existing History</button>
+          <div id="angiHistoricalImportStatus"></div>
+          <input id="angiImportFile" type="file" accept=".xls,.xlsx,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv">
+          <button id="angiImportBtn" type="button">Import Angi Export</button>
+          <div id="angiImportStatus" class="meta" role="status"></div>
         </div>
       </section>
 
@@ -1867,9 +1856,9 @@
   </dialog>
 
   <script src="app.js?v=20260914-usability1"></script>
+  <script src="angi-queue-import.js?v=20260914-solidangi1"></script>
   <script src="today-messages.js?v=20260914-usability1" defer></script>
 
 <script src="lifecycle-navigation.js?v=20260912-mobile1"></script><script src="improvement-ideas.js?v=20260912-ideas1"></script><script src="mobile-menu.js?v=20260912-mobile1"></script><script src="dictation.js?v=20260913-ideas2"></script></body>
 </html>
-
 

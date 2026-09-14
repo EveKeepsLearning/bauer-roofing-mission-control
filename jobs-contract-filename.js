@@ -44,8 +44,8 @@
 })();
 
 (function(){
-  const REPAIR='#4054b2';
-  const REROOF='#1296d4';
+  const REPAIR='#3f51b5';
+  const REROOF='#039be5';
   const STAGE_ORDER={awarded:1,contract:2,material:3,ready:4,scheduled:5,delivered:6,production:7,complete:8,closeout:9};
 
   function kind(j){
@@ -83,10 +83,10 @@
     const style=document.createElement('style');
     style.id='broJobTypeColors';
     style.textContent=`
-      .job-card.bro-repair{border:3px solid ${REPAIR}!important;padding:8px!important;background:#e8eaf7!important}
-      .job-card.bro-reroof{border:3px solid ${REROOF}!important;padding:8px!important;background:#e8f6fb!important}
-      .job-card.bro-repair:hover{background:#dfe2f3!important}
-      .job-card.bro-reroof:hover{background:#def1f8!important}
+      .job-card.bro-repair{border:0!important;padding:10px!important;background:${REPAIR}!important;background-color:${REPAIR}!important;background-image:none!important;color:#fff!important}
+      .job-card.bro-reroof{border:0!important;padding:10px!important;background:${REROOF}!important;background-color:${REROOF}!important;background-image:none!important;color:#fff!important}
+      .job-card.bro-repair:hover{background:${REPAIR}!important;background-color:${REPAIR}!important}
+      .job-card.bro-reroof:hover{background:${REROOF}!important;background-color:${REROOF}!important}
       .jobs-table tr.bro-repair td:first-child{border-left:6px solid ${REPAIR}!important}
       .jobs-table tr.bro-reroof td:first-child{border-left:6px solid ${REROOF}!important}
       .jobs-table tr.bro-repair{background:linear-gradient(90deg,rgba(64,84,178,.11),rgba(64,84,178,.035) 40%,transparent 75%)}
