@@ -7,6 +7,14 @@
   const cents=value=>Math.round((Number(value||0)+Number.EPSILON)*100)/100;
   const key=value=>String(value||'').trim().toLowerCase().replace(/\s+/g,' ');
   const number=value=>Number.isFinite(Number(value))?Number(value):0;
+  function parseWorkDescription(value){
+    const text=String(value||'').replace(/,/g,'').trim();
+    const match=text.match(/(?:^|\s)(\d*\.?\d+)\s*[^@]*@\s*\$?\s*(\d*\.?\d+)/i);
+    if(!match)return null;
+    const quantity=Number(match[1]),rate=Number(match[2]);
+    if(!Number.isFinite(quantity)||!Number.isFinite(rate)||quantity<0||rate<0)return null;
+    return {quantity,rate,amount:cents(quantity*rate)};
+  }
   function compareRequests(a,b){
     const an=number(a.requisition_number),bn=number(b.requisition_number);
     if(an!==bn)return an-bn;
@@ -74,5 +82,5 @@
   function forRequest(requestId,requests=[],items=[]){
     return calculateHistory(requests,items).find(entry=>String(entry.request.id)===String(requestId))||null;
   }
-  return {cents,normalizeDescription:key,compareRequests,calculateHistory,forRequest};
+  return {cents,normalizeDescription:key,parseWorkDescription,compareRequests,calculateHistory,forRequest};
 });
