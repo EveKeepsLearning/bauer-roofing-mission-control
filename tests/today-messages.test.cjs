@@ -9,7 +9,7 @@ class Element{
 const els=new Map(),get=id=>{if(!els.has(id))els.set(id,new Element());return els.get(id);};
 const timers=[],events={},inserts=[];
 const people=[{user_id:'eve',display_name:'Eve'},{user_id:'jonathan',display_name:'Jonathan'}];
-const context={user:{id:'eve'},document:{head:new Element(),hidden:false,querySelector:()=>get('sidebar'),createElement:()=>new Element(),getElementById:get},window:{addEventListener:(n,fn)=>events[n]=fn},setInterval:fn=>timers.push(fn),Date,console};
+const context={user:{id:'eve'},document:{head:new Element(),hidden:false,querySelector:()=>get('sidebar'),createElement:()=>new Element(),getElementById:get},window:{addEventListener:(n,fn)=>events[n]=fn},setInterval:fn=>timers.push(fn),Date,console,URLSearchParams,location:{search:''}};
 context.db={rpc:async name=>name==='bro_message_recipients'?({data:people}):({data:{has_more:false,rows:[{id:'m',sender_id:'jonathan',recipient_id:'eve',created_at:'2026-09-12T12:00:00Z',body:'<img src=x onerror=alert(1)>',read_at:null,reply_to:null},{id:'r',sender_id:'eve',recipient_id:'jonathan',created_at:'2026-09-12T12:01:00Z',body:'Thread reply',read_at:null,reply_to:'m'}]}}),from:()=>{
  const q={select(){return q},or(){return q},order(){return q},range:async()=>({data:[{id:'m',sender_id:'jonathan',recipient_id:'eve',created_at:'2026-09-12T12:00:00Z',body:'<img src=x onerror=alert(1)>',read_at:null}]}),insert:async data=>{inserts.push(data);return{};}};return q;
 }};
