@@ -15,6 +15,22 @@
     $('prospectFirstName').focus();
   }
 
+  async function loadAllProspectsBeforeImport(){
+    if(typeof db==='undefined'||!db||typeof state==='undefined')return;
+    const all=[];
+    const pageSize=1000;
+    for(let from=0;;from+=pageSize){
+      const result=await db.from('prospects').select('*').order('id').range(from,from+pageSize-1);
+      if(result.error)throw result.error;
+      const rows=result.data||[];
+      all.push(...rows);
+      if(rows.length<pageSize)break;
+    }
+    const byId=new Map((state.prospects||[]).map(row=>[String(row.id),row]));
+    all.forEach(row=>byId.set(String(row.id),row));
+    state.prospects=[...byId.values()];
+  }
+
   function install(){
     const heading=$('view-angi')?.querySelector('.angi-toolbar-card .toolbar');
     const file=$('angiImportFile');
@@ -32,7 +48,23 @@
     heading.parentElement.appendChild(note);
     const status=$('angiImportStatus');if(status)heading.parentElement.appendChild(status);
 
-    file.addEventListener('change',()=>{if(file.files?.length)importButton.click();});
+    file.addEventListener('change',async()=>{
+      if(!file.files?.length)return;
+      const status=$('angiImportStatus');
+      quick.disabled=true;
+      manual.disabled=true;
+      if(status)status.textContent='Checking BRO for leads already imported…';
+      try{
+        await loadAllProspectsBeforeImport();
+        importButton.click();
+      }catch(error){
+        if(status)status.textContent='';
+        if(typeof msg==='function')msg('Could not prepare the Angi import: '+(error.message||String(error)),'error');
+      }finally{
+        quick.disabled=false;
+        manual.disabled=false;
+      }
+    });
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
