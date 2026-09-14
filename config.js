@@ -3,7 +3,7 @@ window.BAUER_CONFIG = {
   APP_URL: 'https://evekeepslearning.github.io/bauer-roofing-mission-control/',
   SUPABASE_URL: 'https://eufimdrdimpkzowlupre.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_F-nEDaSaUQPwy2rTKy71LA_H4gxArBt',
-  GOOGLE_MAPS_API_KEY: 'AIzaSyB4xjCbhk3FOUAPVl-80_hGH4qqXKYicVQ',
+  GOOGLE_MAPS_API_KEY: 'AIzaSyBybwNMdH2kA89_8axc_3y62k7pFl21ucU',
   CALENDAR_SYNC_WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbyKPbw5ZJkiMtfnmHidLD92Z3-jD6zbCzNzv9HsX6nxgmW9WmXTn7Sj4owvfQV4foaIFQ/exec'
 };
 (function(){
