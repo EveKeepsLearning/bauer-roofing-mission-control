@@ -4,7 +4,7 @@
     if(!v) return '';
     const d=new Date(v);
     if(Number.isNaN(d.getTime())) return '';
-    return d.toLocaleString(undefined,{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+    return d.toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',timeZone:'America/New_York'});
   }
 
   async function enhanceAppointmentDisplay(){

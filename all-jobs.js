@@ -15,7 +15,7 @@ function stateOf(j){
   if(j.closed_at||j.completion_date||['closed','final / closed','fully paid','work complete','final payment / closeout'].includes(stage))return'closed';
   return'open';
 }
-function dateLabel(v){if(!v)return'—';const d=new Date(String(v).slice(0,10)+'T12:00:00');return Number.isNaN(d.getTime())?String(v):d.toLocaleDateString();}
+function dateLabel(v){return window.BROUX?.date(String(v||'').slice(0,10))||'—';}
 function searchText(j){return [j.customer_name,j.job_number,j.lead_number,j.property_address,j.job_type,j.primary_category,j.primary_job_type,j.stage,j.salesperson,j.installer,j.production_notes,j.production_blocker].join(' ').toLowerCase();}
 function render(){
   const q=$('allJobSearch').value.trim().toLowerCase();
@@ -40,6 +40,7 @@ async function start(){
   const {data,error}=await db.from('jobs').select('*').is('deleted_at',null).order('updated_at',{ascending:false}).limit(5000);
   if(error)return notice(error.message,'error');
   allJobs=data||[];
+  const requested=new URLSearchParams(location.search).get('q');if(requested)$('allJobSearch').value=requested;
   render();
   $('allJobSearch').focus();
 }

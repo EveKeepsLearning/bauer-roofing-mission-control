@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  let account=null,sequence=0,members=[],rows=[],sending=false,offset=0,replyDraft=null;
+  let account=null,sequence=0,members=[],rows=[],sending=false,offset=0,replyDraft=null,jumped=false;
   const sidebar=document.querySelector('#view-today .today-sidebar');if(!sidebar)return;
   const card=document.createElement('section');card.className='card section-card';card.id='teamMessagesCard';
   card.innerHTML=`<div class="sidebar-card-heading"><h3>Team Messages</h3><button type="button" class="btn small" id="refreshTeamMessages">Refresh</button></div>
@@ -20,7 +20,7 @@
   const unread=row=>!row.hidden&&row.recipient_id===account&&!row.read_at;
   function button(label,run){const b=document.createElement('button');b.type='button';b.className='btn small';b.textContent=label;b.onclick=run;return b;}
   function reset(){
-    sequence++;account=null;members=[];rows=[];sending=false;offset=0;replyDraft=null;
+    sequence++;account=null;members=[];rows=[];sending=false;offset=0;replyDraft=null;jumped=false;
     el('teamMessageForm').reset();el('teamMessageList').replaceChildren();
     el('teamMessageRecipient').innerHTML='<option value="">Choose a teammate</option>';say('');
     el('sendTeamMessage').disabled=false;el('moreTeamMessages').classList.add('hidden');card.querySelector('h3').textContent='Team Messages';
@@ -72,7 +72,7 @@
     if(!threads.length){target.textContent='No messages yet.';return;}
     for(const [root,items] of threads){
       const original=items.find(r=>r.id===root)||items[0],to=original.sender_id===account?original.recipient_id:original.sender_id;
-      const thread=document.createElement('section');thread.className='message-thread';
+      const thread=document.createElement('section');thread.className='message-thread';thread.id='thread-'+root;
       items.sort((a,b)=>Number(!!a.reply_to)-Number(!!b.reply_to)||Date.parse(a.created_at)-Date.parse(b.created_at));
       for(const row of items){
         if(row.hidden){if(row.id===root){const placeholder=document.createElement('p');placeholder.className='meta';placeholder.textContent='Original message deleted from your view.';thread.append(placeholder);}continue;}
@@ -83,12 +83,33 @@
         const body=document.createElement('p');body.style.whiteSpace='pre-wrap';body.style.overflowWrap='anywhere';body.textContent=row.body;
         item.append(heading,date,body);
         if(unread(row))item.append(button('Mark Read',()=>markRead(row)));
-        item.append(button('Delete',()=>remove(row)));thread.append(item);
+        item.append(button('Create Task',()=>createTask(row,root)),button('Delete',()=>remove(row)));thread.append(item);
       }
       if(replyDraft?.root===root)replyForm(thread,root,to);
       else thread.append(button('Reply to '+name(to),()=>{replyDraft={root,to,text:''};render();}));
       target.append(thread);
     }
+  }
+  function createTask(row,root){
+    if(typeof clearTaskForm!=='function')return say('Task entry is still loading. Try again in a moment.');
+    clearTaskForm();
+    el('taskName').value=row.body.trim().split('\n')[0].slice(0,120);
+    el('taskDescription').value=row.body;
+    el('taskNotes').value='BRO conversation: index.html?view=today&thread='+root;
+    el('taskDialog').showModal();
+    window.BROUX?.markDraft(el('taskDialog'));
+  }
+  async function includeLinkedThread(){
+    const root=new URLSearchParams(location.search).get('thread');
+    if(!root||!/^[a-f0-9-]{36}$/i.test(root)||rows.some(r=>r.id===root||r.reply_to===root))return;
+    const uid=account;
+    const [messages,dismissals]=await Promise.all([
+      window.BROUX.pages(()=>db.from('team_messages').select('*').or('id.eq.'+root+',reply_to.eq.'+root).order('created_at').order('id')),
+      window.BROUX.pages(()=>db.from('team_message_dismissals').select('message_id').order('message_id'))
+    ]);
+    if(user?.id!==uid)return;
+    const hidden=new Set(dismissals.map(r=>r.message_id));
+    rows.push(...messages.map(r=>({...r,hidden:hidden.has(r.id)})));
   }
   async function refresh(older=false){
     if(typeof user==='undefined'||!user?.id||!db)return;
@@ -102,7 +123,10 @@
       for(const person of members.filter(m=>m.user_id!==uid)){const option=document.createElement('option');option.value=person.user_id;option.textContent=person.display_name;el('teamMessageRecipient').append(option);}
       el('teamMessageRecipient').value=chosen;
       rows=older?[...new Map([...rows,...result.data.rows].map(r=>[r.id,r])).values()]:result.data.rows;
-      el('moreTeamMessages').classList.toggle('hidden',!result.data.has_more);render();
+      await includeLinkedThread();if(user?.id!==uid||request!==sequence)return;
+      el('moreTeamMessages').classList.toggle('hidden',!result.data.has_more);render();window.BROUX?.refreshUnread();
+      const root=new URLSearchParams(location.search).get('thread');
+      if(root&&!jumped){const target=el('thread-'+root);if(target){jumped=true;target.classList.add('bro-thread-target');target.scrollIntoView({block:'center'});}else say('This conversation is no longer available in your view.');}
     }catch(error){if(user?.id===uid&&request===sequence)say('Could not load messages: '+error.message);}
   }
   el('teamMessageForm').onsubmit=async event=>{event.preventDefault();if(await send(el('teamMessageRecipient').value,el('teamMessageBody').value)){el('teamMessageBody').value='';await refresh();}};

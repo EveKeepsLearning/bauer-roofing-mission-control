@@ -695,14 +695,14 @@ function formatDueDateTime(dateValue,timeValue) {
   let formattedDate='';
   let formattedTime='';
   const dateParts=date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if(dateParts)formattedDate=`${dateParts[2]}/${dateParts[3]}/${dateParts[1]}`;
+  if(dateParts)formattedDate=window.BROUX?.date(date)||date;
   else if(date)formattedDate=date;
   const timeParts=time.match(/^(\d{1,2}):(\d{2})/);
   if(timeParts){
     const hour=Number(timeParts[1]);
     formattedTime=`${hour%12||12}:${timeParts[2]} ${hour>=12?'pm':'am'}`;
   }else if(time)formattedTime=time;
-  if(formattedTime&&formattedDate)return `${formattedTime} on ${formattedDate}`;
+  if(formattedTime&&formattedDate)return `${formattedDate} · ${formattedTime.toUpperCase()}`;
   return formattedTime||formattedDate;
 }
 
@@ -1380,16 +1380,12 @@ function toggleAngiFields(prefix) {
 
 function formatWhen(value) {
   if (!value) return '';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleString();
+  return window.BROUX?.date(value,true)||String(value);
 }
 
 function formatDate(value) {
   if (!value) return '';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString();
+  return window.BROUX?.date(value)||'';
 }
 
 
@@ -3201,6 +3197,7 @@ function taskCard(t) {
       <div class="task-title"><b>${esc(t.task)}</b>${t.base_priority==='Critical'?'<span style="margin-left:8px;color:#b42318;font-weight:700">Critical</span>':''}</div>
       ${dueText?`<div class="task-due">${esc(dueText)}</div>`:''}
       ${t.description ? `<div>${esc(t.description)}</div>` : ''}
+      ${window.BROUX?.taskLink(t)||''}
       ${subtaskHtml}
       <div class="actions">
         ${mainAction}
