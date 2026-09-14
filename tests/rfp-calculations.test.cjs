@@ -1,6 +1,12 @@
 const assert=require('node:assert/strict');
 const math=require('../rfp-calculations.js');
 
+assert.deepEqual(math.parseWorkDescription('23sq @ $60.0/sq'),{quantity:23,rate:60,amount:1380});
+assert.deepEqual(math.parseWorkDescription('23 sq @ $60.0/sq'),{quantity:23,rate:60,amount:1380});
+assert.deepEqual(math.parseWorkDescription('40 LF boards @ $.50/LF'),{quantity:40,rate:.5,amount:20});
+assert.deepEqual(math.parseWorkDescription('1.5 squares @ $125.25/sq'),{quantity:1.5,rate:125.25,amount:187.88});
+assert.equal(math.parseWorkDescription('Flat repair allowance'),null);
+
 const requests=[
   {id:'r1',requisition_number:1,retainage_percent:0,payment_date:'2026-09-01'},
   {id:'r2',requisition_number:2,retainage_percent:0,payment_date:'2026-09-10'}
@@ -37,4 +43,4 @@ assert.equal(retainageHistory[1].previousPayments,90);
 assert.equal(retainageHistory[1].thisRequisition,110);
 assert.equal(retainageHistory[2].previousPayments,200,'Previous Payments must equal the actual prior RFP requisitions, not gross requests.');
 assert.equal(retainageHistory[2].thisRequisition,100);
-console.log('PASS: RFPs treat prior requisitions as paid and preserve cumulative work lines.');
+console.log('PASS: RFPs calculate quantity @ rate lines and treat prior requisitions as paid.');
