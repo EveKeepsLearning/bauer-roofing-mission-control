@@ -1,0 +1,21 @@
+name: BRO regression tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      TZ: America/New_York
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run JavaScript regression tests
+        run: node --test tests/*.test.cjs tests/*.test.mjs
