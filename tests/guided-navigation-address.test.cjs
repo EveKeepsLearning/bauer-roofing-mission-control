@@ -6,8 +6,8 @@ const maps=fs.readFileSync('google-address-autocomplete.js','utf8');
 const guide=fs.readFileSync('guided-next-step.js','utf8');
 const release=JSON.parse(fs.readFileSync('release.json','utf8'));
 
-assert.equal(release.version,'20260914-guidedflow1');
-assert.match(config,/APP_VERSION: '20260914-guidedflow1'/);
+assert.equal(release.version,'20260914-teamalerts1');
+assert.match(config,/APP_VERSION: '20260914-teamalerts1'/);
 assert.match(config,/google-address-autocomplete\.js\?v=\$\{VERSION\}/);
 assert.match(config,/guided-next-step\.js\?v=\$\{VERSION\}/);
 assert.match(maps,/importLibrary\('places'\)/);
