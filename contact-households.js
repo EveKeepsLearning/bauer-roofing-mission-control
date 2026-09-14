@@ -49,13 +49,13 @@
     const safe=q.replace(/[,%()]/g,' ');let query=db.from('contacts').select('*').or(`name.ilike.%${safe}%,email.ilike.%${safe}%,street_address.ilike.%${safe}%`).neq('id',current).limit(30);
     const {data,error}=await query;if(error){$('mergeContactResults').innerHTML=`<div class="notice error">${esc(error.message)}</div>`;return;}
     $('mergeContactResults').innerHTML=(data||[]).length?(data||[]).map(c=>`<div class="bro-merge-row"><div><b>${esc(c.name)}</b><div class="bro-merge-meta">${esc([c.phone,c.email,c.street_address,c.city,c.state,c.zip].filter(Boolean).join(' • '))}</div></div><div class="bro-merge-actions"><button class="btn small" type="button" data-merge-keep-current="${esc(c.id)}">Merge into current</button><button class="btn small primary" type="button" data-merge-keep-selected="${esc(c.id)}">Use this as main</button></div></div>`).join(''):'<div class="empty-state">No other BRO contacts matched.</div>';
-    $('mergeContactResults').querySelectorAll('[data-merge-keep-current]').forEach(b=>b.onclick=()=>mergeContacts(current,b.dataset.mergeKeepCurrent));
-    $('mergeContactResults').querySelectorAll('[data-merge-keep-selected]').forEach(b=>b.onclick=()=>mergeContacts(b.dataset.mergeKeepSelected,current));
+    const currentName=selected?.display_name||'the current contact';
+    $('mergeContactResults').querySelectorAll('[data-merge-keep-current]').forEach(b=>b.onclick=()=>{const c=(data||[]).find(x=>String(x.id)===String(b.dataset.mergeKeepCurrent));mergeContacts(current,b.dataset.mergeKeepCurrent,currentName,c?.name||'the duplicate contact');});
+    $('mergeContactResults').querySelectorAll('[data-merge-keep-selected]').forEach(b=>b.onclick=()=>{const c=(data||[]).find(x=>String(x.id)===String(b.dataset.mergeKeepSelected));mergeContacts(b.dataset.mergeKeepSelected,current,c?.name||'the selected contact',currentName);});
   }
-  async function mergeContacts(keepId,mergeId){
-    const [kr,mr]=await Promise.all([db.from('contacts').select('id,name').eq('id',keepId).single(),db.from('contacts').select('id,name').eq('id',mergeId).single()]);
-    if(kr.error||mr.error)return alert((kr.error||mr.error).message);
-    if(!confirm(`Merge “${mr.data.name}” into “${kr.data.name}”?\n\nAll linked BRO records will move to “${kr.data.name}”. The duplicate contact will then be removed.`))return;
+  async function mergeContacts(keepId,mergeId,keepName,mergeName){
+    if(!keepId||!mergeId||keepId===mergeId)return alert('Choose two different contacts to merge.');
+    if(!confirm(`Merge “${mergeName}” into “${keepName}”?\n\nAll linked BRO records will move to “${keepName}”. The duplicate contact will then be removed.`))return;
     const {error}=await db.rpc('bro_merge_contacts',{p_keep:keepId,p_merge:mergeId});if(error)return alert(`Could not merge contacts: ${error.message}`);
     location.href=`contacts.html?contact=${encodeURIComponent(keepId)}&merged=1`;
   }
