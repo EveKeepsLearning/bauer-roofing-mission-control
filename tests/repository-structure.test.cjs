@@ -54,4 +54,15 @@ for(const file of runtimeFiles){
   for(const oldName of forbidden)assert.ok(!text.includes(oldName),`${file} still references ${oldName}`);
 }
 
-console.log('PASS: repository uses one release value and authoritative runtime module names.');
+for(const htmlFile of ['index.html','calendar.html','sales.html','jobs.html']){
+  const html=read(htmlFile);
+  for(const match of html.matchAll(/(?:src|href)=["']([^"']+)["']/g)){
+    const ref=match[1];
+    if(/^(?:https?:|data:|#|mailto:|tel:)/.test(ref))continue;
+    const local=ref.split(/[?#]/)[0];
+    if(!/\.(?:js|css|html)$/.test(local))continue;
+    assert.ok(exists(local),`${htmlFile} references missing local asset: ${local}`);
+  }
+}
+
+console.log('PASS: repository uses one release value, authoritative module names, and valid local runtime references.');
