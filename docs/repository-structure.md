@@ -1,8 +1,8 @@
-# BRO repository structure and cleanup plan
+# BRO repository structure
 
 ## Goal
 
-Make it obvious which file owns each feature, while avoiding a risky framework rewrite. BRO remains a straightforward GitHub Pages application.
+Make it obvious which file owns each feature while keeping BRO a straightforward GitHub Pages application. Repository cleanup should reduce ambiguity without introducing a framework rewrite.
 
 ## Source-of-truth rules
 
@@ -23,47 +23,57 @@ Make it obvious which file owns each feature, while avoiding a risky framework r
 - `task-handoff.js`
 - `task-job-routing.js`
 
-`app.js` is still large. New feature work should go into focused modules rather than making it larger. Existing areas should be extracted only when a workflow is already under active maintenance and can be regression-tested.
+`app.js` is still large. New feature work should go into focused modules rather than making it larger. Existing areas should be extracted one capability at a time when that workflow has regression coverage or a repeatable acceptance test.
 
 ### Angi
-- `angi-queue-import.js` — authoritative export reader/import UI compatibility
+- `angi-queue-import.js` — authoritative export reader/import compatibility layer
 - `angi-inquiry-actions.js` — conversion/inquiry actions
 
-The retired `angi-import-contact-fix.js` and `angi-queue-import-rfp2.js` patch generations are intentionally removed.
+Removed obsolete generations: `angi-import-contact-fix.js`, `angi-queue-import-rfp2.js`.
 
 ### Calendar
-Keep:
-- `calendar-sync-client-v2.js`
-- `calendar-sync-recovery.js`
-- `calendar-v4.js`
-- `calendar-google-view.js`
+- `calendar-sync-client.js` — BRO ↔ Google Apps Script client
+- `calendar-sync-recovery.js` — recovery behavior
+- `calendar.js` — Calendar page behavior
+- `calendar-google-view.js` — Google event view/matching behavior
 - `calendar.html`
 
-Retired old generations:
-- `calendar-sync-client.js`
-- `calendar-v3.js`
-- `calendar-modern-links.js`
-- `calendar-modern-match.js`
-- `calendar-window-fix.js`
-
-The active Calendar filenames should be renamed to non-versioned names only in a dedicated Calendar PR after the Google Apps Script flow has a regression checklist for create/update/delete/no-duplicate behavior.
+Removed obsolete generations: `calendar-v3.js`, `calendar-modern-links.js`, `calendar-modern-match.js`, `calendar-window-fix.js`, and the previous versioned Calendar client/page filenames.
 
 ### Contacts / Inquiries
-Use the non-test root files only. Prefer extending the current `contacts-*`, `inquiry-*`, `contacts.js`, and `inquiry.js` modules instead of adding patch generations.
+Use the root `contacts-*`, `inquiry-*`, `contacts.js`, and `inquiry.js` modules. Inquiry number suggestions are owned by `inquiry-number-suggestions.js`.
 
 ### Sales
-`sales.html` currently loads the active sales modules. `sales-board-rfp2.js` is still an active compatibility-era filename and should be renamed only together with the HTML reference in a focused no-behavior-change PR.
+- `sales.html`
+- `sales-board.js`
+- `sales-type-colors.js`
+- `sales-pipeline-cleanup.js`
+- `sales-job-actions.js`
+- `sales-missing-numbers.js`
+
+The previous `sales-board-v2.js` / `sales-board-rfp2.js` generations are retired.
 
 ### Jobs / RFP
-`jobs.html` currently loads `jobs-rfp2.js` and the payment-request modules. Because RFP behavior is operational and still being validated against the legacy workbook, rename/consolidation should be done after the cumulative calculation and print acceptance tests are in place.
+- `jobs.html`
+- `jobs.js`
+- `jobs-rfp.js`
+- `jobs-payment-requests.js`
+- `jobs-active-load.js`
+- `jobs-stage.js`
+- the other focused `jobs-*` modules
+- `payment-request-print.html` / `payment-request-print.js`
+
+The RFP code was renamed without changing its business logic. RFP cumulative calculations and printed output still require business acceptance tests against the legacy workbook before deeper refactoring.
 
 ## Release/version handling
 
-`release.json`, `config.js`, and individual HTML cache-busting query strings currently represent different generations. Do not add additional release identifiers. The target state is one canonical release value used by the runtime loader and release marker. Until that migration is complete, change cache-busting strings only when the underlying asset changes.
+`release.json` and `config.js` now use the same release value. `config.js` uses `BAUER_CONFIG.APP_VERSION` as the single cache key for dynamically loaded runtime modules. Key operational pages updated during this cleanup use the same release key for their direct dependencies.
+
+Do not create feature-specific release names for future changes. Advance the canonical release value when a deployment needs cache invalidation.
 
 ## Test strategy
 
-Use `tests/` for regression coverage. Priority tests:
+Use `tests/` for regression coverage. Priority tests remain:
 
 - Angi export parsing, dedupe, archived-lead reappearance, and cadence assignment
 - Appointment ↔ Google Calendar event identity and no-duplicate sync
@@ -71,6 +81,8 @@ Use `tests/` for regression coverage. Priority tests:
 - Customer payment totals and balance due
 - RFP multi-line and cumulative requisition math
 - RLS/private Today data boundaries
+
+`tests/repository-structure.test.cjs` prevents old compatibility filenames and release drift from creeping back into the runtime.
 
 ## Safe extraction strategy for `app.js`
 
@@ -81,4 +93,4 @@ Do not split `app.js` merely to make it smaller. Extract one business capability
 3. The new module is loaded once from one place.
 4. The old functions are removed from `app.js` in the same PR.
 
-Angi import is the first example: its tolerant file-reading behavior now lives in `angi-queue-import.js` rather than another runtime patch file.
+Angi import is the first completed example: tolerant export parsing now lives in `angi-queue-import.js` instead of a second runtime patch file. Future work should follow that same pattern.
