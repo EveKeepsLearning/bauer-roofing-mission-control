@@ -87,7 +87,7 @@
     const byLead=new Map(),noLead=[];
     for(const row of rows.slice(1)){
       if(!rowHasValues(row))continue;
-      const ref=String(row[idx]??'').trim();
+      const ref=String(row[idx]??'').trim().replace(/\.0+$/,'');
       if(ref)byLead.set(ref,row);else noLead.push(row);
     }
     return [rows[0],...byLead.values(),...noLead];
@@ -132,8 +132,8 @@
     return dedupeByLeadNumber(makeImporterCompatible(rows));
   }
 
-  // app.js owns the actual import/status workflow. This small module owns file-reading
-  // compatibility so Angi format changes do not require another one-off patch loader.
+  // app.js owns the established status/cadence rules. This module owns import-file
+  // compatibility and import preparation so Angi format/history changes stay isolated.
   try{readAngiExportRows=robustReadAngiExportRows;}catch(_){window.readAngiExportRows=robustReadAngiExportRows;}
 
   function openManualAngi(){
@@ -163,32 +163,46 @@
     state.prospects=[...byId.values()];
   }
 
-  function storedAngiProspect(p){
+  function storedAngiRecord(p){
     if(!p||p.deleted_at)return false;
-    const source=String(p.source||'').trim().toLowerCase();
-    const account=String(p.source_account||'').trim().toLowerCase();
-    const imported=String(p.import_source||'').trim().toLowerCase();
-    return source==='angi'||account.includes('angi')||imported.includes('angi');
+    const source=norm(p.source);
+    const account=norm(p.source_account);
+    const imported=norm(p.import_source);
+    return source==='angi'||account.includes('angi')||imported.startsWith('angi ');
   }
 
+  let importInFlight=false;
   async function runPreparedAngiImport(){
-    await loadAllProspectsBeforeImport();
-    if(typeof importAngiExport!=='function')throw new Error('The Angi importer is not available. Refresh BRO and try again.');
-
-    // The database unique key includes archived prospects. During import, use the same
-    // definition of "existing Angi prospect" so an archived lead is updated/reviewed
-    // rather than inserted a second time and rejected by Supabase.
-    let originalIsAngiProspect=null;
+    if(importInFlight)return;
+    if(typeof importAngiExport!=='function')throw new Error('BRO Angi importer is not available.');
+    importInFlight=true;
+    const quick=$('angiQuickImportBtn');
+    const manual=$('angiQuickManualBtn');
+    const nativeButton=$('angiImportBtn');
+    const originalPredicate=typeof isAngiProspect==='function'?isAngiProspect:null;
+    if(quick)quick.disabled=true;
+    if(manual)manual.disabled=true;
+    if(nativeButton)nativeButton.disabled=true;
     try{
-      if(typeof isAngiProspect==='function'){
-        originalIsAngiProspect=isAngiProspect;
-        isAngiProspect=storedAngiProspect;
+      const status=$('angiImportStatus');
+      if(status)status.textContent='Checking BRO for leads already imported…';
+      await loadAllProspectsBeforeImport();
+
+      // The normal UI predicate intentionally hides archived prospects. During import,
+      // archived Angi rows still have to count as existing because Supabase enforces
+      // owner + source account + source reference uniqueness for every stored record.
+      if(originalPredicate){
+        const importPredicate=p=>storedAngiRecord(p)||originalPredicate(p);
+        try{isAngiProspect=importPredicate;}catch(_){window.isAngiProspect=importPredicate;}
       }
+
       await importAngiExport();
     }finally{
-      if(originalIsAngiProspect){
-        try{isAngiProspect=originalIsAngiProspect;}catch(_){window.isAngiProspect=originalIsAngiProspect;}
-      }
+      if(originalPredicate){try{isAngiProspect=originalPredicate;}catch(_){window.isAngiProspect=originalPredicate;}}
+      if(quick)quick.disabled=false;
+      if(manual)manual.disabled=false;
+      if(nativeButton)nativeButton.disabled=false;
+      importInFlight=false;
     }
   }
 
@@ -209,29 +223,12 @@
     heading.parentElement.appendChild(note);
     const status=$('angiImportStatus');if(status)heading.parentElement.appendChild(status);
 
-    // Keep the original button safe too, even if it is exposed by a future UI change.
-    importButton.onclick=async()=>{
-      if(!file.files?.length)return;
-      try{await runPreparedAngiImport();}
-      catch(error){if(typeof msg==='function')msg('Could not prepare the Angi import: '+(error.message||String(error)),'error');}
-    };
-
     file.addEventListener('change',async()=>{
       if(!file.files?.length)return;
-      const status=$('angiImportStatus');
-      quick.disabled=true;
-      manual.disabled=true;
-      importButton.disabled=true;
-      if(status)status.textContent='Checking BRO for leads already imported…';
-      try{
-        await runPreparedAngiImport();
-      }catch(error){
-        if(status)status.textContent='';
+      try{await runPreparedAngiImport();}
+      catch(error){
+        const status=$('angiImportStatus');if(status)status.textContent='';
         if(typeof msg==='function')msg('Could not prepare the Angi import: '+(error.message||String(error)),'error');
-      }finally{
-        quick.disabled=false;
-        manual.disabled=false;
-        importButton.disabled=false;
       }
     });
   }
