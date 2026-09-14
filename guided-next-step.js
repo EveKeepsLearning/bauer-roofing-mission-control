@@ -10,8 +10,12 @@
   `;document.head.appendChild(s)}
   function makeGuide(id,steps,current,nextLabel,nextAction,help=''){
     let box=$(id);if(!box){box=document.createElement('section');box.id=id;box.className='bro-guide'}
-    box.innerHTML=`<div class="bro-guide-title">Where you are in the Bauer workflow</div><div class="bro-guide-steps">${steps.map((x,i)=>`<span class="bro-guide-step ${i<current?'done':i===current?'current':''}">${x}</span>`).join('')}</div><div class="bro-guide-next"><b>Next step:</b><button type="button" class="btn primary" data-bro-guide-action>${nextLabel}</button>${help?`<span class="bro-guide-help">${help}</span>`:''}</div>`;
-    box.querySelector('[data-bro-guide-action]').onclick=nextAction;return box;
+    const signature=JSON.stringify({steps,current,nextLabel,help});
+    if(box.dataset.signature!==signature){
+      box.dataset.signature=signature;
+      box.innerHTML=`<div class="bro-guide-title">Where you are in the Bauer workflow</div><div class="bro-guide-steps">${steps.map((x,i)=>`<span class="bro-guide-step ${i<current?'done':i===current?'current':''}">${x}</span>`).join('')}</div><div class="bro-guide-next"><b>Next step:</b><button type="button" class="btn primary" data-bro-guide-action>${nextLabel}</button>${help?`<span class="bro-guide-help">${help}</span>`:''}</div>`;
+    }
+    const actionButton=box.querySelector('[data-bro-guide-action]');if(actionButton)actionButton.onclick=nextAction;return box;
   }
   function visible(el){return !!el&&getComputedStyle(el).display!=='none'}
   function inquiryGuide(){
@@ -40,11 +44,13 @@
     if(/deposit/i.test(stage)){current=1;label='Record Material Order';action=()=>focusField('editMaterialOrdered');help='Enter the material order date, then save the Job.';}
     else if(/material ordered|ready to schedule/i.test(stage)){current=/ready to schedule/i.test(stage)?3:2;label='Schedule Work';action=()=>focusField('editStart');help='Enter the confirmed start date and installer.';}
     else if(/scheduled/i.test(stage)){current=3;label='Confirm Material Delivery';action=()=>focusField('editMaterialDelivery');help='Keep the crew and delivery dates together on this Job.';}
-    else if(/material delivered|in production/i.test(stage)){current=4;label=/in production/i.test(stage)?'Record Completion':'Start Production';action=()=>{if(/in production/i.test(stage))focusField('editCompleted');else{$('editStage').value='In Production';focusField('editStage')}};help='BRO will keep the production timeline with the Job.';}
+    else if(/material delivered|in production/i.test(stage)){current=4;label=/in production/i.test(stage)?'Record Completion':'Start Production';action=()=>{if(/in production/i.test(stage))focusField('editCompleted');else{$('editStage').value='In Production';$('editStage').dispatchEvent(new Event('change',{bubbles:true}));focusField('editStage')}};help='BRO will keep the production timeline with the Job.';}
     else if(/work complete|final payment|closeout/i.test(stage)){current=5;label='Review Final Payment / Closeout';action=()=>focusField('editStage');help='Finish the job record when payment and closeout are complete.';}
     const guide=makeGuide('broJobGuide',steps,current,label,action,help);
     if(!guide.isConnected)title.insertAdjacentElement('afterend',guide);
   }
   function refresh(){installStyles();inquiryGuide();jobGuide()}
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{refresh();setTimeout(refresh,500);new MutationObserver(()=>refresh()).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['open','style','value']});},{once:true});else{refresh();setTimeout(refresh,500);new MutationObserver(()=>refresh()).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['open','style','value']});}
+  let queued=false;function queueRefresh(){if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;refresh()})}
+  function start(){refresh();setTimeout(refresh,500);new MutationObserver(queueRefresh).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['open','style']});document.addEventListener('change',e=>{if(e.target?.id==='editStage')queueRefresh()});window.addEventListener('bro:payments-changed',queueRefresh);}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 })();
