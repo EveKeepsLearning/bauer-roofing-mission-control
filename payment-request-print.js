@@ -44,6 +44,6 @@
     <div class="exceptions"><b>EXCEPTIONS ARE AS FOLLOWS:</b><div class="exception-lines"><div></div><div></div><div></div></div></div>
     <div class="signature-block"><div class="signature-company"><b>${esc(r.subcontractor_name_snapshot)}</b><small>Contractor</small></div><div class="sig-row"><span>By:</span><span class="sig-line"></span></div>${contact?`<div class="contact-name">${esc(contact)}</div>`:''}<div class="sig-row"><span>Title:</span><span class="sig-line"></span></div><div class="sig-row"><span>Date:</span><span class="sig-line"></span></div></div>`;
   $('sheet').hidden=false;document.title=`RFP ${r.requisition_number} - ${r.subcontractor_name_snapshot}`;$('printBtn').onclick=()=>window.print();
-  if(autoPrint)setTimeout(()=>window.print(),300);
+  if(autoPrint)setTimeout(()=>window.print(),250);
  }catch(e){fail('Request for Payment could not be opened: '+(e.message||String(e)));}
 })();
