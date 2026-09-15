@@ -3,6 +3,7 @@ const assert=require('node:assert/strict');
 
 const config=fs.readFileSync('config.js','utf8');
 const feature=fs.readFileSync('jobs-contact-scheduling.js','utf8');
+const addendums=fs.readFileSync('jobs-addendums.js','utf8');
 const stage=fs.readFileSync('jobs-stage.js','utf8');
 const guide=fs.readFileSync('guided-next-step.js','utf8');
 
@@ -17,6 +18,13 @@ assert.match(feature,/stageRank\(stage\)<stageRank\('Scheduled'\)/);
 assert.match(feature,/stage='Scheduled'/);
 assert.match(feature,/from\('jobs'\)\.update\(patch\)/);
 assert.match(feature,/select\('\*'\)\.single\(\)/);
+assert.match(feature,/contract_amount:contractAmount/);
+assert.match(feature,/estimate_price:estimatePrice/);
+assert.match(feature,/amount_due:amountDue/);
+assert.match(feature,/from\('job_payments'\)\.select\('amount'\)/);
+assert.match(feature,/from\('job_contract_addendums'\)\.select\('amount,status'\)/);
+assert.match(addendums,/const storedDue=j\.amount_due/);
+assert.match(addendums,/hasContract\?Math\.max/);
 assert.match(feature,/Could not save job:/);
 assert.match(feature,/Expected Start/);
 assert.match(feature,/filtered\(\)\.filter\(job=>sameDay\(job\.target_start_date,day\)\)/);
