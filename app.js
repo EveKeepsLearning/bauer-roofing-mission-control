@@ -3278,7 +3278,7 @@ function communicationDueCard(entry) {
   if (entry.kind === 'job') {
     const j=entry.item;
     const dueText=formatDueDateTime(j.client_communication_due_date,'');
-    return `<div class="task task-category-communication"><b>${esc(j.customer_name || 'Job customer')}</b>${dueText?`<div class="task-due">${esc(dueText)}</div>`:''}<div>${esc(j.client_communication_reason || 'Weekly production check-in is due')}</div><div class="actions">${contactActionHtml({...contactForJob(j),kind:'job',id:j.id,name:j.customer_name})}<button class="btn success small" data-job-contacted="${esc(j.id)}">Mark Customer Contacted</button></div></div>`;
+    return `<div class="task task-category-communication" data-job-communication-task="${esc(j.id)}"><b>${esc(j.customer_name || 'Job customer')}</b>${dueText?`<div class="task-due">${esc(dueText)}</div>`:''}<div>${esc(j.client_communication_reason || 'Weekly production check-in is due')}</div><div class="actions"><button class="btn small" type="button" data-edit-job="${esc(j.id)}">Open Job</button>${contactActionHtml({...contactForJob(j),kind:'job',id:j.id,name:j.customer_name})}<button class="btn success small" data-job-contacted="${esc(j.id)}">Mark Customer Contacted</button><button class="btn small danger-link" type="button" data-delete-job-communication-task="${esc(j.id)}">Delete Task</button></div></div>`;
   }
   const c = entry.item;
   const dueText=formatDueDateTime(c.due_date,c.due_time);
@@ -5387,6 +5387,19 @@ async function markJobCustomerContacted(jobId){
   msg('Customer contact saved. The next weekly check-in is scheduled.','success');
 }
 
+async function deleteJobCommunicationTask(jobId){
+  const job=state.jobs.find(j=>j.id===jobId);
+  if(!job)return;
+  const customer=job.customer_name||'this customer';
+  if(!confirm(`Delete this weekly production communication task for ${customer}?\n\nThis removes only the current reminder. The job will remain, and the next weekly reminder will still be scheduled.`))return;
+  const nextDue=dateDaysFromToday(7);
+  await updateRecord('jobs',jobId,{client_communication_needed:false,client_communication_due_date:nextDue},'Weekly production communication task restored.');
+  Object.assign(job,{client_communication_needed:false,client_communication_due_date:nextDue,updated_at:new Date().toISOString()});
+  renderDashboard();
+  renderJobs();
+  msg(`Task deleted. The next weekly reminder is scheduled for ${new Date(nextDue+'T12:00:00').toLocaleDateString()}.`,'success');
+}
+
 async function loadAll(){
   const loadingUserId=user?.id;
   if(!loadingUserId)return;
@@ -5468,6 +5481,7 @@ document.body.addEventListener('click', async event => {
     const reopenJobButton=event.target.closest('[data-reopen-job]');if(reopenJobButton){await reopenJob(reopenJobButton.dataset.reopenJob);return;}
     const teamText=event.target.closest('[data-team-text]');if(teamText){openTeamText(teamText.dataset.teamText,teamText.dataset.teamKind,teamText.dataset.teamId);return;}
     const jobContacted=event.target.closest('[data-job-contacted]'); if(jobContacted){await markJobCustomerContacted(jobContacted.dataset.jobContacted);return;}
+    const deleteJobCommunication=event.target.closest('[data-delete-job-communication-task]');if(deleteJobCommunication){await deleteJobCommunicationTask(deleteJobCommunication.dataset.deleteJobCommunicationTask);return;}
     const editAppt=event.target.closest('[data-edit-appointment]'); if(editAppt){openAppointmentEdit(editAppt.dataset.editAppointment);return;}
     const mergeAppt=event.target.closest('[data-merge-appointment]'); if(mergeAppt){await mergeDuplicateAppointments(mergeAppt.dataset.mergeAppointment);return;}
     const logComm=event.target.closest('[data-log-communication]'); if(logComm){openCommunicationDialog(logComm.dataset.logCommunication,logComm.dataset.contactId);return;}
