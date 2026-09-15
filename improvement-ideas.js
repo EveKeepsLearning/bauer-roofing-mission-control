@@ -41,7 +41,7 @@
   const notes=document.getElementById('quickNotesList')?.closest('.quick-notes-card');
   if(notes){const root=document.createElement('section');root.id='businessImprovements';root.className='card section-card ideas-card';root.hidden=true;root.style.display='none';notes.after(root);setupPanel(root,'business');}
   if(!panels.length)return;
-  client=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
+  client=window.__broSupabaseClient||(window.__broSupabaseClient=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY));
   async function session(s){
    const next=s?.user||null;if(initialized&&next?.id===user?.id)return;initialized=true;
    const generation=++sessionGeneration;user=next;workspaceOwner=false;names={};

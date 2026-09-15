@@ -22,6 +22,6 @@ assert.match(app,/ensureFullDataForView\(name\)/,'Heavy data must load when a CR
 assert.match(app,/db\.from\('leads'\)\.select\('\*'\)\.not\('prospect_id','is',null\)/,'Angi must load only inquiries linked to prospects');
 assert.match(app,/db\.from\('appointments'\)\.select\('\*'\)\.not\('prospect_id','is',null\)/,'Angi must load only appointments linked to prospects');
 assert.match(app,/if\(name==='angi'&&!angiDataLoaded\)/,'Angi must lazy-load its own small data set');
-assert.match(html,/app\.js\?v=20260915-perf1/,'The optimized loader must be cache-busted');
+assert.match(html,/app\.js\?v=20260915-perf2/,'The optimized loader must be cache-busted');
 
 console.log('PASS: Today defers CRM history and does not render hidden workspaces.');
