@@ -7,8 +7,8 @@ const contactsEdit=fs.readFileSync('contacts-edit.js','utf8');
 const contactDelete=fs.readFileSync('contact-delete.js','utf8');
 const numbers=fs.readFileSync('inquiry-number-suggestions.js','utf8');
 
-assert.equal(release.version,'20260915-contactdelete1');
-assert.match(config,/APP_VERSION: '20260915-contactdelete1'/);
+assert.equal(release.version,'20260915-square1');
+assert.match(config,/APP_VERSION: '20260915-square1'/);
 assert.match(config,/contact-delete\.js\?v=\$\{VERSION\}/);
 assert.match(contactsEdit,/Delete Contact/);
 assert.match(contactDelete,/Delete Contact/);
