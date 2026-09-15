@@ -7,7 +7,7 @@
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const money=v=>Number(v||0).toLocaleString('en-US',{style:'currency',currency:'USD'});
   const norm=v=>String(v||'').toLowerCase().replace(/&/g,' and ').replace(/[^a-z0-9]+/g,' ').trim();
-  let client=null,jobs=[];
+  let client=null,jobChoices=[];
 
   function getClient(){
     try{if(typeof db!=='undefined'&&db)return db;}catch(_){ }
@@ -18,7 +18,7 @@
   function installStyles(){
     if($('broSquarePaymentsStyles'))return;
     const style=document.createElement('style');style.id='broSquarePaymentsStyles';
-    style.textContent=`#broSquarePaymentsCard{border-top:4px solid #236f52;margin:14px 0 8px;padding:14px;background:#fff;border-radius:12px;box-shadow:0 1px 5px rgba(31,48,72,.06)}.bro-square-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.bro-square-head h3{margin:0}.bro-square-status{font-size:12px;color:#607083;margin:6px 0 10px}.bro-square-payment{border:1px solid #dfe7e3;border-radius:10px;padding:11px;margin-top:9px;background:#fbfdfc}.bro-square-payment-top{display:flex;justify-content:space-between;gap:10px}.bro-square-customer{font-weight:800;color:#29465d;margin-bottom:2px}.bro-square-amount{font-size:17px;font-weight:800;color:#1f5f48}.bro-square-meta{font-size:11px;color:#687588;margin-top:4px;line-height:1.45}.bro-square-actions{display:grid;grid-template-columns:minmax(0,1fr) 160px auto;gap:7px;margin-top:9px}.bro-square-actions select{min-width:0}.bro-square-suggestion{font-size:11px;color:#315f4d;margin-top:6px;font-weight:700}.bro-square-linked{border-color:#d6e0e9;background:#f7f9fb}.bro-square-empty{color:#687588;font-size:12px;padding:8px 0}@media(max-width:760px){.bro-square-actions{grid-template-columns:1fr}.bro-square-payment-top{display:block}}`;
+    style.textContent=`#broSquarePaymentsCard{border-top:4px solid #236f52;margin:14px 0 8px;padding:14px;background:#fff;border-radius:12px;box-shadow:0 1px 5px rgba(31,48,72,.06)}.bro-square-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.bro-square-head h3{margin:0}.bro-square-status{font-size:12px;color:#607083;margin:6px 0 10px}.bro-square-payment{border:1px solid #dfe7e3;border-radius:10px;padding:11px;margin-top:9px;background:#fbfdfc}.bro-square-payment-top{display:flex;justify-content:space-between;gap:10px}.bro-square-customer{font-weight:800;color:#29465d;margin-bottom:2px}.bro-square-amount{font-size:17px;font-weight:800;color:#1f5f48}.bro-square-meta{font-size:11px;color:#687588;margin-top:4px;line-height:1.45}.bro-square-actions{display:grid;grid-template-columns:minmax(0,1fr) 160px auto;gap:7px;margin-top:9px}.bro-square-actions select{min-width:0}.bro-square-suggestion{font-size:11px;color:#315f4d;margin-top:6px;font-weight:700}.bro-square-empty{color:#687588;font-size:12px;padding:8px 0}@media(max-width:760px){.bro-square-actions{grid-template-columns:1fr}.bro-square-payment-top{display:block}}`;
     document.head.appendChild(style);
   }
 
@@ -36,7 +36,7 @@
   async function loadJobs(){
     const c=getClient();if(!c)return;
     const {data,error}=await c.from('jobs').select('id,job_number,lead_number,customer_name,property_address,stage,amount_due').is('deleted_at',null).is('archived_at',null).order('created_at',{ascending:false}).limit(500);
-    if(error)throw error;jobs=data||[];
+    if(error)throw error;jobChoices=data||[];
   }
 
   function scoreJob(p,j){
@@ -47,28 +47,40 @@
     return score;
   }
 
-  function suggestedJob(p){return jobs.map(j=>({j,score:scoreJob(p,j)})).sort((a,b)=>b.score-a.score)[0]||null;}
-  function jobOptions(selected=''){return '<option value="">Choose job…</option>'+jobs.map(j=>`<option value="${esc(j.id)}" ${j.id===selected?'selected':''}>${esc(j.job_number?'Job '+j.job_number:'Job')} — ${esc(j.customer_name||'Unnamed')}${j.amount_due!=null?' — '+esc(money(j.amount_due)):''}</option>`).join('');}
+  function suggestedJob(p){return jobChoices.map(j=>({j,score:scoreJob(p,j)})).sort((a,b)=>b.score-a.score)[0]||null;}
+  function jobOptions(selected=''){return '<option value="">Choose job…</option>'+jobChoices.map(j=>`<option value="${esc(j.id)}" ${j.id===selected?'selected':''}>${esc(j.job_number?'Job '+j.job_number:'Job')} — ${esc(j.customer_name||'Unnamed')}${j.amount_due!=null?' — '+esc(money(j.amount_due)):''}</option>`).join('');}
 
   async function loadPayments(){
     const c=getClient();if(!c)return;
     await loadJobs();
-    const {data,error}=await c.from('square_payments').select('square_payment_id,payment_date,amount,currency,status,source_type,receipt_number,receipt_url,card_brand,card_last4,note,reference_id,square_customer_name,square_customer_email,square_customer_phone,job_id,job_payment_id,linked_at').eq('status','COMPLETED').order('payment_date',{ascending:false}).order('square_created_at',{ascending:false}).limit(25);
+    const {data,error}=await c.from('square_payments').select('square_payment_id,payment_date,amount,currency,status,source_type,receipt_number,receipt_url,card_brand,card_last4,note,reference_id,square_customer_name,square_customer_email,square_customer_phone,job_id,job_payment_id,linked_at').eq('status','COMPLETED').is('job_payment_id',null).order('payment_date',{ascending:false}).order('square_created_at',{ascending:false}).limit(25);
     if(error)throw error;
-    const rows=data||[],unmatched=rows.filter(x=>!x.job_payment_id);
-    $('broSquareStatus').textContent=unmatched.length?`${unmatched.length} completed Square payment${unmatched.length===1?'':'s'} waiting for a BRO job.`:'Square is up to date. No completed payments are waiting to be assigned.';
-    $('broSquarePaymentsList').innerHTML=rows.length?rows.map(renderPayment).join(''):'<div class="bro-square-empty">No recent Square payments have been synced yet.</div>';
+    const rows=data||[];
+    $('broSquareStatus').textContent=rows.length?`${rows.length} completed Square payment${rows.length===1?'':'s'} waiting for a BRO job.`:'Ready for another Square sync. No completed payments are waiting to be assigned.';
+    $('broSquarePaymentsList').innerHTML=rows.length?rows.map(renderPayment).join(''):'<div class="bro-square-empty">Nothing waiting. Click Sync Square when you want to check for new payments.</div>';
   }
 
   function renderPayment(p){
-    const linked=!!p.job_payment_id;
     const card=[p.card_brand,p.card_last4?`•••• ${p.card_last4}`:''].filter(Boolean).join(' ');
     const extra=[card,p.receipt_number?`Receipt ${p.receipt_number}`:'',p.reference_id?`Ref ${p.reference_id}`:''].filter(Boolean).join(' • ');
     const contact=[p.square_customer_email,p.square_customer_phone].filter(Boolean).join(' • ');
     const receipt=p.receipt_url?`<a href="${esc(p.receipt_url)}" target="_blank" rel="noopener">Square receipt</a>`:'';
-    const suggestion=linked?null:suggestedJob(p),suggestedId=suggestion&&suggestion.score>=35?suggestion.j.id:'';
+    const suggestion=suggestedJob(p),suggestedId=suggestion&&suggestion.score>=35?suggestion.j.id:'';
     const suggestionText=suggestedId?`Possible match: ${suggestion.j.job_number?'Job '+suggestion.j.job_number+' — ':''}${suggestion.j.customer_name||'Unnamed'}. Please confirm before recording.`:'';
-    return `<div class="bro-square-payment ${linked?'bro-square-linked':''}" data-square-payment="${esc(p.square_payment_id)}"><div class="bro-square-payment-top"><div>${p.square_customer_name?`<div class="bro-square-customer">${esc(p.square_customer_name)}</div>`:''}<b>${esc(p.payment_date||'Date unavailable')}</b><div class="bro-square-meta">${esc(contact)}${contact&&extra?'<br>':''}${esc(extra||p.source_type||'Square payment')}${p.note?`<br>${esc(p.note)}`:''}${receipt?`<br>${receipt}`:''}</div></div><div class="bro-square-amount">${esc(money(p.amount))}</div></div>${linked?`<div class="bro-square-meta"><b>Recorded in BRO.</b> This Square payment will not be imported again.</div>`:`${suggestionText?`<div class="bro-square-suggestion">${esc(suggestionText)}</div>`:''}<div class="bro-square-actions"><select data-square-job>${jobOptions(suggestedId)}</select><select data-square-type><option>Deposit</option><option>Payment at Start</option><option>Progress Payment</option><option>Final Payment</option><option>Other</option></select><button class="btn small primary" type="button" data-link-square>Record in Job</button></div>`}</div>`;
+    return `<div class="bro-square-payment" data-square-payment="${esc(p.square_payment_id)}"><div class="bro-square-payment-top"><div>${p.square_customer_name?`<div class="bro-square-customer">${esc(p.square_customer_name)}</div>`:''}<b>${esc(p.payment_date||'Date unavailable')}</b><div class="bro-square-meta">${esc(contact)}${contact&&extra?'<br>':''}${esc(extra||p.source_type||'Square payment')}${p.note?`<br>${esc(p.note)}`:''}${receipt?`<br>${receipt}`:''}</div></div><div class="bro-square-amount">${esc(money(p.amount))}</div></div>${suggestionText?`<div class="bro-square-suggestion">${esc(suggestionText)}</div>`:''}<div class="bro-square-actions"><select data-square-job>${jobOptions(suggestedId)}</select><select data-square-type><option>Deposit</option><option>Payment at Start</option><option>Progress Payment</option><option>Final Payment</option><option>Other</option></select><button class="btn small primary" type="button" data-link-square>Record in Job</button></div></div>`;
+  }
+
+  async function refreshLinkedJob(jobId){
+    const c=getClient();if(!c||!jobId)return;
+    const {data,error}=await c.from('jobs').select('id,stage,amount_due,deposit_status').eq('id',jobId).single();
+    if(error||!data)return;
+    try{
+      if(typeof jobs!=='undefined'&&Array.isArray(jobs)){
+        const local=jobs.find(j=>j.id===jobId);
+        if(local)Object.assign(local,data);
+      }
+      if(typeof renderAll==='function')renderAll();
+    }catch(_){ }
   }
 
   async function linkPayment(box){
@@ -77,8 +89,9 @@
     const button=box.querySelector('[data-link-square]');if(button)button.disabled=true;
     try{
       const {error}=await c.rpc('bro_link_square_payment',{p_square_payment_id:paymentId,p_job_id:jobId,p_payment_type:type});if(error)throw error;
-      $('broSquareStatus').textContent='Square payment recorded in the selected job.';
+      await refreshLinkedJob(jobId);
       await loadPayments();
+      $('broSquareStatus').textContent=`${type} recorded in BRO. Ready for another Square sync.`;
     }catch(error){$('broSquareStatus').textContent='Could not record Square payment: '+(error.message||error);}
     finally{if(button)button.disabled=false;}
   }
@@ -92,7 +105,10 @@
       if(data?.error)throw new Error(data.error+(data.details?.length?': '+data.details.join('; '):''));
       localStorage.setItem('broSquareLastSyncAt',String(Date.now()));
       await loadPayments();
-      if(manual&&data)$('broSquareStatus').textContent=`Square sync finished. ${Number(data.completed||0)} completed payment${Number(data.completed||0)===1?'':'s'} found in the last 7 days. Assign any unmatched payment below.`;
+      if(manual&&data){
+        const waiting=document.querySelectorAll('[data-square-payment]').length;
+        $('broSquareStatus').textContent=waiting?`Square sync finished. ${waiting} payment${waiting===1?'':'s'} waiting to be assigned.`:`Square sync finished. Nothing new is waiting to be assigned.`;
+      }
     }catch(error){$('broSquareStatus').textContent='Square sync failed: '+(error.message||error);}
     finally{if(button)button.disabled=false;}
   }
