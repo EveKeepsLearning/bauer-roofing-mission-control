@@ -6,8 +6,8 @@ const maps=fs.readFileSync('google-address-autocomplete.js','utf8');
 const guide=fs.readFileSync('guided-next-step.js','utf8');
 const release=JSON.parse(fs.readFileSync('release.json','utf8'));
 
-assert.equal(release.version,'20260915-jobflow1');
-assert.match(config,/APP_VERSION: '20260915-jobflow1'/);
+assert.equal(release.version,'20260915-jobflow2');
+assert.match(config,/APP_VERSION: '20260915-jobflow2'/);
 assert.match(config,/google-address-autocomplete\.js\?v=\$\{VERSION\}/);
 assert.match(config,/guided-next-step\.js\?v=\$\{VERSION\}/);
 assert.match(maps,/importLibrary\('places'\)/);
@@ -24,6 +24,7 @@ assert.match(maps,/syncManual/);
 assert.match(guide,/Schedule Appointment/);
 assert.match(guide,/Contract Signed — Create Job/);
 assert.match(guide,/Record Deposit/);
-assert.match(guide,/Schedule Work/);
+assert.match(guide,/Schedule Repair/);
+assert.match(guide,/Order materials only when this repair actually needs them/);
 
 console.log('PASS: Places API New address autocomplete and guided next-step navigation are wired into BRO.');

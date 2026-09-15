@@ -108,6 +108,15 @@
     if(dialog.open)renderContactPanel();
   }
 
+  function updateLocalJob(id,patch){
+    try{
+      if(typeof jobs==='undefined')return;
+      const job=jobs.find(j=>String(j.id)===String(id));
+      if(job)Object.assign(job,patch);
+      if(typeof renderAll==='function')renderAll();
+    }catch(_){ }
+  }
+
   function wireSave(){
     if(saveWired)return true;
     const button=$('saveJobBtn'),expected=$('editExpectedStart'),stage=$('editStage');
@@ -123,9 +132,12 @@
       if(promote)stage.value='Scheduled';
       button.disabled=true;
       try{
-        const saved=await db.from('jobs').update({target_start_date:expectedDate,updated_at:new Date().toISOString()}).eq('id',id).select('id');
-        if(saved.error)throw saved.error;
         await original.call(this,event);
+        const enforcedPatch={target_start_date:expectedDate,updated_at:new Date().toISOString()};
+        if(promote)enforcedPatch.stage='Scheduled';
+        const saved=await db.from('jobs').update(enforcedPatch).eq('id',id).select('id,stage,target_start_date').single();
+        if(saved.error)throw saved.error;
+        updateLocalJob(id,saved.data||enforcedPatch);
         if(expectedDate){
           const text=promote?'Expected start saved. Job moved to Scheduled and added to Job Calendar.':'Expected start saved and added to Job Calendar.';
           if(typeof notice==='function')notice(text,'success');
