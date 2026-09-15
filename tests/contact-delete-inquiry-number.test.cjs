@@ -16,7 +16,10 @@ assert.match(contactDelete,/from\('jobs'\)\.update\(\{customer_id:null\}\)/);
 assert.match(contactDelete,/from\('leads'\)\.update\(\{contact_id:null\}\)/);
 assert.match(contactDelete,/from\('contacts'\)\.delete\(\)/);
 assert.match(contactDelete,/Type DELETE to continue/);
+assert.match(contactDelete,/older than 10 years/);
+assert.match(contactDelete,/Archived Inquiries/);
+assert.match(contactDelete,/MarketSharp history/);
 assert.match(numbers,/rpc\('bro_next_inquiry_number'\)/);
 assert.doesNotMatch(numbers,/Lead Sheet Highest Number/);
 
-console.log('PASS: contacts can be deliberately deleted and inquiry suggestions use the authoritative server-side next number.');
+console.log('PASS: contact deletion, inquiry numbering, and ten-year MarketSharp archive labels are wired into BRO.');
