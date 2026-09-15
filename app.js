@@ -3074,7 +3074,11 @@ $('newLeadBtn').onclick =
   () => openLeadDialog();
 
 $('saveLeadBtn').onclick =
-  saveLead;
+  () => saveLead(false);
+
+if ($('saveLeadGoogleBtn')) {
+  $('saveLeadGoogleBtn').onclick = () => saveLead(true);
+}
 
 $('prospectSource').onchange =
   () => toggleAngiFields('prospect');
@@ -3928,7 +3932,8 @@ async function saveAngiWorkingNotes(id, advance=false) {
   try {
     const notes = String($('angiWorkingNotes')?.value || '').trim();
     await updateRecord('prospects', id, {notes}, 'Angi notes edit undone.');
-    await loadAll();
+    const prospect = state.prospects.find(p => p.id === id);
+    if (prospect) Object.assign(prospect, {notes, updated_at:new Date().toISOString()});
     if (advance) {
       const next = activeAngiProspects().find(p => p.id !== id);
       selectedAngiProspectId = next?.id || id;
@@ -3940,14 +3945,29 @@ async function saveAngiWorkingNotes(id, advance=false) {
 
 async function recordAngiOutcome(id, outcome, nextFollowUp = null, notes = '', autoAdvance = true) {
   try {
-    const { error } = await db.rpc('angi_record_prospect_outcome', {
+    const { data, error } = await db.rpc('angi_record_prospect_outcome', {
       p_prospect_id:id,
       p_outcome:outcome,
       p_next_follow_up_at:nextFollowUp,
       p_notes:notes || null
     });
     if (error) throw error;
-    await loadAll();
+    let updatedProspect = data?.prospect || null;
+    if (!updatedProspect) {
+      const refreshed = await db.from('prospects').select('*').eq('id',id).single();
+      if (refreshed.error) throw refreshed.error;
+      updatedProspect = refreshed.data;
+    }
+    const prospectIndex = state.prospects.findIndex(p => p.id === id);
+    if (prospectIndex >= 0) state.prospects[prospectIndex] = updatedProspect;
+    else state.prospects.unshift(updatedProspect);
+
+    if (data?.communication_id) {
+      const communication = await db.from('sales_communications').select('*').eq('id',data.communication_id).single();
+      if (!communication.error && communication.data) {
+        state.sales_communications = [communication.data, ...state.sales_communications.filter(c => c.id !== communication.data.id)];
+      }
+    }
 
     if (autoAdvance) {
       // Preserve the Angi app behavior Eve likes: after recording a normal call
@@ -5066,8 +5086,12 @@ function openRelatedInquiry(contactKey){
 }
 function clearLeadForm() { ['leadEditId','leadProspectId','leadNumber','leadDate','leadSourceRef','leadFirstName','leadLastName','leadSpouse','leadStreet','leadCity','leadZip','leadPhone','leadPhone2','leadEmail','leadAppointmentDate','leadEstimateNote','leadNotes',...LEAD_INTAKE_IDS].forEach(id=>{if($(id))$(id).value='';}); pendingRelatedContactId=''; clearLeadAddressSuggestions(); leadAddressSessionToken=null; $('leadState').value='SC'; $('leadMailingState').value='SC'; $('leadTakenBy').value='Eve'; $('leadWorkCategory').value='Roofing'; $('leadStatus').value='Appointment Wanted'; $('leadDialogTitle').textContent='New Inquiry'; $('saveLeadBtn').textContent='Save Inquiry'; renderAngiOriginal(null); setupLeadProspectSelects(); }
 function openLeadEdit(id) { const l=state.leads.find(x=>x.id===id); if(!l)return; clearLeadForm(); $('leadEditId').value=l.id; $('leadProspectId').value=l.prospect_id||''; $('leadDialogTitle').textContent='Lead Details'; $('saveLeadBtn').textContent='Save Changes'; $('leadNumber').value=l.lead_number||''; $('leadDate').value=l.lead_date||''; $('leadSource').value=l.source||'Other'; toggleAngiFields('lead'); $('leadSourceAccount').value=l.source_account||''; $('leadSourceRef').value=l.source_reference||''; $('leadFirstName').value=l.first_name||''; $('leadLastName').value=l.last_name||''; $('leadSpouse').value=l.spouse_name||''; $('leadStreet').value=l.street_address||''; $('leadCity').value=l.city||''; $('leadState').value=l.state||'SC'; $('leadZip').value=l.zip||''; $('leadPhone').value=l.phone||''; $('leadPhone2').value=l.phone_secondary||''; $('leadEmail').value=l.email||''; $('leadWorkCategory').value=l.work_category||'Roofing'; $('leadAssignedTo').value=l.assigned_to||'Roy'; $('leadStatus').value=l.lead_status||'Appointment Wanted'; $('leadEstimateStatus').value=l.estimate_status||'Not Known'; $('leadEstimateNote').value=l.estimate_issue_note||''; $('leadNotes').value=l.notes||''; fillLeadIntake(l); const a=state.appointments.filter(a=>activeRow(a)&&a.lead_id===l.id).sort((a,b)=>String(b.appointment_at||'').localeCompare(String(a.appointment_at||'')))[0]; if(a){$('leadAppointmentDate').value=localAppointmentValue(a.appointment_at); $('leadMarketSharpStatus').value=a.marketsharp_status||'Not Needed Yet';} $('leadDialog').showModal(); }
-async function saveLead() {
+async function saveLead(addToGoogle=false) {
   try {
+    addToGoogle = addToGoogle === true;
+    if(addToGoogle && !$('leadAppointmentDate').value)return msg('Choose an appointment date and time before adding it to Google Calendar.','error');
+    let savedAppointment=null;
+    let googleError=null;
     const editId=$('leadEditId').value;
     if(editId){
       const first=$('leadFirstName').value.trim(), last=$('leadLastName').value.trim();
@@ -5075,8 +5099,23 @@ async function saveLead() {
       await updateRecord('leads',editId,patch,'Lead changes undone.');
       await ensureLeadRelationships({...state.leads.find(lead=>lead.id===editId),...patch,id:editId});
       const appointment=state.appointments.filter(a=>activeRow(a)&&a.lead_id===editId).sort((a,b)=>String(b.appointment_at||'').localeCompare(String(a.appointment_at||'')))[0];
-      if(appointment && $('leadAppointmentDate').value){ const at=new Date($('leadAppointmentDate').value).toISOString(); await updateRecord('appointments',appointment.id,{appointment_at:at,marketsharp_status:$('leadMarketSharpStatus').value,assigned_to:$('leadAssignedTo').value},'Appointment changes undone.'); }
-      $('leadDialog').close(); await loadAll(); msg('Lead updated.','success'); return;
+      if($('leadAppointmentDate').value){
+        const at=new Date($('leadAppointmentDate').value).toISOString();
+        if(appointment){
+          await updateRecord('appointments',appointment.id,{appointment_at:at,marketsharp_status:$('leadMarketSharpStatus').value,assigned_to:$('leadAssignedTo').value},'Appointment changes undone.');
+          const refreshed=await db.from('appointments').select('*').eq('id',appointment.id).single();if(refreshed.error)throw refreshed.error;savedAppointment=refreshed.data;
+        }else{
+          const created=await db.from('appointments').insert({lead_id:editId,appointment_at:at,appointment_type:'Measure & Presentation',appointment_status:'Scheduled',assigned_to:$('leadAssignedTo').value,marketsharp_status:$('leadMarketSharpStatus').value,google_calendar_status:'Not Added'}).select('*').single();if(created.error)throw created.error;savedAppointment=created.data;
+        }
+      }
+      if(addToGoogle){
+        if(!window.BROCalendarSync?.syncAppointment)googleError=new Error('Google Calendar sync is not ready. Refresh BRO and try again.');
+        else{const synced=await window.BROCalendarSync.syncAppointment(savedAppointment);if(!synced?.ok)googleError=synced?.error||new Error('Google Calendar update failed.');}
+      }
+      $('leadDialog').close(); await loadAll();
+      if(googleError)msg('Inquiry and appointment saved in BRO, but Google Calendar was not updated: '+(googleError.message||String(googleError)),'error');
+      else msg(addToGoogle?'Inquiry updated and appointment added to Google Calendar.':'Lead updated.','success');
+      return;
     }
     // Existing Phase 1 create/promote behavior follows for new leads.
     const first=$('leadFirstName').value.trim(), last=$('leadLastName').value.trim(), leadNumber=$('leadNumber').value.trim(), prospectId=$('leadProspectId').value||null;
@@ -5086,9 +5125,15 @@ async function saveLead() {
     const r=await db.from('leads').insert(row).select().single(); if(r.error)throw r.error; let appointmentId=null; let prospectBefore=null;
     await ensureLeadRelationships(r.data);
     if(prospectId){ prospectBefore=state.prospects.find(p=>p.id===prospectId)||null; const u=await db.from('prospects').update({converted_to_lead_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',prospectId).select().single(); if(u.error)throw u.error; }
-    if($('leadAppointmentDate').value){ const at=new Date($('leadAppointmentDate').value).toISOString(); const a=await db.from('appointments').insert({lead_id:r.data.id,prospect_id:prospectId,appointment_at:at,appointment_type:'Measure & Presentation',appointment_status:'Scheduled',assigned_to:$('leadAssignedTo').value,marketsharp_status:$('leadMarketSharpStatus').value,google_calendar_status:'Not Added'}).select().single(); if(a.error)throw a.error; appointmentId=a.data.id; }
+    if($('leadAppointmentDate').value){ const at=new Date($('leadAppointmentDate').value).toISOString(); const a=await db.from('appointments').insert({lead_id:r.data.id,prospect_id:prospectId,appointment_at:at,appointment_type:'Measure & Presentation',appointment_status:'Scheduled',assigned_to:$('leadAssignedTo').value,marketsharp_status:$('leadMarketSharpStatus').value,google_calendar_status:'Not Added'}).select().single(); if(a.error)throw a.error; appointmentId=a.data.id; savedAppointment=a.data; }
     if(prospectId){ await db.from('undo_history').insert({action_type:'promote_prospect',entity_type:'prospects',entity_id:prospectId,description:'Prospect promotion undone.',payload:{prospect_before:prospectBefore,lead_id:r.data.id,appointment_id:appointmentId}}); } else { await db.from('undo_history').insert({action_type:'create',entity_type:'leads',entity_id:r.data.id,description:'New lead removed.',payload:{}}); }
-    $('leadDialog').close(); await loadAll(); msg('Lead saved.','success');
+    if(addToGoogle){
+      if(!window.BROCalendarSync?.syncAppointment)googleError=new Error('Google Calendar sync is not ready. Refresh BRO and try again.');
+      else{const synced=await window.BROCalendarSync.syncAppointment(savedAppointment);if(!synced?.ok)googleError=synced?.error||new Error('Google Calendar update failed.');}
+    }
+    $('leadDialog').close(); await loadAll();
+    if(googleError)msg('Inquiry and appointment saved in BRO, but Google Calendar was not updated: '+(googleError.message||String(googleError)),'error');
+    else msg(addToGoogle?'Inquiry saved and appointment added to Google Calendar.':'Lead saved.','success');
   } catch(error){msg('Could not save lead: '+(error.message||String(error)),'error');}
 }
 

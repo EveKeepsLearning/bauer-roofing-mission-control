@@ -38,19 +38,29 @@
 
   function ensureAppointmentDialog(){
     if(document.getElementById('newInquiryAppointmentDialog'))return;
-    const d=document.createElement('dialog');d.id='newInquiryAppointmentDialog';d.innerHTML=`<form method="dialog" class="card modal-form"><h2>Set Appointment</h2><div id="appointmentDialogNotice" class="notice hidden"></div><div class="sub" id="appointmentInquiryLabel" style="margin-bottom:12px"></div><div class="form-grid"><div><label>Appointment date/time</label><input id="newAppointmentAt" type="datetime-local"></div><div><label>Assigned to</label><select id="newAppointmentAssigned"><option>Roy</option><option>Eve</option><option>Jonathan</option><option>Other</option></select></div><div><label>Appointment type</label><select id="newAppointmentType"><option value="Sales Appointment">Sales Appointment</option><option value="Inspection">Inspection</option><option value="Estimate / Follow-up">Estimate / Follow-up</option><option value="Other">Other</option></select></div><div class="wide"><label>Appointment notes</label><textarea id="newAppointmentNotes" rows="3"></textarea></div></div><div class="toolbar"><button class="btn primary" id="saveNewAppointmentBtn" type="button">Save Appointment</button><button class="btn" id="skipNewAppointmentBtn" type="button">No Appointment Yet</button></div></form>`;
+    const d=document.createElement('dialog');d.id='newInquiryAppointmentDialog';d.innerHTML=`<form method="dialog" class="card modal-form"><h2>Set Appointment</h2><div id="appointmentDialogNotice" class="notice hidden"></div><div class="sub" id="appointmentInquiryLabel" style="margin-bottom:12px"></div><div class="form-grid"><div><label>Appointment date/time</label><input id="newAppointmentAt" type="datetime-local"></div><div><label>Assigned to</label><select id="newAppointmentAssigned"><option>Roy</option><option>Eve</option><option>Jonathan</option><option>Other</option></select></div><div><label>Appointment type</label><select id="newAppointmentType"><option value="Sales Appointment">Sales Appointment</option><option value="Inspection">Inspection</option><option value="Estimate / Follow-up">Estimate / Follow-up</option><option value="Other">Other</option></select></div><div class="wide"><label>Appointment notes</label><textarea id="newAppointmentNotes" rows="3"></textarea></div></div><div class="toolbar"><button class="btn primary" id="saveNewAppointmentBtn" type="button">Save Appointment</button><button class="btn" id="saveNewAppointmentGoogleBtn" type="button">Save &amp; Add to Google Calendar</button><button class="btn" id="skipNewAppointmentBtn" type="button">No Appointment Yet</button></div></form>`;
     document.body.appendChild(d);
-    document.getElementById('saveNewAppointmentBtn').onclick=saveAppointment;
+    document.getElementById('saveNewAppointmentBtn').onclick=()=>saveAppointment(false);
+    document.getElementById('saveNewAppointmentGoogleBtn').onclick=()=>saveAppointment(true);
     document.getElementById('skipNewAppointmentBtn').onclick=finishWithoutAppointment;
   }
   function openAppointmentStep(data,c){
-    ensureAppointmentDialog();pendingInquiry={data,c};document.getElementById('appointmentInquiryLabel').textContent=`Inquiry #${data.lead_number||''} — ${c.name||''}`;document.getElementById('newAppointmentAt').value='';document.getElementById('newAppointmentAssigned').value=data.assigned_to||'Roy';document.getElementById('newAppointmentType').value='Sales Appointment';document.getElementById('newAppointmentNotes').value='';const n=document.getElementById('appointmentDialogNotice');n.className='notice hidden';n.textContent='';document.getElementById('newInquiryAppointmentDialog').showModal();
+    ensureAppointmentDialog();pendingInquiry={data,c,appointment:null};document.getElementById('appointmentInquiryLabel').textContent=`Inquiry #${data.lead_number||''} — ${c.name||''}`;document.getElementById('newAppointmentAt').value='';document.getElementById('newAppointmentAssigned').value=data.assigned_to||'Roy';document.getElementById('newAppointmentType').value='Sales Appointment';document.getElementById('newAppointmentNotes').value='';const n=document.getElementById('appointmentDialogNotice');n.className='notice hidden';n.textContent='';document.getElementById('newInquiryAppointmentDialog').showModal();
   }
   function finishWithoutAppointment(){if(!pendingInquiry)return;const {data,c}=pendingInquiry;document.getElementById('newInquiryAppointmentDialog').close();location.href=`inquiry.html?id=${encodeURIComponent(data.id)}&contact=${encodeURIComponent(c.id)}`;}
-  async function saveAppointment(){
+  async function saveAppointment(addToGoogle=false){
     if(!pendingInquiry)return;const at=document.getElementById('newAppointmentAt').value;if(!at){const n=document.getElementById('appointmentDialogNotice');n.className='notice error';n.textContent='Choose the appointment date and time.';return;}
-    const {data,c}=pendingInquiry;const row={lead_id:data.id,appointment_at:new Date(at).toISOString(),appointment_status:'Scheduled',assigned_to:document.getElementById('newAppointmentAssigned').value||'Roy',appointment_type:document.getElementById('newAppointmentType').value||'Sales Appointment',notes:document.getElementById('newAppointmentNotes').value.trim()||null,import_source:'Contact Inquiry'};
-    const res=await db.from('appointments').insert(row).select('*').single();if(res.error){const n=document.getElementById('appointmentDialogNotice');n.className='notice error';n.textContent=res.error.message;return;}
+    addToGoogle=addToGoogle===true;const normalButton=document.getElementById('saveNewAppointmentBtn'),googleButton=document.getElementById('saveNewAppointmentGoogleBtn'),notice=document.getElementById('appointmentDialogNotice');normalButton.disabled=true;googleButton.disabled=true;
+    const {data,c}=pendingInquiry;const row={lead_id:data.id,appointment_at:new Date(at).toISOString(),appointment_status:'Scheduled',assigned_to:document.getElementById('newAppointmentAssigned').value||'Roy',appointment_type:document.getElementById('newAppointmentType').value||'Sales Appointment',notes:document.getElementById('newAppointmentNotes').value.trim()||null,import_source:'Contact Inquiry',google_calendar_status:'Not Added'};
+    try{
+      if(!pendingInquiry.appointment){const res=await db.from('appointments').insert(row).select('*').single();if(res.error)throw res.error;pendingInquiry.appointment=res.data;}
+      if(addToGoogle){
+        notice.className='notice';notice.textContent='Adding appointment to Google Calendar…';
+        if(!window.BROCalendarSync?.syncAppointment)throw new Error('Google Calendar sync is not ready. Refresh BRO and try again.');
+        const synced=await window.BROCalendarSync.syncAppointment(pendingInquiry.appointment);if(!synced?.ok)throw synced?.error||new Error('Google Calendar update failed.');
+      }
+    }catch(error){notice.className='notice error';notice.textContent=pendingInquiry.appointment?`Appointment saved in BRO, but Google Calendar was not updated: ${error.message||String(error)}`:`Could not save appointment: ${error.message||String(error)}`;if(pendingInquiry.appointment)googleButton.textContent='Try Google Calendar Again';return;}
+    finally{normalButton.disabled=false;googleButton.disabled=false;}
     document.getElementById('newInquiryAppointmentDialog').close();location.href=`inquiry.html?id=${encodeURIComponent(data.id)}&contact=${encodeURIComponent(c.id)}`;
   }
 
@@ -71,4 +81,3 @@
   };
   ensureAppointmentDialog();
 })();
-
