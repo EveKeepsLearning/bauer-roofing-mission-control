@@ -2869,11 +2869,11 @@ async function init() {
     return;
   }
 
-  db =
-    supabase.createClient(
+  db = window.__broSupabaseClient ||
+    (window.__broSupabaseClient = supabase.createClient(
       cfg.SUPABASE_URL,
       cfg.SUPABASE_ANON_KEY
-    );
+    ));
 
   const {
     data: {
@@ -5499,7 +5499,18 @@ async function loadAll(options={}){
     fullDataLoaded=true;
     angiDataLoaded=true;
   }
-  const subtaskResult=await db.from('task_subtasks').select('*').order('sort_order',{ascending:true}).limit(2000);
+  // Make Today usable as soon as its core records arrive. Secondary history,
+  // subtasks, and recurring-task maintenance can fill in immediately after.
+  renderDashboard();
+  if(activeMainView==='phone')renderPhone();
+  if(activeMainView==='playbook')renderSops();
+  if(activeMainView==='suggestions')renderSuggestions();
+
+  const [subtaskResult,royResult,dadResult]=await Promise.all([
+    db.from('task_subtasks').select('*').order('sort_order',{ascending:true}).limit(2000),
+    db.rpc('get_recent_roy_updates',{p_days:7}),
+    db.rpc('get_recent_dad_production_updates',{p_days:14})
+  ]);
   if(user?.id!==loadingUserId)return;
   if(subtaskResult.error){state.task_subtasks=[];console.warn('Task subtasks are not available until the task-group SQL is installed:',subtaskResult.error.message);}else state.task_subtasks=subtaskResult.data||[];
   if(!subtaskResult.error){
@@ -5515,16 +5526,12 @@ async function loadAll(options={}){
       }
     }catch(error){console.warn('Could not roll repeating tasks forward:',error.message||error);}
   }
-  const royResult=await db.rpc('get_recent_roy_updates',{p_days:7});
-  if(user?.id!==loadingUserId)return;
   if(royResult.error){
     state.roy_updates=[];
     console.warn('Roy update history is not available yet:',royResult.error.message);
   }else{
     state.roy_updates=royResult.data||[];
   }
-  const dadResult=await db.rpc('get_recent_dad_production_updates',{p_days:14});
-  if(user?.id!==loadingUserId)return;
   if(dadResult.error){
     state.dad_updates=[];
     console.warn('Dad production history is not available yet:',dadResult.error.message);
