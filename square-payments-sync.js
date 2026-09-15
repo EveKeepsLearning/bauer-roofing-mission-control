@@ -18,16 +18,17 @@
   function installStyles(){
     if($('broSquarePaymentsStyles'))return;
     const style=document.createElement('style');style.id='broSquarePaymentsStyles';
-    style.textContent=`#broSquarePaymentsCard{border-top:4px solid #236f52}.bro-square-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.bro-square-head h3{margin:0}.bro-square-status{font-size:12px;color:#607083;margin:6px 0 10px}.bro-square-payment{border:1px solid #dfe7e3;border-radius:10px;padding:11px;margin-top:9px;background:#fbfdfc}.bro-square-payment-top{display:flex;justify-content:space-between;gap:10px}.bro-square-customer{font-weight:800;color:#29465d;margin-bottom:2px}.bro-square-amount{font-size:17px;font-weight:800;color:#1f5f48}.bro-square-meta{font-size:11px;color:#687588;margin-top:4px;line-height:1.45}.bro-square-actions{display:grid;grid-template-columns:minmax(0,1fr) 140px auto;gap:7px;margin-top:9px}.bro-square-actions select{min-width:0}.bro-square-suggestion{font-size:11px;color:#315f4d;margin-top:6px;font-weight:700}.bro-square-linked{border-color:#d6e0e9;background:#f7f9fb}.bro-square-empty{color:#687588;font-size:12px;padding:8px 0}@media(max-width:760px){.bro-square-actions{grid-template-columns:1fr}.bro-square-payment-top{display:block}}`;
+    style.textContent=`#broSquarePaymentsCard{border-top:4px solid #236f52;margin:14px 0 8px;padding:14px;background:#fff;border-radius:12px;box-shadow:0 1px 5px rgba(31,48,72,.06)}.bro-square-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.bro-square-head h3{margin:0}.bro-square-status{font-size:12px;color:#607083;margin:6px 0 10px}.bro-square-payment{border:1px solid #dfe7e3;border-radius:10px;padding:11px;margin-top:9px;background:#fbfdfc}.bro-square-payment-top{display:flex;justify-content:space-between;gap:10px}.bro-square-customer{font-weight:800;color:#29465d;margin-bottom:2px}.bro-square-amount{font-size:17px;font-weight:800;color:#1f5f48}.bro-square-meta{font-size:11px;color:#687588;margin-top:4px;line-height:1.45}.bro-square-actions{display:grid;grid-template-columns:minmax(0,1fr) 160px auto;gap:7px;margin-top:9px}.bro-square-actions select{min-width:0}.bro-square-suggestion{font-size:11px;color:#315f4d;margin-top:6px;font-weight:700}.bro-square-linked{border-color:#d6e0e9;background:#f7f9fb}.bro-square-empty{color:#687588;font-size:12px;padding:8px 0}@media(max-width:760px){.bro-square-actions{grid-template-columns:1fr}.bro-square-payment-top{display:block}}`;
     document.head.appendChild(style);
   }
 
   function ensureCard(){
     if($('broSquarePaymentsCard'))return $('broSquarePaymentsCard');
-    const sidebar=document.querySelector('#view-today .today-sidebar');if(!sidebar)return null;
-    const card=document.createElement('div');card.id='broSquarePaymentsCard';card.className='card section-card';
-    card.innerHTML=`<div class="bro-square-head"><div><h3>Square Payments</h3><div class="meta">Square does not need to know the BRO job. New payments wait here until you assign them.</div></div><button class="btn small primary" id="broSquareSyncBtn" type="button">Sync Square</button></div><div id="broSquareStatus" class="bro-square-status">Checking for recent payments…</div><div id="broSquarePaymentsList"></div>`;
-    const quick=sidebar.querySelector('.quick-notes-card');sidebar.insertBefore(card,quick||sidebar.firstChild);
+    const shell=document.querySelector('.jobs-shell');if(!shell)return null;
+    const card=document.createElement('section');card.id='broSquarePaymentsCard';card.className='card section-card';
+    card.innerHTML=`<div class="bro-square-head"><div><h3>Square Payments</h3><div class="meta">Recent Square payments wait here until you assign them to the correct BRO job.</div></div><button class="btn small primary" id="broSquareSyncBtn" type="button">Sync Square</button></div><div id="broSquareStatus" class="bro-square-status">Checking for recent payments…</div><div id="broSquarePaymentsList"></div>`;
+    const head=shell.querySelector('.jobs-head');
+    if(head)head.insertAdjacentElement('afterend',card);else shell.prepend(card);
     $('broSquareSyncBtn').onclick=()=>syncSquare(true);
     return card;
   }

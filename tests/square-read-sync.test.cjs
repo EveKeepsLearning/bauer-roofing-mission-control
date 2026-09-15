@@ -7,7 +7,11 @@ const square=fs.readFileSync('square-payments-sync.js','utf8');
 
 assert.equal(release.version,'20260915-square1');
 assert.match(config,/APP_VERSION: '20260915-square1'/);
-assert.match(config,/square-payments-sync\.js\?v=\$\{VERSION\}/);
+assert.match(config,/if\(path==='jobs\.html'\)[\s\S]*square-payments-sync\.js\?v=\$\{VERSION\}/);
+const todayBlock=config.match(/if\(path==='index\.html'\|\|path===''\)\{([\s\S]*?)\}if\(path==='jobs\.html'\)/)?.[1]||'';
+assert.doesNotMatch(todayBlock,/square-payments-sync\.js/);
+assert.match(square,/querySelector\('\.jobs-shell'\)/);
+assert.match(square,/Recent Square payments wait here/);
 assert.match(square,/functions\.invoke\('bro-square-sync'/);
 assert.match(square,/from\('square_payments'\)/);
 assert.match(square,/bro_link_square_payment/);
@@ -18,4 +22,4 @@ assert.match(square,/square_customer_name/);
 assert.match(square,/Payment at Start/);
 assert.doesNotMatch(square,/SQUARE_ACCESS_TOKEN/);
 
-console.log('PASS: BRO exposes a read-only Square sync with explicit job assignment and no client-side Square secret.');
+console.log('PASS: BRO exposes read-only Square sync at the top of Open Jobs with explicit job assignment and no client-side Square secret.');
