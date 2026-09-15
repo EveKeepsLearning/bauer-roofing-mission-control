@@ -33,7 +33,7 @@ assert.match(contacts,/pendingInquiry=\{data,c,appointment:null\}/,'The Contacts
 assert.match(contacts,/google_calendar_status:'Not Added'/,'New Contacts appointments must start with an explicit Google status');
 assert.match(contacts,/BROCalendarSync\.syncAppointment\(pendingInquiry\.appointment\)/,'Contacts appointments must use the shared Google sync client');
 
-assert.match(index,/app\.js\?v=20260915-weekly-comm1/,'The main app must use the current cache-busted build');
+assert.match(index,/app\.js\?v=20260915-perf1/,'The main app must use the current cache-busted build');
 assert.match(contactsHtml,/contacts-inquiry-type\.js\?v=20260915-angi-calendar1/,'Contacts must cache-bust the fix');
 
 console.log('PASS: Angi actions stay local and inquiry appointments can be added to Google Calendar.');

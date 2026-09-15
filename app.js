@@ -46,6 +46,11 @@ let reportContext = 'leads';
 let reportData = { leads:[], prospects:[], jobs:[], appointments:[] };
 let reportRows = [];
 let reportDetailRows = [];
+let activeMainView = 'today';
+let fullDataLoaded = false;
+let fullDataLoading = null;
+let angiDataLoaded = false;
+let angiDataLoading = null;
 
 const $ = id => document.getElementById(id);
 
@@ -591,7 +596,51 @@ function authMsg(text, type = '') {
 }
 
 
+function mainViewNeedsFullData(name) {
+  return ['leads','jobs'].includes(name);
+}
+
+function ensureFullDataForView(name) {
+  if (!mainViewNeedsFullData(name) || fullDataLoaded) return Promise.resolve();
+  if (fullDataLoading) return fullDataLoading;
+  msg('Loading this workspace…');
+  fullDataLoading = loadAll({full:true})
+    .catch(error => msg('Could not load this workspace: ' + (error.message || String(error)), 'error'))
+    .finally(() => { fullDataLoading = null; });
+  return fullDataLoading;
+}
+
+async function loadAngiData() {
+  const loadingUserId=user?.id;
+  if(!loadingUserId)return;
+  const results=await Promise.all([
+    db.from('prospects').select('*').is('deleted_at',null).order('created_at',{ascending:false}).limit(1000),
+    db.from('leads').select('*').not('prospect_id','is',null).is('deleted_at',null).order('created_at',{ascending:false}).limit(1000),
+    db.from('appointments').select('*').not('prospect_id','is',null).is('deleted_at',null).order('appointment_at',{ascending:true}).limit(1000),
+    db.from('sales_communications').select('*').order('occurred_at',{ascending:false}).limit(500)
+  ]);
+  if(user?.id!==loadingUserId)return;
+  const error=results.find(result=>result.error)?.error;
+  if(error)throw error;
+  [state.prospects,state.leads,state.appointments,state.sales_communications]=results.map(result=>result.data||[]);
+  angiDataLoaded=true;
+  try{await rollForwardMissedAngiCadence();}catch(error){console.warn('Could not roll forward missed Angi cadence windows:',error);}
+  setupLeadProspectSelects();
+}
+
+function ensureAngiDataForView() {
+  if(angiDataLoaded)return Promise.resolve();
+  if(angiDataLoading)return angiDataLoading;
+  msg('Loading Angi Queue…');
+  angiDataLoading=loadAngiData()
+    .then(()=>{if(activeMainView==='angi')renderAngiQueue();})
+    .catch(error=>msg('Could not load Angi Queue: '+(error.message||String(error)),'error'))
+    .finally(()=>{angiDataLoading=null;});
+  return angiDataLoading;
+}
+
 function setView(name) {
+  activeMainView = name;
   document
     .querySelectorAll('[id^="view-"]')
     .forEach(x =>
@@ -610,6 +659,20 @@ function setView(name) {
       )
     );
 
+  if (mainViewNeedsFullData(name) && !fullDataLoaded) {
+    ensureFullDataForView(name);
+    return;
+  }
+
+  if(name==='angi'&&!angiDataLoaded){
+    ensureAngiDataForView();
+    return;
+  }
+
+  if (name === 'phone') {
+    renderPhone();
+  }
+
   if (name === 'angi') {
     renderAngiQueue();
   }
@@ -624,6 +687,10 @@ function setView(name) {
 
   if (name === 'suggestions') {
     renderSuggestions();
+  }
+
+  if (name === 'jobs') {
+    renderJobs();
   }
 }
 
@@ -2841,6 +2908,10 @@ async function handleSession(
     for(const id of ['quickNoteText','quickNoteEditId'])if($(id))$(id).value='';
     for(const id of ['currentTask','todayTaskList','blockedList','quickNotesList','royUpdateList','dadUpdateList'])if($(id))$(id).innerHTML='';
     if($('todayGreeting'))$('todayGreeting').textContent='Your Today';
+    fullDataLoaded=false;
+    fullDataLoading=null;
+    angiDataLoaded=false;
+    angiDataLoading=null;
     window.dispatchEvent(new Event('bro-user-change'));
   }
   user =
@@ -2870,6 +2941,9 @@ async function handleSession(
   if (!user) {
     return;
   }
+
+  const initialParams=new URLSearchParams(window.location.search);
+  activeMainView=initialParams.has('lead')?'leads':initialParams.has('job')?'jobs':(initialParams.get('view')||'today');
 
   try {
 
@@ -3409,7 +3483,6 @@ function renderDashboard() {
   if($('attentionEmpty'))$('attentionEmpty').classList.toggle('hidden',attentionTotal>0);
   setSectionVisible('blockedSection',blocked.length>0);
   if($('weekJobsCard'))$('weekJobsCard').classList.toggle('compact-empty',jw.length===0);
-  renderPhone(); renderJobs();
 }
 
 function renderRoyUpdates(){
@@ -5400,23 +5473,31 @@ async function deleteJobCommunicationTask(jobId){
   msg(`Task deleted. The next weekly reminder is scheduled for ${new Date(nextDue+'T12:00:00').toLocaleDateString()}.`,'success');
 }
 
-async function loadAll(){
+async function loadAll(options={}){
   const loadingUserId=user?.id;
   if(!loadingUserId)return;
-  const calls=[['tasks','created_at',false],['jobs','updated_at',false],['communications','due_date',true],['phone_messages','created_at',false],['prospects','created_at',false],['leads','created_at',false],['appointments','appointment_at',true],['sales_communications','occurred_at',false],['job_communications','occurred_at',false],['lookup_options','sort_order',true],['sops','title',true],['suggestions','created_at',false],['quick_notes','updated_at',false]];
+  const params=new URLSearchParams(window.location.search);
+  const full=options.full===true||fullDataLoaded||mainViewNeedsFullData(activeMainView)||params.has('lead')||params.has('job');
+  const coreCalls=[['tasks','created_at',false],['jobs','updated_at',false],['communications','due_date',true],['phone_messages','created_at',false],['lookup_options','sort_order',true],['sops','title',true],['suggestions','created_at',false],['quick_notes','updated_at',false]];
+  const fullCalls=[['prospects','created_at',false],['leads','created_at',false],['appointments','appointment_at',true],['sales_communications','occurred_at',false],['job_communications','occurred_at',false]];
+  const calls=full?[...coreCalls,...fullCalls]:coreCalls;
   const results=await Promise.all(calls.map(([table,order,ascending])=>{let query=db.from(table).select('*').order(order,{ascending});if(['tasks','quick_notes'].includes(table))query=query.eq('owner_id',loadingUserId);return query.limit(['leads','jobs','prospects','appointments'].includes(table)?5000:500);}));
   if(user?.id!==loadingUserId)return;
   for(let i=0;i<results.length;i++){ if(results[i].error)throw results[i].error; let stateName=calls[i][0]==='phone_messages'?'phone':calls[i][0]; if(stateName==='lookup_options')stateName='lookups'; state[stateName]=results[i].data||[]; }
-  const relationshipResults=await Promise.all(['contacts','properties','contact_properties'].map(table=>db.from(table).select('*').limit(5000)));
-  if(user?.id!==loadingUserId)return;
-  contactArchitectureAvailable=relationshipResults.every(result=>!result.error);
-  if(contactArchitectureAvailable){
-    state.contacts=relationshipResults[0].data||[];
-    state.properties=relationshipResults[1].data||[];
-    state.contact_properties=relationshipResults[2].data||[];
-  }else{
-    state.contacts=[];state.properties=[];state.contact_properties=[];
-    console.info('Contacts relationship migration has not been installed yet; using inquiry-backed contact cards.');
+  if(full){
+    const relationshipResults=await Promise.all(['contacts','properties','contact_properties'].map(table=>db.from(table).select('*').limit(5000)));
+    if(user?.id!==loadingUserId)return;
+    contactArchitectureAvailable=relationshipResults.every(result=>!result.error);
+    if(contactArchitectureAvailable){
+      state.contacts=relationshipResults[0].data||[];
+      state.properties=relationshipResults[1].data||[];
+      state.contact_properties=relationshipResults[2].data||[];
+    }else{
+      state.contacts=[];state.properties=[];state.contact_properties=[];
+      console.info('Contacts relationship migration has not been installed yet; using inquiry-backed contact cards.');
+    }
+    fullDataLoaded=true;
+    angiDataLoaded=true;
   }
   const subtaskResult=await db.from('task_subtasks').select('*').order('sort_order',{ascending:true}).limit(2000);
   if(user?.id!==loadingUserId)return;
@@ -5450,9 +5531,18 @@ async function loadAll(){
   }else{
     state.dad_updates=dadResult.data||[];
   }
-  try { await rollForwardMissedAngiCadence(); } catch (error) { console.warn('Could not roll forward missed Angi cadence windows:', error); }
+  if(activeMainView==='angi'&&!full)await (angiDataLoading||loadAngiData());
+  else if(full){try { await rollForwardMissedAngiCadence(); } catch (error) { console.warn('Could not roll forward missed Angi cadence windows:', error); }}
   if(user?.id!==loadingUserId)return;
-  setupLeadProspectSelects(); renderDashboard(); renderProspectsLeads(); renderAngiQueue(); await applyUrlNavigation();
+  if(full)setupLeadProspectSelects();
+  renderDashboard();
+  if(activeMainView==='leads')renderProspectsLeads();
+  if(activeMainView==='angi')renderAngiQueue();
+  if(activeMainView==='phone')renderPhone();
+  if(activeMainView==='jobs')renderJobs();
+  if(activeMainView==='playbook')renderSops();
+  if(activeMainView==='suggestions')renderSuggestions();
+  await applyUrlNavigation();
 }
 
 // Additional click handling for editing and record safety actions.
