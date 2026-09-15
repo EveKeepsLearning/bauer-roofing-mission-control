@@ -20,6 +20,6 @@ assert.match(remove,/updateRecord\('jobs',jobId/,'Deleting the task must use the
 assert.match(remove,/The job will remain/,'The confirmation must make clear that the job is not deleted');
 
 assert.match(app,/data-delete-job-communication-task[^\n]+deleteJobCommunicationTask/,'The Delete Task control must be wired to its handler');
-assert.match(html,/app\.js\?v=20260915-weekly-comm1/,'The Today page must cache-bust the updated app');
+assert.match(html,/app\.js\?v=20260915-perf1/,'The Today page must use the current cache-busted app');
 
 console.log('PASS: weekly production communication cards open jobs and dismiss only the current reminder.');
