@@ -15,7 +15,7 @@ assert.match(square,/Record in Job/);
 assert.match(square,/Possible match:/);
 assert.match(square,/Please confirm before recording/);
 assert.match(square,/square_customer_name/);
-assert.match(square,/payment_method/i);
+assert.match(square,/Payment at Start/);
 assert.doesNotMatch(square,/SQUARE_ACCESS_TOKEN/);
 
 console.log('PASS: BRO exposes a read-only Square sync with explicit job assignment and no client-side Square secret.');
