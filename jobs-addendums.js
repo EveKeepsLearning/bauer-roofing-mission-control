@@ -63,6 +63,8 @@
 
   function installCard(){if(installed||typeof card!=='function')return;installed=true;const baseCard=card;card=function(j){const html=baseCard(j);const val=cardBalances.get(j.id);const label=val===null||val===undefined?'Not entered':fmt(val);const due=`<div class="job-meta"><b style="display:inline">Balance due:</b> ${esc(label)}</div>`;return html.replace('<span class="job-badge',due+'<span class="job-badge');};refreshCardBalances();}
 
+  window.BRORefreshCardBalances=refreshCardBalances;
+
   window.addEventListener('bro:payments-changed',async e=>{const jobId=e.detail?.jobId;if(jobId&&jobId===currentJobId)await loadFinancialDetails(jobId);await refreshCardBalances();});
   ensureUi();installCard();if(typeof openJob==='function'){const baseOpen=openJob;openJob=function(id){const r=baseOpen(id);setTimeout(()=>loadFinancialDetails(id),0);return r;};}setTimeout(installCard,200);setTimeout(refreshCardBalances,500);
 })();

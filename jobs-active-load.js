@@ -24,7 +24,8 @@
         filter.innerHTML='<option value="">All job types</option>'+types.map(t=>`<option>${esc(t)}</option>`).join('');
         if(types.includes(current))filter.value=current;
       }
-      renderAll();
+      if(typeof window.BRORefreshCardBalances==='function')await window.BRORefreshCardBalances();
+      else renderAll();
     }catch(err){
       console.error('Open Jobs active-load fix failed',err);
     }
