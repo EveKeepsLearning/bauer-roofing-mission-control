@@ -43,7 +43,23 @@
   async function deleteAddendum(id){const a=currentAddendums.find(x=>x.id===id);if(!a)return;if(!confirm(`Delete this ${fmt(a.amount)} change order record?`))return;const{error}=await db.from('job_contract_addendums').delete().eq('id',id);if(error){if(typeof notice==='function')notice(error.message,'error');return;}await loadFinancialDetails(currentJobId);if(typeof notice==='function')notice('Change Order removed.','success');await refreshCardBalances();}
 
   const cardBalances=new Map();
-  async function refreshCardBalances(){if(typeof jobs==='undefined'||!jobs.length)return;const ids=jobs.map(j=>j.id);const[pRes,aRes]=await Promise.all([db.from('job_payments').select('job_id,amount').in('job_id',ids),db.from('job_contract_addendums').select('job_id,amount,status').in('job_id',ids)]);if(pRes.error||aRes.error)return;const paid=new Map(),adds=new Map();(pRes.data||[]).forEach(p=>paid.set(p.job_id,Number(paid.get(p.job_id)||0)+Number(p.amount||0)));(aRes.data||[]).forEach(a=>{if(String(a.status||'').toLowerCase()==='approved')adds.set(a.job_id,Number(adds.get(a.job_id)||0)+Number(a.amount||0));});cardBalances.clear();jobs.forEach(j=>{if(j.contract_amount===null||j.contract_amount===undefined||j.contract_amount==='')cardBalances.set(j.id,null);else cardBalances.set(j.id,Math.max(0,Number(j.contract_amount||0)+Number(adds.get(j.id)||0)-Number(paid.get(j.id)||0)));});if(typeof renderAll==='function')renderAll();}
+  async function refreshCardBalances(){
+    if(typeof jobs==='undefined'||!jobs.length)return;
+    const ids=jobs.map(j=>j.id);
+    const[pRes,aRes]=await Promise.all([db.from('job_payments').select('job_id,amount').in('job_id',ids),db.from('job_contract_addendums').select('job_id,amount,status').in('job_id',ids)]);
+    if(pRes.error||aRes.error)return;
+    const paid=new Map(),adds=new Map();
+    (pRes.data||[]).forEach(p=>paid.set(p.job_id,Number(paid.get(p.job_id)||0)+Number(p.amount||0)));
+    (aRes.data||[]).forEach(a=>{if(String(a.status||'').toLowerCase()==='approved')adds.set(a.job_id,Number(adds.get(a.job_id)||0)+Number(a.amount||0));});
+    cardBalances.clear();
+    jobs.forEach(j=>{
+      const hasContract=j.contract_amount!==null&&j.contract_amount!==undefined&&j.contract_amount!=='';
+      const storedDue=j.amount_due===null||j.amount_due===undefined||j.amount_due===''?null:Number(j.amount_due);
+      const calculated=hasContract?Math.max(0,Number(j.contract_amount||0)+Number(adds.get(j.id)||0)-Number(paid.get(j.id)||0)):storedDue;
+      cardBalances.set(j.id,Number.isFinite(calculated)?Math.max(0,calculated):null);
+    });
+    if(typeof renderAll==='function')renderAll();
+  }
 
   function installCard(){if(installed||typeof card!=='function')return;installed=true;const baseCard=card;card=function(j){const html=baseCard(j);const val=cardBalances.get(j.id);const label=val===null||val===undefined?'Not entered':fmt(val);const due=`<div class="job-meta"><b style="display:inline">Balance due:</b> ${esc(label)}</div>`;return html.replace('<span class="job-badge',due+'<span class="job-badge');};refreshCardBalances();}
 

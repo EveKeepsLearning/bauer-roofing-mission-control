@@ -6,6 +6,7 @@
   const $=id=>document.getElementById(id);
   const digits=value=>String(value||'').replace(/\D/g,'');
   const iso=value=>String(value||'').slice(0,10);
+  const parseMoney=value=>{const raw=String(value??'').replace(/[$,\s]/g,'');if(raw==='')return null;const amount=Number(raw);return Number.isFinite(amount)?amount:null;};
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const stageRank=value=>{const s=String(value||'').trim().toLowerCase();if(s==='contract canceled')return 99;if(s==='final payment / closeout'||s==='closeout')return 8;if(s==='work complete')return 7;if(s==='in production'||s==='production')return 6;if(s==='material delivered')return 5;if(s==='scheduled')return 4;if(s==='ready to schedule')return 3;if(s==='material ordered')return 2;if(s==='deposit'||s==='contract / deposit'||s==='contract/deposit')return 1;return 0;};
 
@@ -48,7 +49,24 @@
       try{
         let stage=$('editStage').value;const expectedStart=$('editExpectedStart').value||null;
         if(expectedStart&&stageRank(stage)<stageRank('Scheduled'))stage='Scheduled';
-        const patch={customer_name:$('editCustomer').value.trim(),job_number:$('editJobNumber').value.trim()||null,lead_number:$('editInquiryNumber').value.trim()||null,job_type:$('editJobType').value.trim()||null,primary_category:$('editJobType').value.trim()||null,stage,contract_date:$('editContractDate').value||null,material_ordered_date:$('editMaterialOrdered').value||null,material_delivery_date:$('editMaterialDelivery').value||null,target_start_date:expectedStart,confirmed_start_date:$('editStart').value||null,expected_completion_date:$('editExpected').value||null,completion_date:$('editCompleted').value||null,installer:$('editInstaller').value.trim()||null,client_communication_due_date:$('editCommDue').value||null,property_address:$('editAddress').value.trim()||null,production_blocker:$('editBlocker').value.trim()||null,production_notes:$('editNotes').value.trim()||null,updated_at:new Date().toISOString()};
+        const estimateInput=$('editEstimatePrice'),contractInput=$('editContractAmount');
+        const estimatePrice=estimateInput?parseMoney(estimateInput.value):(existing?.estimate_price??null);
+        const contractAmount=contractInput?parseMoney(contractInput.value):(existing?.contract_amount??null);
+        if(estimateInput?.value.trim()&&estimatePrice===null)throw new Error('Enter a valid estimate amount.');
+        if(contractInput?.value.trim()&&contractAmount===null)throw new Error('Enter a valid contract amount.');
+        let amountDue=contractAmount===null?null:(existing?.amount_due??contractAmount);
+        if(contractAmount!==null){
+          const[paymentResult,addendumResult]=await Promise.all([
+            db.from('job_payments').select('amount').eq('job_id',id),
+            db.from('job_contract_addendums').select('amount,status').eq('job_id',id)
+          ]);
+          if(paymentResult.error)throw paymentResult.error;
+          if(addendumResult.error)throw addendumResult.error;
+          const paid=(paymentResult.data||[]).reduce((sum,row)=>sum+Number(row.amount||0),0);
+          const approvedAddendums=(addendumResult.data||[]).filter(row=>String(row.status||'').toLowerCase()==='approved').reduce((sum,row)=>sum+Number(row.amount||0),0);
+          amountDue=Math.max(0,contractAmount+approvedAddendums-paid);
+        }
+        const patch={customer_name:$('editCustomer').value.trim(),job_number:$('editJobNumber').value.trim()||null,lead_number:$('editInquiryNumber').value.trim()||null,job_type:$('editJobType').value.trim()||null,primary_category:$('editJobType').value.trim()||null,stage,contract_date:$('editContractDate').value||null,estimate_price:estimatePrice,contract_amount:contractAmount,amount_due:amountDue,material_ordered_date:$('editMaterialOrdered').value||null,material_delivery_date:$('editMaterialDelivery').value||null,target_start_date:expectedStart,confirmed_start_date:$('editStart').value||null,expected_completion_date:$('editExpected').value||null,completion_date:$('editCompleted').value||null,installer:$('editInstaller').value.trim()||null,client_communication_due_date:$('editCommDue').value||null,property_address:$('editAddress').value.trim()||null,production_blocker:$('editBlocker').value.trim()||null,production_notes:$('editNotes').value.trim()||null,updated_at:new Date().toISOString()};
         if(existing?.contract_canceled_at){patch.stage='Contract Canceled';patch.archived_at=existing.archived_at||new Date().toISOString();}else if(patch.completion_date){patch.stage='Work Complete';}
         const saved=await db.from('jobs').update(patch).eq('id',id).select('*').single();if(saved.error)throw saved.error;
         try{if(typeof jobs!=='undefined'){const i=jobs.findIndex(j=>String(j.id)===String(id));if(i>=0)jobs[i]=saved.data;}}catch(_){ }
