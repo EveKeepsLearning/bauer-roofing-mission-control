@@ -3,6 +3,7 @@
   const cfg=window.BAUER_CONFIG||{};
   const $=id=>document.getElementById(id);
   const STAGES=[['New Inquiry','p-new'],['Appointment','p-appointment'],['Estimate Needed','p-estneed'],['Estimate Sent','p-estsent'],['Follow Up','p-follow'],['Sold','p-sold'],['Rejected','p-rejected']];
+  const ACTIVE_PIPELINE_FILTER='sales_stage.is.null,sales_stage.not.in.(Sold,Rejected)';
   const ORDER=Object.fromEntries(STAGES.map((x,i)=>[x[0],i]));
   let db=null,leads=[],appts=[],jobs=[],dragId=null,lastDragEndedAt=0;
   function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -40,7 +41,7 @@
   async function loadData(){
     notice('Loading sales pipeline…');
     try{
-      const nextLeads=await paged(()=>db.from('leads').select('id,contact_id,lead_number,homeowner_name,street_address,city,state,zip,phone,email,source,product_interest,work_category,sales_stage,lead_status,estimate_status,estimate_sent_at,next_follow_up_at,deleted_at,archived_at,created_at,updated_at').is('deleted_at',null).is('archived_at',null).order('id'));
+      const nextLeads=await paged(()=>db.from('leads').select('id,contact_id,lead_number,homeowner_name,street_address,city,state,zip,phone,email,source,product_interest,work_category,sales_stage,lead_status,estimate_status,estimate_sent_at,next_follow_up_at,deleted_at,archived_at,created_at,updated_at').is('deleted_at',null).is('archived_at',null).or(ACTIVE_PIPELINE_FILTER).order('id'));
       const nextAppointments=[],nextJobs=[];
       for(let offset=0;offset<nextLeads.length;offset+=100){
         const ids=nextLeads.slice(offset,offset+100).map(l=>l.id);
