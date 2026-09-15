@@ -5,8 +5,8 @@ const config=fs.readFileSync('config.js','utf8');
 const release=JSON.parse(fs.readFileSync('release.json','utf8'));
 const square=fs.readFileSync('square-payments-sync.js','utf8');
 
-assert.equal(release.version,'20260915-square1');
-assert.match(config,/APP_VERSION: '20260915-square1'/);
+assert.equal(release.version,'20260915-materials1');
+assert.match(config,/APP_VERSION: '20260915-materials1'/);
 assert.match(config,/if\(path==='jobs\.html'\)[\s\S]*square-payments-sync\.js\?v=\$\{VERSION\}/);
 const todayBlock=config.match(/if\(path==='index\.html'\|\|path===''\)\{([\s\S]*?)\}if\(path==='jobs\.html'\)/)?.[1]||'';
 assert.doesNotMatch(todayBlock,/square-payments-sync\.js/);
