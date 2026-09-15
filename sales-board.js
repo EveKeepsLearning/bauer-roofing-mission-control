@@ -41,10 +41,16 @@
   async function loadData(){
     notice('Loading sales pipeline…');
     try{
-      const nextLeads=await paged(()=>db.from('leads').select('id,contact_id,lead_number,homeowner_name,street_address,city,state,zip,phone,email,source,product_interest,work_category,sales_stage,lead_status,estimate_status,estimate_sent_at,next_follow_up_at,deleted_at,archived_at,created_at,updated_at').is('deleted_at',null).is('archived_at',null).or(ACTIVE_PIPELINE_FILTER).order('id'));
+      const includeClosed=!!$('showClosed')?.checked;
+      const nextLeads=await paged(()=>{
+        let query=db.from('leads').select('id,contact_id,lead_number,homeowner_name,street_address,city,state,zip,phone,email,source,product_interest,work_category,sales_stage,lead_status,estimate_status,estimate_sent_at,next_follow_up_at,deleted_at,archived_at,created_at,updated_at').is('deleted_at',null).is('archived_at',null);
+        if(!includeClosed)query=query.or(ACTIVE_PIPELINE_FILTER);
+        return query.order('id');
+      });
+      const relatedLeads=nextLeads.filter(lead=>!['Sold','Rejected'].includes(String(lead.sales_stage||'').trim()));
       const nextAppointments=[],nextJobs=[];
-      for(let offset=0;offset<nextLeads.length;offset+=100){
-        const ids=nextLeads.slice(offset,offset+100).map(l=>l.id);
+      for(let offset=0;offset<relatedLeads.length;offset+=100){
+        const ids=relatedLeads.slice(offset,offset+100).map(l=>l.id);
         const [a,j]=await Promise.all([
           paged(()=>db.from('appointments').select('id,lead_id,appointment_at,appointment_status,appointment_result,appointment_result_note,deleted_at').in('lead_id',ids).is('deleted_at',null).order('appointment_at',{ascending:false}).order('id')),
           paged(()=>db.from('jobs').select('id,lead_id,job_number,stage,deleted_at,contract_canceled_at').in('lead_id',ids).is('deleted_at',null).order('id'))
@@ -61,6 +67,6 @@
     }catch(err){console.error('Sales Pipeline load failed',err);notice(`Sales Pipeline could not load: ${err?.message||String(err)}`,'error');}
   }
   async function start(){render();try{if(!window.supabase)throw new Error('Supabase library did not load.');if(!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY)throw new Error('Database configuration is missing.');db=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);const auth=await db.auth.getSession();if(auth.error)throw auth.error;if(!auth.data.session){location.href='index.html';return;}await loadData();}catch(err){console.error(err);render();notice(`Sales Pipeline could not start: ${err?.message||String(err)}`,'error');}}
-  function bind(){$('salesSearch')?.addEventListener('input',render);$('showClosed')?.addEventListener('change',render);$('refreshSales')?.addEventListener('click',loadData);$('saveOutcome')?.addEventListener('click',saveOutcome);document.addEventListener('click',e=>{if(!e.target.closest('#salesContext'))hideContext();const cardEl=e.target.closest('.sales-card');if(cardEl&&Date.now()-lastDragEndedAt>300){const l=leads.find(x=>x.id===cardEl.dataset.leadId);if(l)location.href=inquiryUrl(l);}});document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('.sales-card')){e.preventDefault();const l=leads.find(x=>x.id===e.target.dataset.leadId);if(l)location.href=inquiryUrl(l);}if(e.key==='Escape')hideContext();});document.addEventListener('contextmenu',e=>{const c=e.target.closest('.sales-card');if(!c)return;e.preventDefault();showContext(e,c.dataset.leadId);});const top=$('salesTopScroll'),board=$('salesBoard');if(top&&board){let syncing=false;top.addEventListener('scroll',()=>{if(syncing)return;syncing=true;board.scrollLeft=top.scrollLeft;syncing=false;});board.addEventListener('scroll',()=>{if(syncing)return;syncing=true;top.scrollLeft=board.scrollLeft;syncing=false;});}window.addEventListener('resize',syncTopScroll);start();}
+  function bind(){$('salesSearch')?.addEventListener('input',render);$('showClosed')?.addEventListener('change',loadData);$('refreshSales')?.addEventListener('click',loadData);$('saveOutcome')?.addEventListener('click',saveOutcome);document.addEventListener('click',e=>{if(!e.target.closest('#salesContext'))hideContext();const cardEl=e.target.closest('.sales-card');if(cardEl&&Date.now()-lastDragEndedAt>300){const l=leads.find(x=>x.id===cardEl.dataset.leadId);if(l)location.href=inquiryUrl(l);}});document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('.sales-card')){e.preventDefault();const l=leads.find(x=>x.id===e.target.dataset.leadId);if(l)location.href=inquiryUrl(l);}if(e.key==='Escape')hideContext();});document.addEventListener('contextmenu',e=>{const c=e.target.closest('.sales-card');if(!c)return;e.preventDefault();showContext(e,c.dataset.leadId);});const top=$('salesTopScroll'),board=$('salesBoard');if(top&&board){let syncing=false;top.addEventListener('scroll',()=>{if(syncing)return;syncing=true;board.scrollLeft=top.scrollLeft;syncing=false;});board.addEventListener('scroll',()=>{if(syncing)return;syncing=true;top.scrollLeft=board.scrollLeft;syncing=false;});}window.addEventListener('resize',syncTopScroll);start();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
 })();
