@@ -3,6 +3,7 @@
   if(window.__broContactDeleteLoaded)return;
   window.__broContactDeleteLoaded=true;
   const $=id=>document.getElementById(id);
+  let clickedWasArchive=false;
   function getDb(){try{return typeof db!=='undefined'&&db?db:window.BROUX?.client?.()||null;}catch{return window.BROUX?.client?.()||null;}}
   async function deleteCurrentContact(){
     const client=getDb(),id=$('editContactId')?.value;
@@ -31,7 +32,7 @@
     }catch(error){if(typeof notice==='function')notice('Could not delete contact: '+(error?.message||String(error)),'error');else alert(error?.message||String(error));}
     finally{if(button)button.disabled=false;}
   }
-  function install(){
+  function installDelete(){
     const dialog=$('editContactDialog');if(!dialog)return false;
     const toolbar=dialog.querySelector('.toolbar');if(!toolbar)return false;
     let button=$('deleteContactBtn');
@@ -39,6 +40,29 @@
     if(!button.dataset.broDeleteBound){button.dataset.broDeleteBound='1';button.addEventListener('click',deleteCurrentContact);}
     return true;
   }
-  function start(){if(install())return;const observer=new MutationObserver(()=>{if(install())observer.disconnect();});observer.observe(document.body,{childList:true,subtree:true});setTimeout(install,300);}
+  function rememberArchiveSelection(event){
+    const row=event.target.closest?.('.result');if(!row)return;
+    clickedWasArchive=!!row.querySelector('.archive-badge');
+  }
+  function relabelMarketSharpDetail(){
+    const detail=$('contactDetail');if(!detail||detail.classList.contains('hidden'))return;
+    const sub=detail.querySelector('.detail-head .sub');
+    if(!sub||!String(sub.textContent||'').toLowerCase().includes('marketsharp'))return;
+    if(clickedWasArchive){sub.textContent='Preserved MarketSharp history — older than 10 years';return;}
+    sub.textContent='MarketSharp history';
+    detail.querySelectorAll('.history-section h3').forEach(h=>{
+      if(h.textContent.trim()==='Archived Inquiries')h.textContent='Inquiries';
+      if(h.textContent.trim()==='Archived Jobs')h.textContent='Jobs';
+    });
+  }
+  function start(){
+    if(!installDelete()){
+      const bodyObserver=new MutationObserver(()=>{if(installDelete())bodyObserver.disconnect();});
+      bodyObserver.observe(document.body,{childList:true,subtree:true});
+      setTimeout(installDelete,300);
+    }
+    $('searchResults')?.addEventListener('click',rememberArchiveSelection,true);
+    const detail=$('contactDetail');if(detail)new MutationObserver(relabelMarketSharpDetail).observe(detail,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
+  }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 })();
