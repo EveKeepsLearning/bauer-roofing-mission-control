@@ -23,6 +23,8 @@
     return null;
   };
 
+  const isRepair = j => /repair/i.test([j?.job_type,j?.primary_category,j?.primary_job_type].filter(Boolean).join(' '));
+
   stageKey = function(j){
     const raw = String(j?.stage || '');
     const explicit = explicitStageKey(raw);
@@ -46,10 +48,10 @@
     if (j?.client_communication_needed) return j.client_communication_reason || 'Customer update needed';
     const s = stageKey(j);
     if (s === 'awarded') return 'Collect / confirm deposit';
-    if (s === 'contract') return 'Order materials';
+    if (s === 'contract') return isRepair(j) ? 'Schedule repair / order materials if needed' : 'Order materials';
     if (s === 'material') return j.confirmed_start_date ? 'Prepare for start' : 'Schedule installation';
     if (s === 'ready') return 'Set install date';
-    if (s === 'scheduled') return j.material_delivery_date ? 'Confirm delivery / crew' : 'Confirm materials and crew';
+    if (s === 'scheduled') return isRepair(j) ? 'Confirm repair start / crew' : (j.material_delivery_date ? 'Confirm delivery / crew' : 'Confirm materials and crew');
     if (s === 'delivered') return 'Start production';
     if (s === 'production') return 'Complete work / final inspection';
     if (s === 'complete') return 'Final invoice / closeout';
